@@ -1,5 +1,9 @@
 # COMMON — Ownership Network
 
+## Public interactive preview deployment
+
+This application can be published as an **ephemeral demo** using `PUBLIC_PREVIEW_ONLY=true`, `SECURE_COOKIES=true`, and `ENABLE_API_DOCS=false`. In preview mode registration and password login are disabled. Visitors can use temporary **Explore interactive demo as Joe** sessions; the site explicitly warns that saved examples may disappear on host restart. **Do not collect real investor data or market orders.** The default SQLite storage on a free Render web service is temporary. The preview is **not a real-user beta**. To launch a durable member product, add managed persistent PostgreSQL, verified accounts, moderation, and operational/security controls.
+
 A working, zero-brokerage prototype for a member-driven financial education and collective ownership platform.
 
 **What works:** account signup/login with hashed passwords; private demo users; HTTP-only session cookies and CSRF protection; community browsing and membership; creating public/private research groups and time-limited invitation links; creating research discussions; nonbinding community opinion polls; ticker watchlists; activity audit records; clickable stock, housing, business and shareholder-voting learning demos; a group growth simulator with persisted owner-controlled hypothetical assumptions and privacy protection; free-source SEC company research (optional, contact-identified integration); expanded beginner lessons including AUM and fund types. Desktop and mobile interfaces.
