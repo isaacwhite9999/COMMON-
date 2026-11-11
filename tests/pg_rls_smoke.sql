@@ -48,4 +48,20 @@ BEGIN
  THEN RAISE EXCEPTION 'Another users watchlist was exposed'; END IF;
 END$$;
 RESET ROLE;
-SELECT 'Passed: shared discussions, private isolation, invite policy, watchlist RLS' AS result;
+-- Test private invitation end-to-end: A issues, B accepts, B gains private visibility.
+SET ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub','11111111-1111-4111-8111-111111111111',false);
+SELECT set_config('common.invite_token', public.create_private_invite('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',1),false);
+RESET ROLE;
+SET ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub','22222222-2222-4222-8222-222222222222',false);
+SELECT public.accept_private_invite(current_setting('common.invite_token'));
+DO $
+BEGIN
+ IF (SELECT count(*) FROM public.communities WHERE slug='private-circle') != 1
+ THEN RAISE EXCEPTION 'Accepted invite did not reveal private group'; END IF;
+ IF (SELECT count(*) FROM public.discussions WHERE id='cccccccc-cccc-4ccc-8ccc-cccccccccccc') != 1
+ THEN RAISE EXCEPTION 'Accepted member cannot see private discussion'; END IF;
+END$;
+RESET ROLE;
+SELECT 'Passed: real PostgreSQL migration, public/private group isolation, private invitations, and watchlist RLS' AS result;
