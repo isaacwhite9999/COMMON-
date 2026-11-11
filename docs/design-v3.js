@@ -145,7 +145,7 @@ function post(p){
 function rail(){
  return '<div class="surface rail-box"><div class="space"><h3>Trending communities</h3><span class="pill blue">Explore</span></div>'+
  store.groups.slice(0,3).map(g=>'<div class="rail-link" data-group="'+esc(g.id)+'">'+avatar(g.accent)+( '<div style="flex:1"><strong>'+esc(g.name)+'</strong><p>'+g.members+' members</p></div>')+ic('right')+'</div>').join('')+
- '</div><div class="surface rail-box education-prompt"><span class="iconbig">'+ic('book',23)+'</span><h3>New to investing?</h3><p>We'll explain the words, the tradeoffs and the risks, without assuming you know Wall Street.</p><button class="button secondary small" data-tab="learn">Start with the basics '+ic('right',14)+'</button></div>'+
+ '</div><div class="surface rail-box education-prompt"><span class="iconbig">'+ic('book',23)+'</span><h3>New to investing?</h3><p>We explain the words, the tradeoffs and the risks, without assuming you know Wall Street.</p><button class="button secondary small" data-tab="learn">Start with the basics '+ic('right',14)+'</button></div>'+
  '<div class="surface rail-box"><h3>The COMMON rule</h3><p class="small muted">Your community can organize, research, and discuss ownership. No one is investing or depositing money through this preview.</p></div>';
 }
 function communities(){
