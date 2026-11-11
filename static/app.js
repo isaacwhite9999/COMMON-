@@ -2,7 +2,7 @@
 'use strict';
 const app = document.getElementById('app');
 const toastEl = document.getElementById('toast');
-const state = { user: null, view: 'overview', communities: [], proposals: [], watches: [], activity: [], selected: null, category: 'ALL', authMode: 'register', modal: null, lesson: null, fundLab: null, fundCommunity: null, featurePreview: 'brokerage', secSymbol: 'TSLA', secData: null, pendingInvite: new URLSearchParams(location.search).get('invite') };
+const state = { user: null, view: 'overview', communities: [], proposals: [], watches: [], activity: [], selected: null, category: 'ALL', authMode: 'register', publicPreview: false, modal: null, lesson: null, fundLab: null, fundCommunity: null, featurePreview: 'brokerage', secSymbol: 'TSLA', secData: null, pendingInvite: new URLSearchParams(location.search).get('invite') };
 const icons = {
   home: '<path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/>',
   users: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>',
@@ -63,6 +63,7 @@ async function applyPendingInvite(){
   catch(err){toast(err.message,true)}
 }
 async function initialize(){
+  try{const config=await api('/config');state.publicPreview=Boolean(config.public_preview_only);document.body.classList.toggle('preview-mode',state.publicPreview)}catch{}
   try{const info=await api('/me');state.user=info.user;await loadData();await applyPendingInvite();render()}
   catch{state.user=null;render()}
 }
@@ -73,6 +74,7 @@ function authScreen(){
   return `<div class="auth-shell"><section class="auth-hero">${logo()}<div><div class="overline" style="color:var(--lime)">The ownership network</div><h1>Your future.<br/><em>Our power.</em></h1><p class="subtitle">Wealth-building, shareholder education, and community ownership—made understandable for everyone.</p></div><p class="auth-micro">Own your decisions. Learn with others. Build a more accessible financial future.<br/>Education and community tools only. No trading or fund pooling in this prototype.</p></section>
   <section class="auth-side"><div class="auth-panel"><div class="overline">Start here</div><h2>The table has room for everyone.</h2><p>Join a community that believes understanding and ownership should never be reserved for the few.</p>
   <button class="btn btn-primary" data-action="demo">${icon('arrow')} Explore interactive demo as Joe</button>
+  ${state.publicPreview ? '<div class="notice"><strong>Public demo only.</strong> No signups, financial accounts or permanent data. Your demo activity may reset when the free server restarts.</div>' : ''}
   <div class="auth-sep">OR CREATE AN ACCOUNT</div>
   <div class="auth-tabs"><button class="${register?'selected':''}" data-action="auth-mode" data-mode="register">Sign up</button><button class="${!register?'selected':''}" data-action="auth-mode" data-mode="login">Sign in</button></div>
   <form id="auth-form">${register?`<div class="field"><label for="auth-name">Your name</label><input id="auth-name" name="name" placeholder="e.g. Joe Smith" minlength="2" maxlength="80" autocomplete="name" required /></div>`:''}
