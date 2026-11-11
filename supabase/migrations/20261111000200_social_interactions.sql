@@ -54,7 +54,7 @@ create policy "group members can write chat" on public.community_messages for in
 with check(author_id=(select auth.uid()) and public.is_member(community_id,(select auth.uid())));
 create policy "chat author or moderator can soft delete" on public.community_messages for update to authenticated
 using(author_id=(select auth.uid()) or public.is_moderator(community_id,(select auth.uid())))
-with check(author_id=(select auth.uid())));
+with check(author_id=(select auth.uid()));
 create policy "see own blocking list" on public.member_blocks for select to authenticated
 using(blocker_id=(select auth.uid()));
 create policy "block another user" on public.member_blocks for insert to authenticated
