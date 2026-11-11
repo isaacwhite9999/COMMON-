@@ -1,0 +1,51 @@
+name: Validate community database migrations
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/migrations/**'
+      - 'tests/pg_*.sql'
+      - '.github/workflows/test-community-db.yml'
+  pull_request:
+    paths:
+      - 'supabase/migrations/**'
+      - 'tests/pg_*.sql'
+      - '.github/workflows/test-community-db.yml'
+
+jobs:
+  database:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: common_ci
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d common_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 15
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: common_ci
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Prepare Supabase auth compatibility
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/pg_prepare.sql
+      - name: Apply migrations sequentially
+        run: |
+          for sql in supabase/migrations/*.sql; do
+            echo "Applying $sql"
+            psql -X -v ON_ERROR_STOP=1 -f "$sql"
+          done
+      - name: Verify identity, membership and private group isolation
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/pg_rls_smoke.sql
