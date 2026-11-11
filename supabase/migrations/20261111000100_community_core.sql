@@ -213,7 +213,7 @@ create or replace function public.new_user_profile()
 returns trigger language plpgsql security definer set search_path = '' as $$
 begin
  insert into public.profiles(id,handle,display_name)
- values(new.id,'member_'||substr(replace(new.id::text,'-',''),1,18),
+ values(new.id,'member_'||substr(replace(new.id::text,'-',''),1,17),
    coalesce(nullif(left(trim(new.raw_user_meta_data ->> 'display_name'),80),''),'COMMON member'));
  return new;
 end; $$;
