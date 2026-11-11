@@ -249,11 +249,11 @@ function modal(){
 function render(){if(ui.screen==='app'){root.innerHTML=chrome();}else root.innerHTML=authPage()+'<div id="toast" class="toast hidden" role="status" aria-live="polite"></div>';document.title=(ui.screen==='app'?ui.tab.charAt(0).toUpperCase()+ui.tab.slice(1)+' · ':'')+'COMMON — Your future, together'}
 function enterDemo(){ui.screen='app';ui.tab='home';ui.selectedGroup=null;save();render();}
 function openModal(type,data={}){ui.modal={type,...data};render()}
-function action(act,element){
+function action(act,element,ev){
  const id=element.dataset.id,val=element.dataset.val;
  if(act==='auth-view'){ui.screen=val;ui.authError='';render();return}
  if(act==='demo'){enterDemo();return}
- if(act==='modal-close'||act==='modal-backdrop'){if(act==='modal-backdrop'&&element!==event.target)return;ui.modal=null;render();return}
+ if(act==='modal-close'||act==='modal-backdrop'){if(act==='modal-backdrop'&&element!==ev.target)return;ui.modal=null;render();return}
  if(act==='compose'){openModal('compose',{group:val||defaultPostGroup()});return}
  if(act==='create-group'){openModal('create-group');return}
  if(act==='post-quick'){const input=document.getElementById('quick-post');const body=input?.value.trim()||'';if(body.length<15){toast('Add a little more detail to your idea.');return}store.posts.unshift({id:uid(),group:defaultPostGroup(),author:store.profile.name,avatar:store.profile.name,time:'Just now',title:body.slice(0,80),body,likes:0,liked:false,comments:[],sample:false});save();render();toast('Added to your browser preview');return}
@@ -281,7 +281,7 @@ document.addEventListener('click',e=>{
  const gf=e.target.closest('[data-group-filter]');if(gf){ui.groupFilter=gf.dataset.groupFilter;render();return}
  const gt=e.target.closest('[data-group-tab]');if(gt){ui.groupTab=gt.dataset.groupTab;render();return}
  const thread=e.target.closest('[data-thread]');if(thread){ui.thread=thread.dataset.thread;render();return}
- const btn=e.target.closest('[data-act]');if(btn)action(btn.dataset.act,btn);
+ const btn=e.target.closest('[data-act]');if(btn)action(btn.dataset.act,btn,e);
 });
 document.addEventListener('input',e=>{
  if(e.target.id==='fund-members'||e.target.id==='fund-amount'){
