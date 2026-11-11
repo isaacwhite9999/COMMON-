@@ -12,7 +12,7 @@ const el=(tag,attrs={},text)=>{const node=document.createElement(tag);for(const 
 const icons={
 home:'⌂',groups:'◎',chat:'◉',ownership:'◇',invest:'↗',money:'$',learn:'?',profile:'◍',add:'＋'
 };
-let client=null,session=null,profile=null,groups=[],memberships=[],posts=[],proposals=[],projects=[],watches=[],people={},likes=[],messages=[],dm=[],selectedGroup=null,selectedPeer=null,view='home',busy=false,search='',error='',info='',pendingInvite=null,memberPoll=[],pollSelection=null,lastAuthView='signin',pollTimer;
+let client=null,session=null,profile=null,groups=[],memberships=[],posts=[],proposals=[],projects=[],watches=[],people={},likes=[],messages=[],dm=[],selectedGroup=null,selectedPeer=null,view='home',busy=false,search='',error='',info='',pendingInvite=null,memberPoll=[],pollSelection=null,lastAuthView='signin',pollTimer,recovering=false;
 const state={comments:null,composer:false,groupCreate:false,projectCreate:false,proposalCreate:false,inviteToken:null,showMembers:false};
 const base=location.pathname.replace(/\/live\/?(?:index.html)?$/,'/live/');
 const groupById=id=>groups.find(x=>x.id===id);
@@ -133,15 +133,18 @@ function dialog(){
  else{title='Start a discussion poll';form='proposal';fields='<input type="hidden" name="community" value="'+e(selectedGroup)+'"><label><span class="form-label">Question</span><input class="field" name="title" required minlength="8" maxlength="160"></label><label><span class="form-label">What members should consider</span><textarea class="field" name="rationale" required minlength="30" maxlength="15000"></textarea></label>';}
  return '<div class="modal-backdrop"><div class="modal" role="dialog" aria-modal="true"><div class="space"><h2>'+title+'</h2><button class="icon-btn" data-act="close-dialog">✕</button></div><p class="muted small" style="margin:10px 0 16px">This is a live community contribution, not a request to collect investment money.</p><form data-form="'+form+'" class="stack">'+fields+'<button type="submit" class="button full">Publish</button></form></div></div>';
 }
-function render(){if(!client){setup();return}if(!session?.user){auth();return}root.innerHTML=baseNav()+dialog()}
+function recoveryPage(){
+ root.innerHTML='<main class="auth-shell"><section class="auth-left">'+logo()+'<div class="auth-feature"><h1>Secure your<br><em>account.</em></h1><p>Choose a new password to regain access to your community.</p></div></section><section class="auth-right"><div class="auth-form-wrap"><h2>Reset your password</h2>'+banner()+'<form id="password-change-form" class="stack"><label><span class="form-label">New password</span><input class="field" name="password" required type="password" minlength="8" autocomplete="new-password"></label><button type="submit" class="button full">Save new password</button></form></div></section></main>';
+}
+function render(){if(!client){setup();return}if(recovering){recoveryPage();return}if(!session?.user){auth();return}root.innerHTML=baseNav()+dialog()}
 async function init(){
  if(!config.supabaseUrl||!config.supabaseAnonKey||config.communityBackendReady!==true||!window.supabase?.createClient){setup();return}
  client=window.supabase.createClient(config.supabaseUrl,config.supabaseAnonKey,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
  const r=await saved();if(r.error)throw r.error;session=r.data.session;
- client.auth.onAuthStateChange((_evt,next)=>{session=next;if(next){setTimeout(()=>refresh().catch(handleError),0)}else{profile=null;render()}});
+ client.auth.onAuthStateChange((evt,next)=>{session=next;if(evt==='PASSWORD_RECOVERY'){recovering=true;render();return}if(next&&!recovering){setTimeout(()=>refresh().catch(handleError),0)}else if(!next){profile=null;recovering=false;render()}});
  if(session)await refresh();else render();
  const fragment=location.hash.match(/^#invite=([a-f0-9]{48})$/);if(fragment){pendingInvite=fragment[1];if(session)await acceptInvite(pendingInvite);}
- pollTimer=setInterval(()=>{if(session&&!busy)refresh(false).catch(console.error)},25000);
+ pollTimer=setInterval(()=>{if(session&&!busy)refresh(false).then(()=>{if(view==='groups'&&state.groupTab==='chat'&&!document.activeElement?.matches('input,textarea'))render()}).catch(console.error)},25000);
 }
 async function refresh(redraw=true){
  if(!session?.user)return;const uid=session.user.id;
@@ -208,8 +211,9 @@ document.addEventListener('click',async ev=>{
 });
 document.addEventListener('input',ev=>{if(ev.target.id==='group-search'){search=ev.target.value;const active=document.activeElement;const start=active.selectionStart;render();const input=document.getElementById('group-search');input?.focus();if(start!==null)input?.setSelectionRange(start,start)}});
 document.addEventListener('submit',async ev=>{
- const form=ev.target;if(form.id!=='auth-form'&&!form.dataset.form)return;ev.preventDefault();if(busy)return;busy=true;
+ const form=ev.target;if(form.id!=='auth-form'&&form.id!=='password-change-form'&&!form.dataset.form)return;ev.preventDefault();if(busy)return;busy=true;
  try{
+ if(form.id==='password-change-form'){const password=String(new FormData(form).get('password')||'');const result=await client.auth.updateUser({password});if(result.error)throw result.error;recovering=false;await refresh();status('Your password was updated.');return;}
  if(form.id==='auth-form'){
  const f=new FormData(form),email=String(f.get('email')||'').trim(),password=String(f.get('password')||'');
  if(lastAuthView==='reset'){await call(client.auth.resetPasswordForEmail(email,{redirectTo:location.origin+base}));status('Check your inbox for a recovery link.');return}
