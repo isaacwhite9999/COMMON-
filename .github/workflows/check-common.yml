@@ -45,7 +45,7 @@ jobs:
           for doc in [Path('docs/index.html'), Path('docs/live/index.html')]:
               p = Resources()
               p.feed(doc.read_text())
-              missing = [path for path in p.paths if not (doc.parent / path).is_file()]
+              missing = [path for path in p.paths if not (doc.parent / path).is_file() and not (doc.parent / path / 'index.html').is_file()]
               assert not missing, f'Missing assets in {doc}: {missing}'
               print('Assets verified:', doc, ', '.join(p.paths))
           PY
