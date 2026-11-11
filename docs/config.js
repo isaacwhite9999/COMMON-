@@ -1,7 +1,6 @@
-/* Public frontend configuration. Never put service-role secrets here.
-   Set communityBackendReady only after RLS and real-user workflows are tested. */
+/* COMMON production public client settings. Publishable key ONLY, no secrets. */
 window.COMMON_CONFIG = {
-  supabaseUrl: null,
-  supabaseAnonKey: null,
-  communityBackendReady: false
+  supabaseUrl: "https://addvunzxlrxtxqsaizuw.supabase.co",
+  supabaseAnonKey: "sb_publishable_LNiktz_b2mMD6CqQ2MlRdQ_5djKdyTG",
+  communityBackendReady: true
 };
