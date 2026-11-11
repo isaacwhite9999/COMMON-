@@ -1,0 +1,29 @@
+name: Smoke test real COMMON login
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - 'tests/smoke-live.mjs'
+      - '.github/workflows/smoke-live.yml'
+
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install pinned browser test runner
+        run: npm install --no-save playwright@1.58.2
+      - name: Install Chromium and OS dependencies
+        run: npx playwright install --with-deps chromium
+      - name: Start static server
+        run: |
+          python3 -m http.server 8765 --directory docs > /tmp/common-http.log 2>&1 &
+          sleep 2
+      - name: Run desktop and mobile smoke
+        run: node tests/smoke-live.mjs
