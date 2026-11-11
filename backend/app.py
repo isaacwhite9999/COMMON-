@@ -30,6 +30,11 @@ SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False
 SESSION_DAYS = 7
 COOKIE = "common_session"
 
+
+def public_preview_only() -> bool:
+    """Read at request time so test deployments can control the preview gate."""
+    return os.environ.get("PUBLIC_PREVIEW_ONLY", "false").strip().lower() == "true"
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(engine)
@@ -254,6 +259,13 @@ def research_company(symbol: str, auth: Auth):
     return company_snapshot(symbol.upper())
 
 
+@app.get("/api/config")
+def public_config():
+    return {"public_preview_only": public_preview_only(),
+            "data_persistence": "temporary" if public_preview_only() else "deployment-dependent",
+            "real_money_enabled": False}
+
+
 @app.get("/api/health")
 def health():
     return {"status": "ok", "mode": "research-and-community-only", "real_money_enabled": False}
@@ -274,6 +286,8 @@ def demo_login(response: Response, db: Db):
 
 @app.post("/api/auth/register", status_code=201)
 def register(payload: RegisterRequest, response: Response, db: Db):
+    if public_preview_only():
+        raise HTTPException(403, "Public preview only: use Explore interactive demo. Real accounts are not enabled.")
     email = str(payload.email).lower()
     if db.scalar(select(User.id).where(User.email == email)):
         raise HTTPException(409, "Email already registered")
@@ -290,6 +304,8 @@ def register(payload: RegisterRequest, response: Response, db: Db):
 
 @app.post("/api/auth/login")
 def login(payload: LoginRequest, response: Response, db: Db):
+    if public_preview_only():
+        raise HTTPException(403, "Public preview only: use Explore interactive demo. Real accounts are not enabled.")
     user = db.scalar(select(User).where(User.email == str(payload.email).lower()))
     if not user or not user.password_hash or not verify_password(payload.password, user.password_hash):
         raise HTTPException(401, "Invalid email or password")
