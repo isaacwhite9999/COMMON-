@@ -203,3 +203,17 @@ def test_sec_research_is_primary_source_not_market_price(client, monkeypatch):
         {'form':'10-Q','filed':'2026-05-01','end':'2026-03-31','val':200}
     ]}}}, ['NetIncomeLoss'])
     assert fact['value']==200 and fact['period_end']=='2026-03-31'
+
+
+def test_public_preview_disables_real_account_signup_but_allows_demo(client, monkeypatch):
+    monkeypatch.setenv('PUBLIC_PREVIEW_ONLY', 'true')
+    cfg = client.get('/api/config')
+    assert cfg.status_code == 200
+    assert cfg.json()['public_preview_only'] is True
+    assert cfg.json()['data_persistence'] == 'temporary'
+    body = {'name': 'Real Person', 'email': 'person@example.com', 'password': 'long-password-2026'}
+    assert client.post('/api/auth/register', json=body).status_code == 403
+    assert client.post('/api/auth/login', json={'email': 'person@example.com', 'password': 'long-password-2026'}).status_code == 403
+    h = demo(client)
+    assert client.get('/api/communities').status_code == 200
+    assert client.post('/api/watchlist', json={'symbol': 'TSLA'}, headers=h).status_code == 201
