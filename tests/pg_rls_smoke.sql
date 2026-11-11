@@ -56,12 +56,12 @@ RESET ROLE;
 SET ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub','22222222-2222-4222-8222-222222222222',false);
 SELECT public.accept_private_invite(current_setting('common.invite_token'));
-DO $
+DO $$
 BEGIN
  IF (SELECT count(*) FROM public.communities WHERE slug='private-circle') != 1
  THEN RAISE EXCEPTION 'Accepted invite did not reveal private group'; END IF;
  IF (SELECT count(*) FROM public.discussions WHERE id='cccccccc-cccc-4ccc-8ccc-cccccccccccc') != 1
  THEN RAISE EXCEPTION 'Accepted member cannot see private discussion'; END IF;
-END$;
+END$$;
 RESET ROLE;
 SELECT 'Passed: real PostgreSQL migration, public/private group isolation, private invitations, and watchlist RLS' AS result;
