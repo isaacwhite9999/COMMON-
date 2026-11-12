@@ -75,7 +75,23 @@ QuantPad's published pricing references approximately $169.99/month at launch an
 - Meme-coin promotion and deceptive financial solicitation remain prohibited by the existing anti-fraud policy. A financial *stock* researched socially is not automatically a cryptocurrency.
 - Before sharing strategies in communities, add disclosure workflow: instrument, time period, market-data source, known lookahead/survivorship issues, fees, funding, conflicts and limitations.
 
-## Build status / acceptance contract
-- **To implement and verify now:** private projects and notes, import and computation for real uploaded historical CSV, validation/risk summaries, save/reopen report metadata, instructor panel and source links.
-- **Not yet commercially operational:** licensed streaming/tick/level-2 data, options-chain analytics, universal futures rolls, third-party language compilers, hosted arbitrary-code sandboxes, autonomous agent, real prop-firm backtesting and broker execution. These require dedicated infrastructure, budget and regression test plans.
-- A feature is *not* "complete" until it has tests against correct data, permissions, responsive interactions, error states, provenance and recovery.
+## Verified build status — November 12, 2026
+
+**Now implemented in COMMON:**
+- The /lab/ path is an original responsive Research Studio, linked from COMMON's signed-in Research navigation.
+- Real per-user Supabase workspaces, hypotheses, private notes, immutable saved experiments and learning progress; research tables have RLS.
+- Locally imported historical CSV with date and price validation, duplicate rejection, gap warnings and SHA-256 source fingerprints. Raw uploaded data stays in the member's browser.
+- Two independent research strategies: long-only SMA crossover and buy-and-hold, with lagged signals, trading-cost assumptions and chronological holdout comparisons.
+- Client-side analytics: returns, risk-free-adjusted Sharpe, annual volatility, maximum drawdown, benchmark comparisons and seeded block-bootstrap scenarios.
+- Interactive teaching panels and eight persisted learning lessons, including beginner and advanced explanations.
+- Node quantitative regression tests passed. GitHub Actions desktop/mobile browser tests completed the project-create → CSV import → backtest → risk scenario → save → instructor workflow, with a test-only mocked account.
+- PostgreSQL research migration applied to the connected Supabase project; cross-user RLS tests passed in CI and hosted Supabase in an explicit rollback transaction.
+
+**Not implemented or not verified for production:**
+- Live customer OAuth/SMTP signup; there is no verified real customer onboarding yet.
+- Licensed options, futures, tick/L1/L2 and streaming market data and market-data contracts.
+- Nested walk-forward optimizers, full derivatives risk, prop-firm simulation and hosted arbitrary-code runners.
+- An actual LLM-backed assistant; the current instructor is deterministic context-based education, not an autonomous AI PhD agent.
+- Brokerage integrations, trade execution, verified performance and personalized investment advice.
+
+**Revenue readiness:** Do not market the client-computed experiments as audited or predictive returns. Before charging retail members, verify real signup, payment, privacy, data licensing and actual users, not just mocked browser tests.
