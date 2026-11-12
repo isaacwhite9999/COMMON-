@@ -7,7 +7,9 @@ try {
  const errors = [];
  desktop.on('pageerror', e => errors.push(e.message));
  await desktop.goto(base, {waitUntil:'domcontentloaded'});
- await desktop.waitForURL(/\/live\/?(?:index\.html)?(?:\?.*)?$/, {timeout:20000});
+ await desktop.waitForURL(/\/terminal\/?(?:index\.html)?(?:\?.*)?$/, {timeout:20000});
+ await desktop.getByRole('heading',{name:/Research begins with evidence/i}).waitFor({timeout:20000});
+ await desktop.goto(new URL('live/',base).href, {waitUntil:'domcontentloaded'});
  await desktop.getByRole('heading',{name:'Welcome back'}).waitFor({timeout:20000});
  assert.equal(await desktop.evaluate(() => window.COMMON_CONFIG?.communityBackendReady),true);
  assert.equal(await desktop.evaluate(() => typeof window.supabase?.createClient),'function');
@@ -26,10 +28,10 @@ try {
  const mobile = await browser.newPage({viewport:{width:390,height:844},isMobile:true,hasTouch:true});
  const mobileErrors=[];
  mobile.on('pageerror', e=>mobileErrors.push(e.message));
- await mobile.goto(base,{waitUntil:'domcontentloaded'});
+ await mobile.goto(new URL('live/',base).href,{waitUntil:'domcontentloaded'});
  await mobile.getByRole('heading',{name:'Welcome back'}).waitFor({timeout:20000});
  const width=await mobile.evaluate(()=>document.documentElement.scrollWidth);
  assert.ok(width <= 392,'Mobile horizontal overflow: '+width+'px');
  assert.deepEqual(mobileErrors,[],'Mobile browser errors: '+mobileErrors.join('; '));
- console.log('COMMON live frontend smoke passed: redirect, connected auth shell, login, signup, reset, mobile');
+ console.log('COMMON live frontend smoke passed: public terminal landing, connected auth shell, login, signup, reset, mobile');
 } finally { await browser.close(); }
