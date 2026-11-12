@@ -12,7 +12,7 @@ const el=(tag,attrs={},text)=>{const node=document.createElement(tag);for(const 
 const icons={
 home:'⌂',groups:'◎',chat:'◉',ownership:'◇',invest:'↗',money:'$',learn:'?',profile:'◍',add:'＋',safety:'⚑'
 };
-let client=null,session=null,profile=null,groups=[],memberships=[],posts=[],proposals=[],projects=[],watches=[],people={},likes=[],messages=[],dm=[],selectedGroup=null,selectedPeer=null,view='home',busy=false,search='',error='',info='',pendingInvite=null,memberPoll=[],pollSelection=null,lastAuthView='signin',pollTimer,recovering=false,moderationCases=[],moderationAppeals=[],accountRestrictions=[];
+let client=null,session=null,profile=null,groups=[],memberships=[],posts=[],proposals=[],projects=[],watches=[],people={},likes=[],messages=[],dm=[],selectedGroup=null,selectedPeer=null,view='home',busy=false,search='',error='',info='',pendingInvite=null,memberPoll=[],pollSelection=null,lastAuthView='signin',pollTimer,recovering=false,moderationCases=[],moderationAppeals=[],accountRestrictions=[],googleProviderStatus='checking';
 const state={comments:null,composer:false,groupCreate:false,projectCreate:false,proposalCreate:false,inviteToken:null,showMembers:false};
 const base=location.pathname.replace(/\/live\/?(?:index.html)?$/,'/live/');
 const groupById=id=>groups.find(x=>x.id===id);
@@ -20,7 +20,33 @@ const joined=id=>memberships.some(x=>x.community_id===id);
 const own=id=>memberships.some(x=>x.community_id===id&&['owner','moderator'].includes(x.role));
 const person=id=>people[id]?.display_name||'COMMON member';
 const saved=async () => client.auth.getSession();
-const handleError=err=>{console.error(err);error=err?.message||String(err);render();};
+const explainAuthError=err=>{
+ const message=err?.message||String(err), code=String(err?.code||'');
+ if(/email.address.not.authorized|email_address_not_authorized/i.test(message+' '+code))
+   return 'Public email confirmation is restricted until COMMON adds a mail provider. Supabase currently only sends verification to project-team addresses.';
+ if(/email.rate.limit|over_email_send_rate_limit/i.test(message+' '+code))
+   return 'Email provider sending limit reached. Public email signup requires a configured SMTP provider.';
+ if(/provider.*(not enabled|not supported|disabled)|unsupported.provider/i.test(message+' '+code))
+   return 'Google sign-in must first be enabled in Supabase Authentication → Providers.';
+ if(/redirect.*(not allowed|invalid)|redirect_uri_mismatch/i.test(message+' '+code))
+   return 'OAuth redirect not allowed. The COMMON live URL needs to be added to Supabase Authentication URL settings.';
+ return message;
+};
+const handleError=err=>{console.error(err);error=explainAuthError(err);render();};
+async function checkGoogleProvider(){
+ try{
+   const response=await fetch(config.supabaseUrl.replace(/\/$/,'')+'/auth/v1/settings',{
+     headers:{apikey:config.supabaseAnonKey,Accept:'application/json'},cache:'no-store'
+   });
+   if(!response.ok)throw Error('Could not read provider settings');
+   const settings=await response.json();
+   googleProviderStatus=settings?.external?.google===true?'enabled':'disabled';
+ }catch(err){
+   googleProviderStatus='unavailable';
+   console.warn('COMMON could not verify Google OAuth status:',err);
+ }
+ if(!session?.user)render();
+}
 const status=t=>{info=t;error='';render();};
 const requireClient=()=>{if(!client)throw new Error('Connect a hosted PostgreSQL + identity project first. This application never saves shared data in browser demo storage.')};
 const call=async (query)=>{const r=await query;if(r.error)throw r.error;return r.data;};
@@ -36,8 +62,10 @@ function setup(){
 function auth(){
  const signup=lastAuthView==='signup',reset=lastAuthView==='reset';
  root.innerHTML='<main class="auth-shell"><section class="auth-left">'+logo()+'<div class="auth-feature"><span class="pill" style="background:#ffffff20;color:#d8e8ff">THE OWNERSHIP NETWORK</span><h1 style="margin-top:22px">More than money.<br><em>Our future.</em></h1><p>Build real communities, share research, and organize with people who believe ownership should be accessible to everyone.</p></div></section><section class="auth-right"><div class="auth-form-wrap"><span class="pill blue">REAL MEMBER ACCOUNTS</span><h2>'+(reset?'Recover access':signup?'Create your account':'Welcome back')+'</h2><p class="intro">'+(reset?'Receive a secure password reset email.':signup?'Create a secure identity. Your groups and discussions persist across sessions.':'Sign in to your communities, discussions and research.')+'</p>'+banner()+
- '<button class="button soft full" style="margin:2px 0 15px;min-height:50px;border:1px solid #dfe5ed" type="button" data-act="google-auth" aria-label="Continue with Google"><span aria-hidden="true" style="font-weight:900;font-family:Arial,sans-serif;font-size:20px;color:#4285f4">G</span> Continue with Google</button>'+
- (config.googleOAuthReady===true?'':'<p class="hint" style="margin:-8px 0 15px">Google sign-in awaits provider activation. No Google account is linked yet.</p>')+
+ '<button class="button soft full" style="margin:2px 0 15px;min-height:50px;border:1px solid #dfe5ed" type="button" data-act="google-auth" aria-label="Continue with Google" '+(googleProviderStatus==='enabled'?'':'disabled aria-disabled="true"')+'><span aria-hidden="true" style="font-weight:900;font-family:Arial,sans-serif;font-size:20px;color:#4285f4">G</span> Continue with Google</button>'+
+ (googleProviderStatus==='enabled'?'':googleProviderStatus==='checking'
+   ?'<p class="hint" style="margin:-8px 0 15px">Checking Google sign-in…</p>'
+   :'<p class="hint" style="margin:-8px 0 15px">Google signup is not available yet. COMMON must activate the Google provider in Supabase before this button will work.</p>')+
  '<div class="row" style="align-items:center;gap:14px;color:#8792a4;font-size:11px;margin-bottom:16px"><span style="height:1px;background:#dce3ec;flex:1"></span>or use email<span style="height:1px;background:#dce3ec;flex:1"></span></div>'+
  '<form id="auth-form" class="stack">'+(signup?'<label><span class="form-label">Name</span><input class="field" name="name" required minlength="2" maxlength="80" autocomplete="name"></label>':'')+
  '<label><span class="form-label">Email</span><input class="field" name="email" required type="email" autocomplete="email"></label>'+
@@ -46,7 +74,7 @@ function auth(){
  '<div class="auth-switch">'+(signup?'Already a member? ':reset?'Remember your password? ':'New to COMMON? ')+
  '<button class="link-btn" data-act="auth-mode" data-mode="'+(signup||reset?'signin':'signup')+'">'+(signup||reset?'Sign in':'Create account')+'</button></div>'+
  (!signup&&!reset?'<button class="link-btn" data-act="auth-mode" data-mode="reset" style="margin-top:14px">Forgot your password?</button>':'')+
- '<div class="auth-notice">This is a community and research network. COMMON does not currently hold deposits, execute trades, or accept pooled investment contributions.</div></div></section></main>';
+ '<div class="auth-notice"><strong>Registration notice:</strong> Public email confirmation is not fully configured. Supabase's default mail sender restricts delivery to project-team addresses. COMMON does not hold deposits, execute trades, or accept pooled investment contributions.</div></div></section></main>';
 }
 function baseNav(){
  const items=navs.map(([id,label])=>'<button class="nav-item '+(view===id?'active':'')+'" data-tab="'+id+'"><span style="font-size:20px;width:21px">'+icons[id]+'</span><span>'+label+'</span></button>').join('');
@@ -200,6 +228,7 @@ function render(){if(!client){setup();return}if(recovering){recoveryPage();retur
 async function init(){
  if(!config.supabaseUrl||!config.supabaseAnonKey||config.communityBackendReady!==true||!window.supabase?.createClient){setup();return}
  client=window.supabase.createClient(config.supabaseUrl,config.supabaseAnonKey,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
+ checkGoogleProvider().catch(console.error);
  const r=await saved();if(r.error)throw r.error;session=r.data.session;
  client.auth.onAuthStateChange((evt,next)=>{session=next;if(evt==='PASSWORD_RECOVERY'){recovering=true;render();return}if(next&&!recovering){setTimeout(()=>refresh().catch(handleError),0)}else if(!next){profile=null;recovering=false;render()}});
  if(session)await refresh();else render();
@@ -238,7 +267,7 @@ async function acceptInvite(token){await call(client.rpc('accept_private_invite'
 async function dispatch(action,element){
  const id=element.dataset.id, choice=element.dataset.choice;
  if(action==='google-auth'){
-   if(config.googleOAuthReady!==true){
+   if(googleProviderStatus!=='enabled'){
      status('Google sign-in has not been activated in Supabase yet. An OAuth client ID and secret from Google Cloud are required.');
      return;
    }
