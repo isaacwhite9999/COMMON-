@@ -41,9 +41,13 @@ Reviewers must document why content is approved or rejected. An author may reque
 - Avoid impossible claims such as "AI guarantees no scams": keyword filters do not catch all impersonation, novel tokens or obfuscated URLs.
 - Rate limits, abuse throttles and member-blocking complement content checks; staff escalation, suspicious-domain intelligence, incident handling, user appeals and enforcement tooling must be verified before broad public launch.
 
-## Implementation status (not a production readiness declaration)
+## Implementation status (verified November 11, 2026)
 
-- Database migration \`20261111000600_meme_coin_fraud_review.sql\`: server-side quarantine/reviewer scope; migrate/test before declaring it active.
-- UI: account-visible held status, Trust & Safety tab, group moderator decision controls.
-- PostgreSQL CI: multi-user visibility, author self-review ban, private DM confidentiality and edit rechecks.
-- **Not yet implemented:** account suspension / appeal workflow, global Trust & Safety staff assignment, robust external link reputation, cross-platform fraud risk scoring, email/Google OAuth operational activation, live two-browser adversarial tests.
+- \`20261111000600_meme_coin_fraud_review.sql\`: **applied** to COMMON's production Supabase project. Triggers quarantine matching discussions, chats, direct messages, group listings, projects, proposals and source links, with reviewer scopes and private account risk signals.
+- \`20261111000700_fraud_appeals_account_enforcement.sql\`: **applied** to production. Supports independent appeals, documented Trust & Safety staff suspensions/restrictions and reinstatements. Keyword signals alone do **not** suspend anyone.
+- UI: safety dashboard, member-visible flags, independent reviewer queue, appeal submission and account-restriction notices **deployed**.
+- PostgreSQL CI **passed** multi-user privacy, flags, review independence, private-message quarantines, appeal and suspension/restore checks. The same suite **passed in the connected production database inside an explicit rollback transaction**; test users and posts were not retained.
+- Safety operations are **not yet staffed**: no real user account has been assigned the Trust & Safety staff role. Group moderators can review other members' group content; held direct messages require assigned Trust & Safety staff.
+- **Still outstanding before broad public launch:** verified real-user Google OAuth/email signup, cross-browser multi-user flows, staff assignment and case triage training, reliable notification escalation, malicious-domain/QR/wallet intelligence, review quality monitoring, user reporting for every content type, crisis escalation, deletion/retention and appeals service levels. Rule-based filters can be evaded by new wording or images.
+
+**Administrator onboarding:** assign a real, verified operator to \`public.trust_safety_staff\` only via privileged project administration after the operator has created a member profile and completed an access/security review. Never expose a Trust & Safety enrollment form or allow users to self-assign this role.
