@@ -1,0 +1,19 @@
+name: Verify US Treasury public research source
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'tests/fiscaldata-live.cjs'
+      - '.github/workflows/fiscaldata-live.yml'
+jobs:
+  source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify official data endpoint fields, types and reachability
+        run: node tests/fiscaldata-live.cjs
