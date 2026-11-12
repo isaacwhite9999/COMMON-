@@ -53,3 +53,5 @@ jobs:
         run: psql -X -v ON_ERROR_STOP=1 -f tests/pg_moderation_smoke.sql
       - name: Verify independent appeals and account sanctions
         run: psql -X -v ON_ERROR_STOP=1 -f tests/pg_enforcement_smoke.sql
+      - name: Verify private research workspaces and experiment RLS
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/pg_research_smoke.sql
