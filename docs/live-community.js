@@ -26,7 +26,7 @@ const requireClient=()=>{if(!client)throw new Error('Connect a hosted PostgreSQL
 const call=async (query)=>{const r=await query;if(r.error)throw r.error;return r.data;};
 const escAttr=s=>e(s);
 const button=(act,label,kind='secondary',more='')=>'<button class="button '+kind+' small" data-act="'+act+'" '+more+'>'+label+'</button>';
-const navs=[['home','Home'],['groups','Communities'],['chat','Messages'],['ownership','Ownership'],['invest','Research'],['money','Money'],['learn','Learn'],['safety','Safety'],['profile','Profile']];
+const navs=[['home','Home'],['groups','Communities'],['chat','Messages'],['ownership','Ownership'],['invest','Research'],['studio','Studio'],['money','Money'],['learn','Learn'],['safety','Safety'],['profile','Profile']];
 const titleCase=s=>s.charAt(0).toUpperCase()+s.slice(1);
 function logo(){return '<span class="logo"><span class="logo-mark">c</span><span class="logo-word">common<span style="color:#5883fb">.</span></span></span>'}
 function banner(){return (error?'<div class="preview-banner" role="alert" style="border-color:#edc1c1;color:#912b2b">'+e(error)+'</div>':'')+(info?'<div class="preview-banner" role="status">'+e(info)+'</div>':'')}
@@ -168,6 +168,7 @@ function ownership(){
 }
 function research(){
  return head('Investing research','Discuss publicly available company information. Keep trades with your own brokerage.')+
+ '<div class="surface" style="padding:25px;margin-bottom:15px;background:#f1f5ff;border:1px solid #d3dfff"><span class="pill blue">NEW — GUIDED QUANT RESEARCH</span><h3 style="margin-top:14px">COMMON Research Studio</h3><p class="muted small" style="margin:10px 0 16px">Create private workspaces, upload your own historical prices, test strategies with real calculations and learn quantitative finance as you work. No fake quotes, brokerage orders or unsupported performance claims.</p>'+button('open-studio','Open Research Studio','primary')+'</div>'+
  '<div class="surface" style="padding:25px"><h3>Your tracked symbols</h3><p class="muted small" style="margin:8px 0 16px">Watchlists are saved to your account. They are not brokerage positions or buy recommendations.</p>'+
  '<form class="row" data-form="watch"><input required name="symbol" class="field" maxlength="12" placeholder="Symbol e.g. TSLA" style="max-width:240px"><button class="button" type="submit">Track</button></form>'+
  watches.map(w=>'<div class="account-row"><strong>'+e(w.symbol)+'</strong>'+button('remove-watch','Remove','secondary','data-symbol="'+e(w.symbol)+'"')+'</div>').join('')+
@@ -259,6 +260,7 @@ async function dispatch(action,element){
  if(action==='create-group'){state.groupCreate=true;render();return}
  if(action==='compose'){state.composer=true;render();return}
  if(action==='close-dialog'){state.composer=state.groupCreate=state.projectCreate=state.proposalCreate=false;render();return}
+ if(action==='open-studio'){location.assign(new URL('../lab/',location.href).href);return}
  if(action==='learn'){view='learn';render();return}
  if(action==='comments'){state.comments=state.comments===id?null:id;render();return}
  if(action==='like'){const target=likes.find(x=>x.discussion_id===id&&x.user_id===session.user.id);if(target)await call(client.from('discussion_likes').delete().eq('discussion_id',id).eq('user_id',session.user.id));else await call(client.from('discussion_likes').insert({discussion_id:id,user_id:session.user.id}));await refresh();return}
@@ -325,7 +327,7 @@ async function submitted(form){
  if(type==='profile'){await call(client.from('profiles').update({display_name:String(f.get('name')).trim(),allow_direct_messages:f.get('allow_dm')==='on'}).eq('id',uid));await refresh();return}
 }
 document.addEventListener('click',async ev=>{
- const nav=ev.target.closest('[data-tab]');if(nav){view=nav.dataset.tab;selectedGroup=null;error=info='';render();return}
+ const nav=ev.target.closest('[data-tab]');if(nav){if(nav.dataset.tab==='studio'){location.assign(new URL('../lab/',location.href).href);return}view=nav.dataset.tab;selectedGroup=null;error=info='';render();return}
  const tab=ev.target.closest('[data-group-tab]');if(tab){state.groupTab=tab.dataset.groupTab;try{if(state.groupTab==='chat')await loadMessages();if(state.groupTab==='members')await loadGroupMembers();}catch(e){handleError(e);return}render();return}
  const btn=ev.target.closest('[data-act]');if(!btn)return;
  if(busy)return;busy=true;try{await dispatch(btn.dataset.act,btn)}catch(err){handleError(err)}finally{busy=false}
