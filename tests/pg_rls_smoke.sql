@@ -12,8 +12,8 @@ INSERT INTO public.communities(id,slug,name,description,category,visibility,crea
  VALUES('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','private-circle','Private Circle','Private discussions for our members','markets','private','11111111-1111-4111-8111-111111111111');
 INSERT INTO public.communities(id,slug,name,description,category,visibility,created_by)
  VALUES('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','public-circle','Public Circle','Public group that welcomes new members','education','public','11111111-1111-4111-8111-111111111111');
-INSERT INTO public.discussions(id,community_id,author_id,title,body)
- VALUES('cccccccc-cccc-4ccc-8ccc-cccccccccccc','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','11111111-1111-4111-8111-111111111111','Private shareholder discussion','Discuss a research paper and governance questions.');
+INSERT INTO public.discussions(id,community_id,author_id,title,body,created_at)
+ VALUES('cccccccc-cccc-4ccc-8ccc-cccccccccccc','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','11111111-1111-4111-8111-111111111111','Private shareholder discussion','Discuss a research paper and governance questions.',now()-interval '30 seconds');
 RESET ROLE;
 
 SET ROLE authenticated;
@@ -33,8 +33,8 @@ BEGIN
  IF NOT public.is_member('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','22222222-2222-4222-8222-222222222222')
  THEN RAISE EXCEPTION 'Public community join did not persist'; END IF;
 END$$;
-INSERT INTO public.discussions(id,community_id,author_id,title,body)
- VALUES('dddddddd-dddd-4ddd-8ddd-dddddddddddd','bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','22222222-2222-4222-8222-222222222222','A public research question','A real group member can share questions.');
+INSERT INTO public.discussions(id,community_id,author_id,title,body,created_at)
+ VALUES('dddddddd-dddd-4ddd-8ddd-dddddddddddd','bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','22222222-2222-4222-8222-222222222222','A public research question','A real group member can share questions.',now()-interval '30 seconds');
 INSERT INTO public.watchlist_items(user_id,symbol) VALUES
  ('22222222-2222-4222-8222-222222222222','TSLA');
 RESET ROLE;
