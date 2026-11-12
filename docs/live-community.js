@@ -10,9 +10,9 @@ const e=s=>String(s??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&g
 const short=(s,n=80)=>String(s??'').slice(0,n);
 const el=(tag,attrs={},text)=>{const node=document.createElement(tag);for(const [k,v] of Object.entries(attrs))node.setAttribute(k,v);if(text!==undefined)node.textContent=text;return node};
 const icons={
-home:'⌂',groups:'◎',chat:'◉',ownership:'◇',invest:'↗',money:'$',learn:'?',profile:'◍',add:'＋'
+home:'⌂',groups:'◎',chat:'◉',ownership:'◇',invest:'↗',money:'$',learn:'?',profile:'◍',add:'＋',safety:'⚑'
 };
-let client=null,session=null,profile=null,groups=[],memberships=[],posts=[],proposals=[],projects=[],watches=[],people={},likes=[],messages=[],dm=[],selectedGroup=null,selectedPeer=null,view='home',busy=false,search='',error='',info='',pendingInvite=null,memberPoll=[],pollSelection=null,lastAuthView='signin',pollTimer,recovering=false;
+let client=null,session=null,profile=null,groups=[],memberships=[],posts=[],proposals=[],projects=[],watches=[],people={},likes=[],messages=[],dm=[],selectedGroup=null,selectedPeer=null,view='home',busy=false,search='',error='',info='',pendingInvite=null,memberPoll=[],pollSelection=null,lastAuthView='signin',pollTimer,recovering=false,moderationCases=[];
 const state={comments:null,composer:false,groupCreate:false,projectCreate:false,proposalCreate:false,inviteToken:null,showMembers:false};
 const base=location.pathname.replace(/\/live\/?(?:index.html)?$/,'/live/');
 const groupById=id=>groups.find(x=>x.id===id);
@@ -26,7 +26,7 @@ const requireClient=()=>{if(!client)throw new Error('Connect a hosted PostgreSQL
 const call=async (query)=>{const r=await query;if(r.error)throw r.error;return r.data;};
 const escAttr=s=>e(s);
 const button=(act,label,kind='secondary',more='')=>'<button class="button '+kind+' small" data-act="'+act+'" '+more+'>'+label+'</button>';
-const navs=[['home','Home'],['groups','Communities'],['chat','Messages'],['ownership','Ownership'],['invest','Research'],['money','Money'],['learn','Learn'],['profile','Profile']];
+const navs=[['home','Home'],['groups','Communities'],['chat','Messages'],['ownership','Ownership'],['invest','Research'],['money','Money'],['learn','Learn'],['safety','Safety'],['profile','Profile']];
 const titleCase=s=>s.charAt(0).toUpperCase()+s.slice(1);
 function logo(){return '<span class="logo"><span class="logo-mark">c</span><span class="logo-word">common<span style="color:#5883fb">.</span></span></span>'}
 function banner(){return (error?'<div class="preview-banner" role="alert" style="border-color:#edc1c1;color:#912b2b">'+e(error)+'</div>':'')+(info?'<div class="preview-banner" role="status">'+e(info)+'</div>':'')}
@@ -52,14 +52,47 @@ function baseNav(){
  const items=navs.map(([id,label])=>'<button class="nav-item '+(view===id?'active':'')+'" data-tab="'+id+'"><span style="font-size:20px;width:21px">'+icons[id]+'</span><span>'+label+'</span></button>').join('');
  return '<div class="app-shell"><aside class="navbar">'+logo()+'<div class="nav-links" style="margin-top:25px">'+items+'</div><div class="nav-spacer"></div><div class="nav-person"><button data-tab="profile"><span class="avatar">'+e((profile?.display_name||'?').slice(0,2).toUpperCase())+'</span><span class="details"><strong>'+e(profile?.display_name||'Member')+'</strong><span class="tiny muted">@'+e(profile?.handle||'member')+'</span></span></button></div></aside><div class="main-wrap"><header class="mobile-head">'+logo()+'<button class="icon-btn" data-tab="profile" aria-label="Profile">◍</button></header><header class="topbar"><h2>'+e(titleCase(view))+'</h2><div style="margin-left:auto"><span class="pill lime">LIVE COMMUNITY</span></div></header><main class="content">'+banner()+page()+'</main></div><nav class="mobile-nav">'+navs.slice(0,5).map(([id,label])=>'<button data-tab="'+id+'" class="'+(view===id?'active':'')+'"><span style="font-size:21px">'+icons[id]+'</span><span>'+label+'</span></button>').join('')+'</nav></div>';
 }
-function page(){if(view==='home')return home();if(view==='groups')return selectedGroup?groupDetail():communities();if(view==='chat')return chat();if(view==='ownership')return ownership();if(view==='invest')return research();if(view==='money')return money();if(view==='learn')return learn();return profilePage();}
+function page(){if(view==='home')return home();if(view==='groups')return selectedGroup?groupDetail():communities();if(view==='chat')return chat();if(view==='ownership')return ownership();if(view==='invest')return research();if(view==='money')return money();if(view==='learn')return learn();if(view==='safety')return safety();return profilePage();}
 function head(t,s='',extra=''){return '<div class="space" style="align-items:flex-start;margin-bottom:24px"><div><h1 class="page-title">'+e(t)+'</h1><p class="subhead">'+e(s)+'</p></div>'+extra+'</div>'}
 function groupName(id){return groupById(id)?.name||'Community'}
+function contentFlag(kind,id){
+ return moderationCases.find(c=>c.item_type===kind&&c.item_id===id&&c.review_status!=='approved');
+}
+function safetyLabel(kind,id){
+ const flag=contentFlag(kind,id);
+ if(!flag)return '';
+ return '<span class="pill orange" style="margin-left:8px">'+(flag.review_status==='rejected'?'Removed after review':'Under safety review')+'</span>';
+}
+function safety(){
+ const mine=moderationCases.filter(c=>c.actor_id===session.user.id);
+ const pending=moderationCases.filter(c=>c.actor_id!==session.user.id&&c.review_status==='pending');
+ const riskDescription={
+  meme_coin_mention:'Meme-coin discussion',
+  rug_pull_or_manipulation:'Possible rug-pull or market-manipulation language',
+  suspicious_financial_solicitation:'Suspicious payment, wallet or return claim'
+ };
+ const item=c=>'<article class="surface" style="padding:19px;margin-bottom:10px">'+
+  '<div class="space"><strong>'+e(c.item_type.replaceAll('_',' '))+'</strong><span class="pill '+(c.review_status==='pending'?'orange':'blue')+'">'+e(c.review_status)+'</span></div>'+
+  '<p class="small muted" style="margin-top:10px">'+e(c.matched_rules.map(x=>riskDescription[x]||x).join(' · '))+'</p>'+
+  '<div class="preview-banner" style="white-space:pre-wrap;overflow-wrap:anywhere">'+e(c.content_preview)+'</div>'+
+  '<p class="tiny muted">'+new Date(c.created_at).toLocaleString()+' · '+e(c.community_id?groupName(c.community_id):'Private conversation')+'</p>'+
+  (c.actor_id!==session.user.id&&c.review_status==='pending'
+   ?'<div class="row" style="margin-top:14px">'+button('review-approve','Approve educational content','secondary','data-id="'+c.id+'"')+
+       button('review-reject','Reject & keep hidden','ghost','data-id="'+c.id+'"')+'</div>':'')+'</article>';
+ return head('Trust & safety','Scam signals are private. A flag is not a finding of fraud.')+
+ '<div class="surface" style="padding:24px;margin-bottom:15px"><h3>Zero tolerance for meme-coin promotion</h3>'+
+ '<p class="small muted" style="margin-top:10px;line-height:1.8">Mentions of meme coins, rug pulls, pump-and-dumps and suspicious wallet solicitations are automatically held for review. Educational warnings may be released after independent moderation. Investment pitches, misleading return guarantees and scam links are prohibited. Flags are not public accusations.</p>'+
+ '<p class="small muted" style="margin-top:8px">Never send cryptocurrency or investment funds to a stranger on COMMON. Use the Report control on any suspicious discussion.</p></div>'+
+ (pending.length?'<div class="section-bar"><h3>Moderator review queue ('+pending.length+')</h3></div>'+pending.map(item).join(''):'')+
+ '<div class="section-bar"><h3>Your content reviews ('+mine.length+')</h3></div>'+
+ (mine.length?mine.map(item).join(''):'<div class="empty">No safety flags on your account.</div>')+
+ '<p class="small muted" style="margin-top:16px">For a mistaken rejection, request a second review from a different moderator. No public account label is applied automatically.</p>';
+}
 function postCard(p){
  const mine=p.author_id===session.user.id,community=groupName(p.community_id);
  const postLikes=likes.filter(l=>l.discussion_id===p.id);
  const comments=posts.filter(x=>x.parent_id===p.id);
- return '<article class="surface post"><div class="post-head"><div class="avatar">'+e(person(p.author_id).slice(0,2).toUpperCase())+'</div><div class="post-meta"><strong>'+e(person(p.author_id))+'</strong><p>'+e(community)+' · '+new Date(p.created_at).toLocaleString()+'</p></div>'+((mine||own(p.community_id))?button('report-post','Report / moderation','ghost','data-id="'+p.id+'"'):'')+'</div>'+
+ return '<article class="surface post"><div class="post-head"><div class="avatar">'+e(person(p.author_id).slice(0,2).toUpperCase())+'</div><div class="post-meta"><strong>'+e(person(p.author_id))+'</strong><p>'+e(community)+' · '+new Date(p.created_at).toLocaleString()+'</p></div>'+safetyLabel('discussion',p.id)+((mine||own(p.community_id))?button('report-post','Report / moderation','ghost','data-id="'+p.id+'"'):'')+'</div>'+
  (p.title?'<h3 class="post-title">'+e(p.title)+'</h3>':'')+'<p class="post-body">'+e(p.body)+'</p>'+
  '<div class="post-actions"><button data-act="like" data-id="'+p.id+'" class="'+(postLikes.some(l=>l.user_id===session.user.id)?'liked':'')+'">♡ '+postLikes.length+'</button><button data-act="comments" data-id="'+p.id+'">◉ '+comments.length+' replies</button><button data-act="report-post" data-id="'+p.id+'">Report</button></div>'+
  (state.comments===p.id?'<div class="comment-list">'+comments.map(c=>'<div class="comment"><strong>'+e(person(c.author_id))+': </strong>'+e(c.body)+'</div>').join('')+'</div><form class="comment-form" data-form="comment" data-parent="'+p.id+'" data-group="'+p.community_id+'"><input class="field" name="body" maxlength="2000" required placeholder="Reply with something useful"><button type="submit" class="button small">Reply</button></form>':'')+'</article>';
@@ -90,7 +123,7 @@ function groupDetail(){
  return '<button class="link-btn" data-act="open-groups">‹ All communities</button><div class="group-hero"><span class="pill">'+e(g.category.toUpperCase())+'</span><h1>'+e(g.name)+'</h1><p>'+e(g.description)+'</p><div class="space" style="margin-top:20px"><span class="small">'+e(g.visibility)+' group</span>'+(joinedThis?'<span class="pill">You are a member</span>':'')+'</div></div><div style="margin-top:23px">'+page+'</div>';
 }
 function groupBody(g){
- if(state.groupTab==='chat')return '<div class="surface" style="padding:20px"><h3>Group messages</h3><p class="small muted" style="margin:8px 0 15px">Visible only to group members; refreshes automatically.</p><div id="chat-window" class="chat-messages" style="min-height:240px">'+messages.map(m=>'<div class="bubble '+(m.author_id===session.user.id?'mine':'')+'"><strong>'+e(person(m.author_id))+': </strong>'+e(m.body)+'</div>').join('')+'</div><form data-form="chat" class="chat-write"><input class="field" name="body" maxlength="2000" required placeholder="Message your group"><button class="button" type="submit">Send</button></form></div>';
+ if(state.groupTab==='chat')return '<div class="surface" style="padding:20px"><h3>Group messages</h3><p class="small muted" style="margin:8px 0 15px">Visible only to group members; refreshes automatically.</p><div id="chat-window" class="chat-messages" style="min-height:240px">'+messages.map(m=>'<div class="bubble '+(m.author_id===session.user.id?'mine':'')+'"><strong>'+e(person(m.author_id))+': </strong>'+e(m.body)+safetyLabel('community_message',m.id)+'</div>').join('')+'</div><form data-form="chat" class="chat-write"><input class="field" name="body" maxlength="2000" required placeholder="Message your group"><button class="button" type="submit">Send</button></form></div>';
  if(state.groupTab==='decisions')return '<div class="space" style="margin-bottom:10px"><h3>Nonbinding community polls</h3>'+button('new-proposal','Start poll','primary')+'</div>'+
  (proposals.filter(x=>x.community_id===g.id).map(p=>'<div class="surface" style="padding:21px;margin-bottom:10px"><span class="pill orange">MEMBER OPINION POLL — NOT A SHAREHOLDER PROXY VOTE</span><h3 style="margin:12px 0">'+e(p.title)+'</h3><p class="small muted">'+e(p.rationale)+'</p><div class="row" style="margin-top:16px;flex-wrap:wrap">'+['support','oppose','abstain'].map(k=>button('poll-vote',titleCase(k),'secondary','data-id="'+p.id+'" data-choice="'+k+'"')).join('')+'</div></div>').join('')||'<div class="empty">No community proposals yet.</div>');
  if(state.groupTab==='members')return '<div class="surface" style="padding:22px"><h3>Members</h3><p class="muted small">Verified accounts in this community.</p><div class="stack" style="margin-top:15px">'+memberPoll.map(m=>'<div class="space"><div>'+e(person(m.user_id))+' <span class="pill">'+e(m.role)+'</span></div>'+(m.user_id!==session.user.id?button('dm-user','Message','secondary','data-id="'+m.user_id+'"'):'')+'</div>').join('')+'</div></div>';
@@ -103,7 +136,7 @@ function chat(){
  return head('Messages','Private conversations are opt-in and limited to members sharing a group.')+
  '<div class="surface" style="padding:22px">'+(profile?.allow_direct_messages?'<p class="small muted">Direct messaging is enabled on your profile.</p>':'<p class="small muted">Direct messages are off by default. Enable them under Profile to receive messages from fellow group members.</p>')+
  '<div class="section-bar"><h3>Members accepting messages</h3></div><div class="stack">'+peers.map(p=>'<div class="space"><div>'+e(p.display_name)+' <span class="tiny muted">@'+e(p.handle)+'</span></div>'+button('dm-user','Open chat','secondary','data-id="'+p.id+'"')+'</div>').join('')+'</div>'+
- (selectedPeer?'<div class="section-bar"><h3>Conversation with '+e(person(selectedPeer))+'</h3></div><div class="chat-messages">'+dm.filter(m=>(m.sender_id===selectedPeer&&m.recipient_id===session.user.id)||(m.sender_id===session.user.id&&m.recipient_id===selectedPeer)).map(m=>'<div class="bubble '+(m.sender_id===session.user.id?'mine':'')+'">'+e(m.body)+'</div>').join('')+'</div><form data-form="dm" class="chat-write"><input class="field" name="body" required maxlength="2000" placeholder="Write a private message"><button class="button">Send</button></form>':'')+'</div>';
+ (selectedPeer?'<div class="section-bar"><h3>Conversation with '+e(person(selectedPeer))+'</h3></div><div class="chat-messages">'+dm.filter(m=>(m.sender_id===selectedPeer&&m.recipient_id===session.user.id)||(m.sender_id===session.user.id&&m.recipient_id===selectedPeer)).map(m=>'<div class="bubble '+(m.sender_id===session.user.id?'mine':'')+'">'+e(m.body)+safetyLabel('direct_message',m.id)+'</div>').join('')+'</div><form data-form="dm" class="chat-write"><input class="field" name="body" required maxlength="2000" placeholder="Write a private message"><button class="button">Send</button></form>':'')+'</div>';
 }
 function ownership(){
  return head('Research ownership','Build evidence-based cases for housing, local businesses and shareholder rights.',button('new-project','Propose a project','primary'))+
@@ -154,16 +187,17 @@ async function init(){
 }
 async function refresh(redraw=true){
  if(!session?.user)return;const uid=session.user.id;
- const [p,c,m,d,q,o,w]=await Promise.all([
+ const [p,c,m,d,q,o,w,mod]=await Promise.all([
  call(client.from('profiles').select('*').eq('id',uid).single()),
  call(client.from('communities').select('*').order('created_at',{ascending:false}).limit(200)),
  call(client.from('memberships').select('community_id,user_id,role').eq('user_id',uid)),
  call(client.from('discussions').select('*').is('deleted_at',null).order('created_at',{ascending:false}).limit(200)),
  call(client.from('proposals').select('*').order('created_at',{ascending:false}).limit(80)),
  call(client.from('ownership_projects').select('*').order('created_at',{ascending:false}).limit(100)),
- call(client.from('watchlist_items').select('*').eq('user_id',uid))
+ call(client.from('watchlist_items').select('*').eq('user_id',uid)),
+ call(client.from('moderation_cases').select('id,item_type,item_id,actor_id,community_id,review_status,matched_rules,content_preview,created_at').order('created_at',{ascending:false}).limit(200))
  ]);
- profile=p;groups=c;memberships=m;posts=d;proposals=q;projects=o;watches=w;
+ profile=p;groups=c;memberships=m;posts=d;proposals=q;projects=o;watches=w;moderationCases=mod;
  const ids=[...new Set([uid,...posts.map(x=>x.author_id),...projects.map(x=>x.author_id)])];
  if(ids.length){const all=await call(client.from('profiles').select('id,display_name,handle,allow_direct_messages').in('id',ids));people=Object.fromEntries(all.map(x=>[x.id,x]));}
  const postIds=posts.map(x=>x.id);
@@ -210,6 +244,21 @@ async function dispatch(action,element){
  if(action==='make-invite'){const token=await call(client.rpc('create_private_invite',{cid:selectedGroup,permitted_uses:10}));state.inviteToken=token;render();return}
  if(action==='copy-invite'){const input=document.getElementById('invite-url');if(input){await navigator.clipboard.writeText(input.value);status('Invitation link copied.')}return}
  if(action==='dm-user'){selectedPeer=id;view='chat';await loadDM();render();return}
+ if(action==='review-approve'||action==='review-reject'){
+   const c=moderationCases.find(x=>x.id===id);
+   if(!c||c.actor_id===session.user.id)throw new Error('Independent reviewer required');
+   const approved=action==='review-approve';
+   const rationale=window.prompt(approved
+     ?'Only approve factual educational warnings or non-soliciting discussions. Explain why this is safe:'
+     :'Why should this content remain hidden?');
+   if(!rationale?.trim())return;
+   if(rationale.length>1000)throw new Error('Review explanation is too long');
+   await call(client.rpc('review_moderation_case',
+     {case_id:id,decision:approved?'approved':'rejected',rationale:rationale.trim()}));
+   await refresh();
+   status(approved?'Educational content released after review.':'Content remains hidden. A review record was saved.');
+   return;
+ }
  if(action==='report-post'){const post=posts.find(x=>x.id===id);if(!post)return;const reason=window.prompt('Report this discussion: spam, harassment, fraud, misinformation, other');if(!reason)return;const normalized=reason.toLowerCase().trim();if(!['spam','harassment','fraud','misinformation','other'].includes(normalized)){status('Choose one of the listed reasons.');return}await call(client.from('content_reports').insert({reporter_id:session.user.id,community_id:post.community_id,discussion_id:post.id,reason:normalized}));status('Report submitted for moderator review.');return}
 }
 async function submitted(form){
