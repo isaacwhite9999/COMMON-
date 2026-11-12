@@ -7,6 +7,7 @@ on:
     paths:
       - 'docs/**'
       - 'tests/smoke-live.mjs'
+      - 'tests/lab-browser.test.mjs'
       - '.github/workflows/smoke-live.yml'
 
 jobs:
@@ -26,4 +27,6 @@ jobs:
           python3 -m http.server 8765 --directory docs > /tmp/common-http.log 2>&1 &
           sleep 2
       - name: Run desktop and mobile smoke
-        run: node tests/smoke-live.mjs
+        run: |
+          node tests/smoke-live.mjs
+          node tests/lab-browser.test.mjs
