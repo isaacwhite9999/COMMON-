@@ -74,7 +74,7 @@ function auth(){
  '<div class="auth-switch">'+(signup?'Already a member? ':reset?'Remember your password? ':'New to COMMON? ')+
  '<button class="link-btn" data-act="auth-mode" data-mode="'+(signup||reset?'signin':'signup')+'">'+(signup||reset?'Sign in':'Create account')+'</button></div>'+
  (!signup&&!reset?'<button class="link-btn" data-act="auth-mode" data-mode="reset" style="margin-top:14px">Forgot your password?</button>':'')+
- '<div class="auth-notice"><strong>Registration notice:</strong> Public email confirmation is not fully configured. Supabase's default mail sender restricts delivery to project-team addresses. COMMON does not hold deposits, execute trades, or accept pooled investment contributions.</div></div></section></main>';
+ '<div class="auth-notice"><strong>Registration notice:</strong> Public email confirmation is not fully configured. The default Supabase mail sender restricts delivery to project-team addresses. COMMON does not hold deposits, execute trades, or accept pooled investment contributions.</div></div></section></main>';
 }
 function baseNav(){
  const items=navs.map(([id,label])=>'<button class="nav-item '+(view===id?'active':'')+'" data-tab="'+id+'"><span style="font-size:20px;width:21px">'+icons[id]+'</span><span>'+label+'</span></button>').join('');
