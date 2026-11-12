@@ -49,3 +49,5 @@ jobs:
           done
       - name: Verify identity, membership and private group isolation
         run: psql -X -v ON_ERROR_STOP=1 -f tests/pg_rls_smoke.sql
+      - name: Verify meme-coin fraud quarantine and review permissions
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/pg_moderation_smoke.sql
