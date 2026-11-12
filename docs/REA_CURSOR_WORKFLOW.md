@@ -13,28 +13,28 @@ Updated: November 12, 2026
 1. Install Node.js compatible with the current REA release. See the repository README because Node minimum versions change. As of this review REA requires Node 22.x >=22.23.4, 24.x >=24.22.1 or 26.12.1+.
 2. From a trusted terminal location **outside** the COMMON repository, run:
 
-   \`\`\`bash
+   ```bash
    node --version
    npx rea-agents@latest setup
-   \`\`\`
+   ```
 
 3. Select **Cursor** as the target coding agent. Review the setup's proposed changes and explicitly approve; do not silently modify existing Cursor configuration or install Hopper/other native tools.
 4. Restart Cursor. In Cursor's MCP/Tools settings confirm the REA server is connected and inspect the available tools.
 5. For a one-off assessment of your own deployed COMMON website, open a dedicated Chrome instance with remote debugging enabled (use a disposable browser profile):
 
-   \`\`\`bash
+   ```bash
    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
      --remote-debugging-port=9222 \
      --user-data-dir="$HOME/.cache/common-rea-chrome" \
      "https://isaacwhite9999.github.io/COMMON-/live/"
-   \`\`\`
+   ```
 
 6. Do not expose debugging port 9222 to the internet or browse sensitive websites with that debug profile. REA can discover local browser targets and inspect accessible page structure.
 7. Ask Cursor:
    
    > Use REA to inspect our **own** COMMON app at the local Chrome DevTools endpoint http://127.0.0.1:9222. Inventory routes, accessibility, navigation, browser errors, resource loading and cross-feature consistency. Do not inspect private tokens, passwords, user messages or wallet information. Produce a source-grounded defect report and implement fixes against COMMON in an isolated branch. Run automated tests before committing.
 
-For installed REA commands, use \`rea --help\` and the official guides. Do not assume a CLI flag exists without checking. Browser inspection may require choosing a page target from \`rea list-browser-targets http://127.0.0.1:9222 --json\`.
+For installed REA commands, use `rea --help` and the official guides. Do not assume a CLI flag exists without checking. Browser inspection may require choosing a page target from `rea list-browser-targets http://127.0.0.1:9222 --json`.
 
 ## Clean-room product analysis
 
@@ -65,4 +65,4 @@ It is reasonable to read and cite **public marketing documentation** and standar
 
 ## Current runtime limitation
 
-The ChatGPT execution container where this integration was prepared had Node 22.16.0 (below the current REA minimum) and could not reach npm registry (\`EAI_AGAIN\`). Therefore **REA was not installed or executed in that container**; the workflow above is a documented local Cursor setup, not a completed REA assessment. Running it on the developer's Mac requires an appropriate Node version and network access.
+The ChatGPT execution container where this integration was prepared had Node 22.16.0 (below the current REA minimum) and could not reach npm registry (`EAI_AGAIN`). Therefore **REA was not installed or executed in that container**; the workflow above is a documented local Cursor setup, not a completed REA assessment. Running it on the developer's Mac requires an appropriate Node version and network access.
