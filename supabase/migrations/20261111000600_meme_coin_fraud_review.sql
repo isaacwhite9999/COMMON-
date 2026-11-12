@@ -280,3 +280,30 @@ BEGIN
 END; $$;
 REVOKE ALL ON FUNCTION public.review_moderation_case(uuid,text,text) FROM PUBLIC,anon,authenticated;
 GRANT EXECUTE ON FUNCTION public.review_moderation_case(uuid,text,text) TO authenticated;
+
+
+-- Fix an existing integrity trigger's reference to a discussion-only column.
+-- PL/pgSQL does not guarantee short-circuit evaluation for NEW.parent_id on other tables.
+CREATE OR REPLACE FUNCTION public.enforce_community_record_integrity()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
+DECLARE parent_group uuid; parent_parent uuid;
+BEGIN
+ IF TG_OP='UPDATE' THEN
+   IF NEW.id<>OLD.id OR NEW.community_id<>OLD.community_id
+     OR NEW.author_id<>OLD.author_id OR NEW.created_at<>OLD.created_at
+   THEN RAISE EXCEPTION 'Record identity and community cannot be changed'; END IF;
+ END IF;
+ IF TG_TABLE_NAME='discussions' THEN
+   IF TG_OP='UPDATE' AND NEW.parent_id IS DISTINCT FROM OLD.parent_id THEN
+      RAISE EXCEPTION 'Discussion parent cannot be reassigned'; END IF;
+   IF NEW.parent_id IS NOT NULL THEN
+     SELECT d.community_id,d.parent_id INTO parent_group,parent_parent
+       FROM public.discussions d WHERE d.id=NEW.parent_id;
+     IF parent_group IS NULL OR parent_group<>NEW.community_id OR parent_parent IS NOT NULL
+     THEN RAISE EXCEPTION 'Reply must belong to a top-level post in the same community'; END IF;
+   END IF;
+ END IF;
+ RETURN NEW;
+END; $$;
+REVOKE ALL ON FUNCTION public.enforce_community_record_integrity()
+  FROM PUBLIC,anon,authenticated;
