@@ -17,7 +17,8 @@ if(!config?.supabaseUrl||!config?.supabaseAnonKey)throw Error('Public Supabase c
   const summary={httpStatus:response.status,authServiceResponded:response.ok,
     googleProviderEnabled:json?.external?.google===true,
     externalProvidersDetected:json?.external?Object.entries(json.external).filter(([,v])=>v===true).map(([k])=>k):[],
-    emailProviderEnabled:json?.email===true,
+    emailProviderEnabled:json?.external?.email===true,
+    providerCheckedAt:new Date().toISOString(),
     signupDisabled:json?.disable_signup??null,
     expectedSupabaseCallback:new URL('/auth/v1/callback',config.supabaseUrl).href,
     appRedirect:'https://isaacwhite9999.github.io/COMMON-/live/'
