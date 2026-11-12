@@ -8,6 +8,7 @@ on:
       - 'docs/**'
       - 'tests/smoke-live.mjs'
       - 'tests/lab-browser.test.mjs'
+      - 'tests/terminal-browser.test.mjs'
       - '.github/workflows/smoke-live.yml'
 
 jobs:
@@ -30,3 +31,4 @@ jobs:
         run: |
           node tests/smoke-live.mjs
           node tests/lab-browser.test.mjs
+          node tests/terminal-browser.test.mjs
