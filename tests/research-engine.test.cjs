@@ -1,0 +1,38 @@
+'use strict';
+const assert=require('node:assert/strict');
+const lab=require('../docs/lab/research-engine.js');
+assert.equal(lab.VERSION,'common-lab-v1');
+const bars=[];
+for(let i=0;i<180;i++){
+ const date=new Date(Date.UTC(2024,0,1+i)).toISOString().slice(0,10);
+ const price=100*Math.exp(.0015*i+.02*Math.sin(i/8));
+ bars.push({date,close:price});
+}
+const csv='Date,Close,Volume\n'+bars.map(b=>b.date+','+b.close.toFixed(6)+',1000').join('\n');
+const parsed=lab.parseCsv(csv);
+assert.equal(parsed.bars.length,180);
+assert.equal(parsed.diagnostics.sortedInput,true);
+assert.equal(parsed.diagnostics.totalLargeGaps,0);
+assert.throws(()=>lab.parseCsv(csv+'\n'+bars[0].date+',5,10'),/Duplicate/);
+assert.throws(()=>lab.parseCsv(csv.replace('2024-01-01,100','2024-01-01,-10')),/Invalid numeric|positive/);
+assert.throws(()=>lab.parseCsv('Date,Close\n2025-01-01,2'),/at least 30/i);
+assert.throws(()=>lab.backtest(parsed.bars,{fast:45,slow:30}),/Fast SMA/);
+const r=lab.backtest(parsed.bars,{strategy:'sma_crossover',fast:10,slow:30,costBps:10,holdout:.3,riskFree:.03});
+assert.ok(r.test.observations>30);
+assert.ok(r.train.observations>50);
+assert.equal(r.test.curve.length,r.test.observations+1);
+assert.ok(Number.isFinite(r.test.maxDrawdown)&&r.test.maxDrawdown<=0);
+assert.ok(r.totalCostFraction>0);
+const noCost=lab.backtest(parsed.bars,{strategy:'sma_crossover',fast:10,slow:30,costBps:0,holdout:.3});
+assert.ok(noCost.whole.finalEquity>=r.whole.finalEquity-1e-12,'Costs must not improve equity');
+const changed=structuredClone(parsed.bars);
+changed[changed.length-1].close*=10;
+const r2=lab.backtest(changed,{strategy:'sma_crossover',fast:10,slow:30,costBps:10,holdout:.3,riskFree:.03});
+assert.deepEqual(r.positions,r2.positions,'Changing final price must not affect any decision (no lookahead)');
+assert.deepEqual(r.returns.slice(0,-1),r2.returns.slice(0,-1));
+const sim=lab.bootstrap(r.returns.slice(-r.test.observations),{paths:300,seed:42});
+const sim2=lab.bootstrap(r.returns.slice(-r.test.observations),{paths:300,seed:42});
+assert.deepEqual(sim,sim2,'Monte Carlo must be reproducible given seed');
+assert.ok(sim.percentiles.p05<=sim.percentiles.p50&&sim.percentiles.p50<=sim.percentiles.p95);
+assert.ok(sim.probabilityOfLoss>=0&&sim.probabilityOfLoss<=1);
+console.log('PASS: real CSV parsing, bad data rejection, no lookahead, cost accounting, holdout and seeded Monte Carlo');
