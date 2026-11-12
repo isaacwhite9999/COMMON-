@@ -8,6 +8,30 @@ Give ordinary people understandable tools to save, research, organize, invest in
 
 A member who works as a plumber, teacher, bartender or carpenter should be able to understand what they own, what they risk, what they pay, what they can vote on, and how to leave.
 
+## Retail investor power — the inspiration behind COMMON
+
+**Origin:** the 2021 GameStop/AMC retail-investor movement showed that everyday investors can discover a common thesis, share research in public, attract attention, question institutions and influence companies and markets. GameStop's high-profile short sellers, including Melvin Capital, suffered major losses. COMMON takes the organizing and information-sharing potential seriously, without making a short squeeze or punishing a named fund its business model.
+
+**Core thesis:** fragmented retail investors have less visibility, research infrastructure and institutional access than major financial players. COMMON helps members build durable, lawful collective influence: understand shares, assess institutions and company disclosures, organize shareholder questions and engagement, and participate in governance through valid channels.
+
+**Non-negotiable structure:** COMMON is a network for **many independent people in many independent communities**. One member can join many communities across companies, real estate, local businesses and startup funding, and keep one social identity, connections and messages throughout. Groups do not automatically share capital, create an investment fund, make members beneficial owners of a company, or act as a unified trading account.
+
+### Product experiences inspired by that movement
+
+- **Community thesis rooms:** sourced bull/bear analysis, primary filings, tracked changes, contrarian counterarguments, conflicts and author position disclosures (where appropriate).
+- **Company intelligence:** short interest where accurately sourced and dated, dilution and share structure, governance records, executive compensation and risk factors. **Never** fake live data, imply market forecasts are certain, or turn short-interest charts into coordinated trade prompts.
+- **Shareholder voice:** explain record dates, voting eligibility, corporate proxy materials, issuer communications, shareholder proposals and applicable thresholds. Internal polls only record sentiment, not legal proxy votes. Legal rules change and must be verified before implementation.
+- **Collective research campaigns:** publish a research question, recruit volunteer analysts, share public records, request answers from companies, and organize lawful shareholder engagement—not synchronized trading instructions.
+- **Member-owned project tracks:** housing/co-ops, acquisitions of local businesses, founder communities and startup discovery. Actual securities fundraising must use suitable exemptions and authorized intermediaries.
+- **Independent broker execution:** a member may voluntarily buy or hold a security through their own platform; COMMON does not execute, mirror or pressure trades. Future embedded investing requires broker and compliance partners.
+- **Trust and safety:** block promotion of crypto meme coins and investment scams without treating **meme stocks** (publicly traded stocks discussed on social media) as forbidden cryptocurrencies. Legitimate GameStop/AMC analysis must remain possible. Flag suspected manipulation, concealed promotional conflicts, deceptive returns and off-platform funding requests with human review.
+
+### Bright-line safety boundaries
+
+The product must never provide coordinated "buy at this time to force shorts to cover" missions, artificial price targets designed to move markets, pump-and-dump rooms, leaderboards rewarding synchronous stock purchases, or promises of profitable squeezes. Fraudulent market manipulation can happen in publicly traded securities as well as cryptocurrencies. Disciplined, evidence-based retail activism is the enduring value.
+
+**Research references:** [SEC staff report on GameStop and equity/option markets in early 2021](https://www.sec.gov/newsroom/press-releases/2021-212); [SEC enforcement concerning social-media stock manipulation](https://www.sec.gov/newsroom/press-releases/2022-221); [SEC proxy basics](https://www.sec.gov/resources-small-businesses/going-public/annual-meetings-proxy-requirements).
+
 ## Product operating principles
 
 1. Plain-language first. Display ownership rights, liquidity, risk, costs and conflicts before numbers or hype.
