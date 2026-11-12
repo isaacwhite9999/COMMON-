@@ -1,0 +1,19 @@
+name: Inspect COMMON public auth readiness
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'tests/auth-readiness.cjs'
+      - '.github/workflows/auth-readiness.yml'
+jobs:
+  auth:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Read public Supabase Auth provider settings
+        run: node tests/auth-readiness.cjs
