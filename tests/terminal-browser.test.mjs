@@ -47,7 +47,7 @@ try{
  await page.locator('.navlink[data-go="venture"]').click();
  await page.getByRole('heading',{name:/Underwrite the ownership/i}).waitFor();
  await page.locator('#capital-form button[type="submit"]').click();
- await page.getByText('POST-MONEY').waitFor();
+ await page.getByText('POST-MONEY').first().waitFor();
  await page.locator('.navlink[data-go="communities"]').click();
  await page.getByText('Fundamental Equity Research').waitFor();
  await page.getByText('Corporate Governance & Stewardship').waitFor();
