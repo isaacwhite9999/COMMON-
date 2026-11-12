@@ -14,7 +14,7 @@ const requests={
    if(!row?.record_date||!j.data?.length)throw Error(name+' missing dated observations');
    if(name==='debt'&&!Number.isFinite(Number(row.tot_pub_debt_out_amt)))throw Error('Invalid debt data');
    if(name==='rates'&&!Number.isFinite(Number(row.avg_interest_rate_amt)))throw Error('Invalid rate data');
-   console.log(JSON.stringify({source:'US Treasury Fiscal Data',dataset:name,records:j.data.length,latestDate:row.record_date,latestType:row.security_desc||null,latestValue:name==='rates'?row.avg_interest_rate_amt:row.tot_pub_debt_out_amt}));
+   console.log(JSON.stringify({source:'US Treasury Fiscal Data',dataset:name,records:j.data.length,latestDate:row.record_date,latestType:row.security_desc||null,latestValue:name==='rates'?row.avg_interest_rate_amt:row.tot_pub_debt_out_amt,corsAllowedOrigin:res.headers.get('access-control-allow-origin')||null}));
   }finally{clearTimeout(timer)}
  }
 })().catch(e=>{console.error(e.message);process.exitCode=1});
