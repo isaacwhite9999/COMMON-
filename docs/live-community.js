@@ -36,6 +36,9 @@ function setup(){
 function auth(){
  const signup=lastAuthView==='signup',reset=lastAuthView==='reset';
  root.innerHTML='<main class="auth-shell"><section class="auth-left">'+logo()+'<div class="auth-feature"><span class="pill" style="background:#ffffff20;color:#d8e8ff">THE OWNERSHIP NETWORK</span><h1 style="margin-top:22px">More than money.<br><em>Our future.</em></h1><p>Build real communities, share research, and organize with people who believe ownership should be accessible to everyone.</p></div></section><section class="auth-right"><div class="auth-form-wrap"><span class="pill blue">REAL MEMBER ACCOUNTS</span><h2>'+(reset?'Recover access':signup?'Create your account':'Welcome back')+'</h2><p class="intro">'+(reset?'Receive a secure password reset email.':signup?'Create a secure identity. Your groups and discussions persist across sessions.':'Sign in to your communities, discussions and research.')+'</p>'+banner()+
+ '<button class="button soft full" style="margin:2px 0 15px;min-height:50px;border:1px solid #dfe5ed" type="button" data-act="google-auth" aria-label="Continue with Google"><span aria-hidden="true" style="font-weight:900;font-family:Arial,sans-serif;font-size:20px;color:#4285f4">G</span> Continue with Google</button>'+
+ (config.googleOAuthReady===true?'':'<p class="hint" style="margin:-8px 0 15px">Google sign-in awaits provider activation. No Google account is linked yet.</p>')+
+ '<div class="row" style="align-items:center;gap:14px;color:#8792a4;font-size:11px;margin-bottom:16px"><span style="height:1px;background:#dce3ec;flex:1"></span>or use email<span style="height:1px;background:#dce3ec;flex:1"></span></div>'+
  '<form id="auth-form" class="stack">'+(signup?'<label><span class="form-label">Name</span><input class="field" name="name" required minlength="2" maxlength="80" autocomplete="name"></label>':'')+
  '<label><span class="form-label">Email</span><input class="field" name="email" required type="email" autocomplete="email"></label>'+
  (!reset?'<label><span class="form-label">Password</span><input class="field" name="password" required type="password" minlength="8" autocomplete="'+(signup?'new-password':'current-password')+'"></label>':'')+
@@ -143,7 +146,10 @@ async function init(){
  const r=await saved();if(r.error)throw r.error;session=r.data.session;
  client.auth.onAuthStateChange((evt,next)=>{session=next;if(evt==='PASSWORD_RECOVERY'){recovering=true;render();return}if(next&&!recovering){setTimeout(()=>refresh().catch(handleError),0)}else if(!next){profile=null;recovering=false;render()}});
  if(session)await refresh();else render();
- const fragment=location.hash.match(/^#invite=([a-f0-9]{48})$/);if(fragment){pendingInvite=fragment[1];if(session)await acceptInvite(pendingInvite);}
+ const fragment=location.hash.match(/^#invite=([a-f0-9]{48})$/);
+ if(fragment)pendingInvite=fragment[1];
+ if(!pendingInvite){try{const savedInvite=sessionStorage.getItem('common.pendingInvite');if(/^[a-f0-9]{48}$/.test(savedInvite||''))pendingInvite=savedInvite;}catch{}}
+ if(pendingInvite&&session)await acceptInvite(pendingInvite);
  pollTimer=setInterval(()=>{if(session&&!busy)refresh(false).then(()=>{if(view==='groups'&&state.groupTab==='chat'&&!document.activeElement?.matches('input,textarea'))render()}).catch(console.error)},25000);
 }
 async function refresh(redraw=true){
@@ -168,9 +174,24 @@ async function refresh(redraw=true){
 async function loadMessages(){messages=await call(client.from('community_messages').select('*').eq('community_id',selectedGroup).is('deleted_at',null).order('created_at',{ascending:true}).limit(100));const ids=[...new Set(messages.map(x=>x.author_id).filter(id=>!people[id]))];if(ids.length){const p=await call(client.from('profiles').select('id,display_name,handle,allow_direct_messages').in('id',ids));for(const x of p)people[x.id]=x;}}
 async function loadGroupMembers(){memberPoll=await call(client.from('memberships').select('user_id,role').eq('community_id',selectedGroup).limit(150));const ids=memberPoll.map(x=>x.user_id).filter(id=>!people[id]);if(ids.length){const p=await call(client.from('profiles').select('id,display_name,handle,allow_direct_messages').in('id',ids));for(const x of p)people[x.id]=x;}}
 async function loadDM(){if(!selectedPeer)return;const uid=session.user.id;const incoming=await call(client.from('direct_messages').select('*').eq('sender_id',selectedPeer).eq('recipient_id',uid).order('created_at',{ascending:true}).limit(100));const outgoing=await call(client.from('direct_messages').select('*').eq('sender_id',uid).eq('recipient_id',selectedPeer).order('created_at',{ascending:true}).limit(100));dm=[...incoming,...outgoing].sort((a,b)=>a.created_at.localeCompare(b.created_at));}
-async function acceptInvite(token){await call(client.rpc('accept_private_invite',{token}));pendingInvite=null;history.replaceState(null,'',base);await refresh();status('Joined the private community.');}
+async function acceptInvite(token){await call(client.rpc('accept_private_invite',{token}));pendingInvite=null;try{sessionStorage.removeItem('common.pendingInvite')}catch{}history.replaceState(null,'',base);await refresh();status('Joined the private community.');}
 async function dispatch(action,element){
  const id=element.dataset.id, choice=element.dataset.choice;
+ if(action==='google-auth'){
+   if(config.googleOAuthReady!==true){
+     status('Google sign-in has not been activated in Supabase yet. An OAuth client ID and secret from Google Cloud are required.');
+     return;
+   }
+   if(pendingInvite&&/^[a-f0-9]{48}$/.test(pendingInvite)){
+     try{sessionStorage.setItem('common.pendingInvite',pendingInvite)}catch{}
+   }
+   const result=await client.auth.signInWithOAuth({
+     provider:'google',
+     options:{redirectTo:location.origin+base,queryParams:{prompt:'select_account'}}
+   });
+   if(result.error)throw result.error;
+   return;
+ }
  if(action==='auth-mode'){lastAuthView=element.dataset.mode;info=error='';render();return}
  if(action==='signout'){await client.auth.signOut();return}
  if(action==='open-groups'){selectedGroup=null;view='groups';state.groupTab='posts';render();return}
