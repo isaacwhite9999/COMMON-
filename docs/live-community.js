@@ -12,7 +12,7 @@ const el=(tag,attrs={},text)=>{const node=document.createElement(tag);for(const 
 const icons={
 home:'⌂',groups:'◎',chat:'◉',ownership:'◇',invest:'↗',money:'$',learn:'?',profile:'◍',add:'＋',safety:'⚑'
 };
-let client=null,session=null,profile=null,groups=[],memberships=[],posts=[],proposals=[],projects=[],watches=[],people={},likes=[],messages=[],dm=[],selectedGroup=null,selectedPeer=null,view='home',busy=false,search='',error='',info='',pendingInvite=null,memberPoll=[],pollSelection=null,lastAuthView='signin',pollTimer,recovering=false,moderationCases=[];
+let client=null,session=null,profile=null,groups=[],memberships=[],posts=[],proposals=[],projects=[],watches=[],people={},likes=[],messages=[],dm=[],selectedGroup=null,selectedPeer=null,view='home',busy=false,search='',error='',info='',pendingInvite=null,memberPoll=[],pollSelection=null,lastAuthView='signin',pollTimer,recovering=false,moderationCases=[],moderationAppeals=[],accountRestrictions=[];
 const state={comments:null,composer:false,groupCreate:false,projectCreate:false,proposalCreate:false,inviteToken:null,showMembers:false};
 const base=location.pathname.replace(/\/live\/?(?:index.html)?$/,'/live/');
 const groupById=id=>groups.find(x=>x.id===id);
@@ -64,29 +64,52 @@ function safetyLabel(kind,id){
  return '<span class="pill orange" style="margin-left:8px">'+(flag.review_status==='rejected'?'Removed after review':'Under safety review')+'</span>';
 }
 function safety(){
- const mine=moderationCases.filter(c=>c.actor_id===session.user.id);
- const pending=moderationCases.filter(c=>c.actor_id!==session.user.id&&c.review_status==='pending');
+ const userId=session.user.id;
+ const mine=moderationCases.filter(c=>c.actor_id===userId);
+ const pending=moderationCases.filter(c=>c.actor_id!==userId&&c.review_status==='pending');
+ const pendingAppeals=moderationAppeals.filter(a=>a.appellant_id!==userId&&a.appeal_status==='pending'
+   &&moderationCases.some(c=>c.id===a.case_id&&c.reviewed_by!==userId));
  const riskDescription={
   meme_coin_mention:'Meme-coin discussion',
-  rug_pull_or_manipulation:'Possible rug-pull or market-manipulation language',
-  suspicious_financial_solicitation:'Suspicious payment, wallet or return claim'
+  rug_pull_or_manipulation:'Possible rug-pull or manipulation language',
+  suspicious_financial_solicitation:'Suspicious wallet payment or return claim'
  };
- const item=c=>'<article class="surface" style="padding:19px;margin-bottom:10px">'+
-  '<div class="space"><strong>'+e(c.item_type.replaceAll('_',' '))+'</strong><span class="pill '+(c.review_status==='pending'?'orange':'blue')+'">'+e(c.review_status)+'</span></div>'+
-  '<p class="small muted" style="margin-top:10px">'+e(c.matched_rules.map(x=>riskDescription[x]||x).join(' · '))+'</p>'+
-  '<div class="preview-banner" style="white-space:pre-wrap;overflow-wrap:anywhere">'+e(c.content_preview)+'</div>'+
-  '<p class="tiny muted">'+new Date(c.created_at).toLocaleString()+' · '+e(c.community_id?groupName(c.community_id):'Private conversation')+'</p>'+
-  (c.actor_id!==session.user.id&&c.review_status==='pending'
-   ?'<div class="row" style="margin-top:14px">'+button('review-approve','Approve educational content','secondary','data-id="'+c.id+'"')+
-       button('review-reject','Reject & keep hidden','ghost','data-id="'+c.id+'"')+'</div>':'')+'</article>';
- return head('Trust & safety','Scam signals are private. A flag is not a finding of fraud.')+
+ const item=c=>{
+  const appeal=moderationAppeals.find(a=>a.case_id===c.id&&a.appellant_id===userId);
+  return '<article class="surface" style="padding:19px;margin-bottom:10px">'+
+   '<div class="space"><strong>'+e(c.item_type.replaceAll('_',' '))+'</strong><span class="pill '+(c.review_status==='pending'?'orange':'blue')+'">'+e(c.review_status)+'</span></div>'+
+   '<p class="small muted" style="margin-top:10px">'+e((c.matched_rules||[]).map(x=>riskDescription[x]||x).join(' · '))+'</p>'+
+   '<div class="preview-banner" style="white-space:pre-wrap;overflow-wrap:anywhere">'+e(c.content_preview)+'</div>'+
+   '<p class="tiny muted">'+new Date(c.created_at).toLocaleString()+' · '+e(c.community_id?groupName(c.community_id):'Private conversation')+'</p>'+
+   (c.actor_id!==userId&&c.review_status==='pending'
+    ?'<div class="row" style="margin-top:14px">'+button('review-approve','Approve educational content','secondary','data-id="'+c.id+'"')+
+      button('review-reject','Reject & keep hidden','ghost','data-id="'+c.id+'"')+'</div>':'')+
+   (c.actor_id===userId&&c.review_status==='rejected'
+    ?'<div style="margin-top:14px">'+(appeal?'<span class="pill blue">Appeal: '+e(appeal.appeal_status)+'</span>'
+      :button('appeal-case','Request independent second review','secondary','data-id="'+c.id+'"'))+'</div>':'')+
+   '</article>';
+ };
+ const appealItem=a=>{
+   const c=moderationCases.find(c=>c.id===a.case_id);
+   return '<article class="surface" style="padding:19px;margin-bottom:10px"><strong>Second-review request</strong>'+
+     '<p class="small muted" style="margin:10px 0">Flagged content: '+e(c?.item_type||'item')+
+     ' · '+e(c?.community_id?groupName(c.community_id):'Private conversation')+'</p>'+
+     '<p class="small muted" style="white-space:pre-wrap">'+e(a.statement)+'</p>'+
+     '<div class="row" style="margin-top:14px">'+
+       button('review-appeal-accept','Accept appeal','secondary','data-id="'+a.id+'"')+
+       button('review-appeal-deny','Deny appeal','ghost','data-id="'+a.id+'"')+'</div></article>';
+ };
+ return head('Trust & safety','Scam signals are confidential. A flag is not proof of fraud.')+
+ (accountRestrictions.length?'<div class="preview-banner" role="alert"><strong>Account restriction active:</strong> '+
+  e(accountRestrictions[0].restriction)+'. '+e(accountRestrictions[0].reason)+'</div>':'')+
  '<div class="surface" style="padding:24px;margin-bottom:15px"><h3>Zero tolerance for meme-coin promotion</h3>'+
- '<p class="small muted" style="margin-top:10px;line-height:1.8">Mentions of meme coins, rug pulls, pump-and-dumps and suspicious wallet solicitations are automatically held for review. Educational warnings may be released after independent moderation. Investment pitches, misleading return guarantees and scam links are prohibited. Flags are not public accusations.</p>'+
- '<p class="small muted" style="margin-top:8px">Never send cryptocurrency or investment funds to a stranger on COMMON. Use the Report control on any suspicious discussion.</p></div>'+
+ '<p class="small muted" style="margin-top:10px;line-height:1.8">Meme-coin mentions, rug-pull language, pump-and-dumps, misleading return guarantees and suspicious wallet solicitations are automatically held for review. Independent moderators may release educational warnings, not investment pitches. No public scammer labels are assigned from keywords.</p>'+
+ '<p class="small muted" style="margin-top:8px">Never transfer funds to a stranger through a link in COMMON. Report suspicious posts using their Report control.</p></div>'+
  (pending.length?'<div class="section-bar"><h3>Moderator review queue ('+pending.length+')</h3></div>'+pending.map(item).join(''):'')+
- '<div class="section-bar"><h3>Your content reviews ('+mine.length+')</h3></div>'+
+ (pendingAppeals.length?'<div class="section-bar"><h3>Independent appeals ('+pendingAppeals.length+')</h3></div>'+pendingAppeals.map(appealItem).join(''):'')+
+ '<div class="section-bar"><h3>Your safety cases ('+mine.length+')</h3></div>'+
  (mine.length?mine.map(item).join(''):'<div class="empty">No safety flags on your account.</div>')+
- '<p class="small muted" style="margin-top:16px">For a mistaken rejection, request a second review from a different moderator. No public account label is applied automatically.</p>';
+ '<p class="small muted" style="margin-top:16px">Confirmed scams may lead to staff-enforced account restrictions. Only trained Trust & Safety staff can review held private-message content. A flagged term alone never suspends an account.</p>';
 }
 function postCard(p){
  const mine=p.author_id===session.user.id,community=groupName(p.community_id);
@@ -187,7 +210,7 @@ async function init(){
 }
 async function refresh(redraw=true){
  if(!session?.user)return;const uid=session.user.id;
- const [p,c,m,d,q,o,w,mod]=await Promise.all([
+ const [p,c,m,d,q,o,w,mod,appeals,restrictions]=await Promise.all([
  call(client.from('profiles').select('*').eq('id',uid).single()),
  call(client.from('communities').select('*').order('created_at',{ascending:false}).limit(200)),
  call(client.from('memberships').select('community_id,user_id,role').eq('user_id',uid)),
@@ -195,9 +218,11 @@ async function refresh(redraw=true){
  call(client.from('proposals').select('*').order('created_at',{ascending:false}).limit(80)),
  call(client.from('ownership_projects').select('*').order('created_at',{ascending:false}).limit(100)),
  call(client.from('watchlist_items').select('*').eq('user_id',uid)),
- call(client.from('moderation_cases').select('id,item_type,item_id,actor_id,community_id,review_status,matched_rules,content_preview,created_at').order('created_at',{ascending:false}).limit(200))
+ call(client.from('moderation_cases').select('id,item_type,item_id,actor_id,community_id,review_status,matched_rules,content_preview,created_at,reviewed_by').order('created_at',{ascending:false}).limit(200)),
+ call(client.from('moderation_appeals').select('id,case_id,appellant_id,statement,appeal_status,created_at').order('created_at',{ascending:false}).limit(100)),
+ call(client.from('account_enforcement').select('restriction,reason,expires_at').eq('user_id',uid))
  ]);
- profile=p;groups=c;memberships=m;posts=d;proposals=q;projects=o;watches=w;moderationCases=mod;
+ profile=p;groups=c;memberships=m;posts=d;proposals=q;projects=o;watches=w;moderationCases=mod;moderationAppeals=appeals;accountRestrictions=restrictions;
  const ids=[...new Set([uid,...posts.map(x=>x.author_id),...projects.map(x=>x.author_id)])];
  if(ids.length){const all=await call(client.from('profiles').select('id,display_name,handle,allow_direct_messages').in('id',ids));people=Object.fromEntries(all.map(x=>[x.id,x]));}
  const postIds=posts.map(x=>x.id);
@@ -244,6 +269,32 @@ async function dispatch(action,element){
  if(action==='make-invite'){const token=await call(client.rpc('create_private_invite',{cid:selectedGroup,permitted_uses:10}));state.inviteToken=token;render();return}
  if(action==='copy-invite'){const input=document.getElementById('invite-url');if(input){await navigator.clipboard.writeText(input.value);status('Invitation link copied.')}return}
  if(action==='dm-user'){selectedPeer=id;view='chat';await loadDM();render();return}
+ if(action==='appeal-case'){
+   const c=moderationCases.find(x=>x.id===id);
+   if(!c||c.actor_id!==session.user.id||c.review_status!=='rejected')
+     throw new Error('Only the author may appeal rejected content');
+   const explanation=window.prompt('Explain the context and why this should be independently reviewed (20-2000 characters):');
+   if(!explanation?.trim())return;
+   if(explanation.trim().length<20||explanation.length>2000)
+     throw new Error('Appeal explanation must be 20–2000 characters');
+   await call(client.from('moderation_appeals').insert({
+     case_id:id,appellant_id:session.user.id,statement:explanation.trim()
+   }));
+   await refresh();status('Your appeal was submitted for independent review.');return;
+ }
+ if(action==='review-appeal-accept'||action==='review-appeal-deny'){
+   const approval=action==='review-appeal-accept';
+   const note=window.prompt(approval
+     ?'Accept only a legitimate educational explanation without solicitation. Give the evidence:'
+     :'Explain why this appeal is denied:');
+   if(!note?.trim())return;
+   if(note.trim().length<10||note.length>1200)
+     throw new Error('A review explanation of 10–1200 characters is required');
+   await call(client.rpc('review_moderation_appeal',{
+     appeal_id:id,decision:approval?'accepted':'denied',rationale:note.trim()
+   }));
+   await refresh();status('Independent appeal decision recorded.');return;
+ }
  if(action==='review-approve'||action==='review-reject'){
    const c=moderationCases.find(x=>x.id===id);
    if(!c||c.actor_id===session.user.id)throw new Error('Independent reviewer required');
