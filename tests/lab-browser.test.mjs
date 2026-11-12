@@ -62,7 +62,7 @@ try {
  await page.route('**/supabase.min.js',route=>route.fulfill({status:200,contentType:'text/javascript',body:stub}));
  await page.goto(new URL('lab/',base).href,{waitUntil:'domcontentloaded'});
  await page.getByRole('heading',{name:'Think rigorously. Invest independently.'}).waitFor({timeout:25000});
- await page.getByRole('button',{name:'New research project'}).click();
+ await page.getByRole('button',{name:'Create project'}).click();
  await page.locator('#create-form [name=title]').fill('Independent SMA research');
  await page.locator('#create-form [name=hypothesis]').fill('A lagged trend rule may improve holdout outcomes after costs.');
  await page.locator('#create-form button[type=submit]').click();
