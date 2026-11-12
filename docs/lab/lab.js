@@ -205,7 +205,7 @@ function validation(){
  '<p>'+esc(x.source_label||'Local data')+' · '+esc(x.sample_start)+' through '+esc(x.sample_end)+'</p>'+
  '<small>Holdout return: '+formatPct(x.metrics?.holdout?.totalReturn)+' · '+niceDate(x.created_at)+' · Unverified client calculation</small></div>'+
  action('Delete','delete-run',true,'data-id="'+esc(x.id)+'"')+'</div>').join(''):
- '<div class="lab-empty">No experiments saved yet.</div>')+'</div>');
+ '<div class="lab-empty">No experiments saved yet.</div>')+'</div>';
 }
 function catalog(){
  const rows=[
