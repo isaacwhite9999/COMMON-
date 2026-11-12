@@ -23,6 +23,9 @@ jobs:
         run: |
           node --check docs/design-v3.js
           node --check docs/live-community.js
+          node --check docs/lab/research-engine.js
+          node --check docs/lab/lab.js
+          node tests/research-engine.test.cjs
           node --check docs/config.js
           node --check docs/demo-api.js
           node --check docs/app.js
