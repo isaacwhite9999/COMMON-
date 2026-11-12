@@ -10,7 +10,7 @@ const e=s=>String(s??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&g
 const short=(s,n=80)=>String(s??'').slice(0,n);
 const el=(tag,attrs={},text)=>{const node=document.createElement(tag);for(const [k,v] of Object.entries(attrs))node.setAttribute(k,v);if(text!==undefined)node.textContent=text;return node};
 const icons={
-home:'⌂',groups:'◎',chat:'◉',ownership:'◇',invest:'↗',studio:'⌇',money:'
+ home:'⌂',groups:'◎',chat:'◉',ownership:'◇',invest:'↗',studio:'⌇',money:'\u0024',learn:'?',profile:'◍',add:'＋',safety:'⚑'
 };
 let client=null,session=null,profile=null,groups=[],memberships=[],posts=[],proposals=[],projects=[],watches=[],people={},likes=[],messages=[],dm=[],selectedGroup=null,selectedPeer=null,view='home',busy=false,search='',error='',info='',pendingInvite=null,memberPoll=[],pollSelection=null,lastAuthView='signin',pollTimer,recovering=false,moderationCases=[],moderationAppeals=[],accountRestrictions=[],googleProviderStatus='checking';
 const state={comments:null,composer:false,groupCreate:false,projectCreate:false,proposalCreate:false,inviteToken:null,showMembers:false};
