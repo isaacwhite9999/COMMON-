@@ -3,7 +3,7 @@ import { chromium } from 'playwright';
 const browser=await chromium.launch({headless:true});
 try {
  const page=await browser.newPage({viewport:{width:1440,height:900}});
- const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ const errors=[];page.on('pageerror',e=>{errors.push(e.message);console.error('Page error:',e.message)});page.on('console',m=>{if(m.type()==='error')console.error('Browser:',m.text());});
  await page.goto('http://127.0.0.1:8765/workspace/#research');
  await page.getByLabel('Project name').fill('Research workflow test');
  await page.getByRole('button',{name:'Create project'}).click();
@@ -25,7 +25,7 @@ try {
  await page.getByLabel('Training observations').fill('150');
  await page.getByLabel('Test observations').fill('30');
  await page.getByRole('button',{name:'Run walk-forward analysis'}).click();
- await page.getByRole('heading',{name:'Out-of-sample performance'}).waitFor();
+ await page.getByRole('heading',{name:'Out-of-sample performance'}).waitFor().catch(async error=>{console.error('Validation state:',await page.locator('#quant-progress').textContent().catch(()=>''),await page.locator('#notice').textContent());throw error;});
  await page.getByRole('link',{name:'Parameter grid',exact:true}).click();
  await page.getByRole('heading',{name:'First training parameter sweep'}).waitFor();
  await page.getByRole('link',{name:'Market regimes',exact:true}).click();

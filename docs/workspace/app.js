@@ -144,6 +144,6 @@ case 'trade':save(M.trade(s,d));break;
 case 'memo':save({...s,proposals:[...s.proposals,M.proposal(d.title,d.thesis)]});break;
 case 'edit-memo':save({...s,proposals:s.proposals.map(p=>p.id===id?{...M.proposal(d.title,d.thesis),id}:p)});break;
 case 'settings':save(M.settings(s,d));break;
-}if(dialog.open)dialog.close();toast('Saved to this browser.');}catch(err){toast(err.message);}finally{if(submit)submit.disabled=false;}});
-refreshDatasets().then(()=>{if(['datasets','research','risk'].includes(location.hash.slice(1).split('/')[0]))render();});window.addEventListener('hashchange',render);document.addEventListener('keydown',e=>{if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='k'){e.preventDefault();document.querySelector('[data-act="search"]').click();}});render();
+}if(dialog.open)dialog.close();toast('Saved to this browser.');}catch(err){const progress=f.dataset.form.startsWith('validate:')?document.querySelector('#quant-progress'):null;if(progress)progress.textContent=err.message;toast(err.message);}finally{if(submit)submit.disabled=false;}});
+window.addEventListener('hashchange',()=>{if(dataLoaded)render();});document.addEventListener('keydown',e=>{if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='k'){e.preventDefault();document.querySelector('[data-act="search"]')?.click();}});app.textContent='Loading research workspace…';refreshDatasets().then(render);
 })();
