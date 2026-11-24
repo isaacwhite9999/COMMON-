@@ -49,6 +49,8 @@ Baseline: development branch `common/unified-workspace` at d5b4e100a600f0b9565cd
 
 ### Q04 — Market data and APIs (workstream 04)
 
+Q04.01 browser metadata, source isolation, and upgrade evidence are recorded in [Browser dataset catalog](DATASET_STORAGE.md).
+
 - [ ] Q04.01 **Partial / implemented in branch** — Historical CSV import, IndexedDB dataset library, provenance hashes, quality checks and reusable inputs; user-uploaded daily close data
 - [ ] Q04.02 **Partial / implemented in branch** — Existing SEC EDGAR/fundamentals and official economic-data integrations; audit availability and source correctness
 - [ ] Q04.03 **Remaining** — Equity, ETF, international, futures, options, FX, fixed income, trade/quote and depth provider adapters; entitlements
