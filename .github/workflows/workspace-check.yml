@@ -28,3 +28,11 @@ jobs:
           trap 'kill $!' EXIT
           for i in {1..20}; do curl -fsS http://127.0.0.1:8765/workspace/ >/dev/null && break; sleep 1; done
           node tests/workspace-browser.test.mjs
+  agent:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - run: deno test supabase/functions/common-research-agent/handler_test.ts

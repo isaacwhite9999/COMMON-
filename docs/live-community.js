@@ -10,9 +10,9 @@ const e=s=>String(s??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&g
 const short=(s,n=80)=>String(s??'').slice(0,n);
 const el=(tag,attrs={},text)=>{const node=document.createElement(tag);for(const [k,v] of Object.entries(attrs))node.setAttribute(k,v);if(text!==undefined)node.textContent=text;return node};
 const icons={
- home:'⌂',groups:'◎',chat:'◉',ownership:'◇',invest:'↗',studio:'⌇',money:'\u0024',learn:'?',profile:'◍',add:'＋',safety:'⚑'
+ home:'⌂',groups:'◎',chat:'◉',ownership:'◇',invest:'↗',studio:'⌇',agent:'◇',money:'\u0024',learn:'?',profile:'◍',add:'＋',safety:'⚑'
 };
-let client=null,session=null,profile=null,groups=[],memberships=[],posts=[],proposals=[],projects=[],watches=[],people={},likes=[],messages=[],dm=[],selectedGroup=null,selectedPeer=null,view='home',busy=false,search='',error='',info='',pendingInvite=null,memberPoll=[],pollSelection=null,lastAuthView='signin',pollTimer,recovering=false,moderationCases=[],moderationAppeals=[],accountRestrictions=[],googleProviderStatus='checking';
+let agentOutput=null,agentInput='',agentMode='review',agentSending=false;let client=null,session=null,profile=null,groups=[],memberships=[],posts=[],proposals=[],projects=[],watches=[],people={},likes=[],messages=[],dm=[],selectedGroup=null,selectedPeer=null,view='home',busy=false,search='',error='',info='',pendingInvite=null,memberPoll=[],pollSelection=null,lastAuthView='signin',pollTimer,recovering=false,moderationCases=[],moderationAppeals=[],accountRestrictions=[],googleProviderStatus='checking';
 const state={directory:'mine',feed:'mine',groupTab:'posts',comments:null,composer:false,groupCreate:false,projectCreate:false,proposalCreate:false,inviteToken:null,showMembers:false};
 const base=location.pathname.replace(/\/live\/?(?:index.html)?$/,'/live/');
 const groupById=id=>groups.find(x=>x.id===id);
@@ -54,7 +54,7 @@ const escAttr=s=>e(s);
 const button=(act,label,kind='secondary',more='')=>'<button class="button '+kind+' small" data-act="'+act+'" '+more+'>'+label+'</button>';
 const researchDisciplines=[["equity_research","Fundamental Equity Research"],["event_driven","Event-Driven & Special Situations"],["macro_rates","Macro & Rates"],["derivatives","Volatility & Derivatives"],["market_structure","Market Microstructure"],["quant_strategies","Systematic Strategies"],["portfolio_risk","Portfolio Construction & Risk"],["shareholder_stewardship","Corporate Governance & Stewardship"],["real_assets","Real Assets & Real Estate"],["private_credit","Private Credit"],["venture_capital","Venture Capital & Growth Equity"],["private_equity","Private Equity & Acquisitions"],["personal_finance","Financial Literacy & Planning"],["markets","Public Markets (Legacy)"],["housing","Housing (Legacy)"],["businesses","Businesses (Legacy)"],["local","Local Ownership (Legacy)"],["education","Education (Legacy)"]];
 const researchCategoryLabel=category=>researchDisciplines.find(([value])=>value===category)?.[1]||category;
-const navs=[['home','Home'],['groups','Research Desks'],['chat','Messages'],['ownership','Ownership'],['invest','Research'],['studio','Studio'],['money','Money'],['learn','Learn'],['safety','Safety'],['profile','Profile']];
+const navs=[['home','Home'],['groups','Research Desks'],['chat','Messages'],['ownership','Ownership'],['invest','Research'],['studio','Studio'],['agent','Research assistant'],['money','Money'],['learn','Learn'],['safety','Safety'],['profile','Profile']];
 const titleCase=s=>s.charAt(0).toUpperCase()+s.slice(1);
 function logo(){return '<span class="logo"><span class="logo-mark">c</span><span class="logo-word">common<span style="color:#5883fb">.</span></span></span>'}
 function banner(){return (error?'<div class="preview-banner" role="alert" style="border-color:#edc1c1;color:#912b2b">'+e(error)+'</div>':'')+(info?'<div class="preview-banner" role="status">'+e(info)+'</div>':'')}
@@ -82,7 +82,7 @@ function baseNav(){
  const items=navs.map(([id,label])=>'<button class="nav-item '+(view===id?'active':'')+'" data-tab="'+id+'"><span style="font-size:20px;width:21px">'+icons[id]+'</span><span>'+label+'</span></button>').join('');
  return '<div class="app-shell"><aside class="navbar">'+logo()+'<div class="nav-links" style="margin-top:25px">'+items+'</div><a class="nav-item workspace-link" href="../workspace/">Research workspace ↗</a><div class="nav-spacer"></div><div class="nav-person"><button data-tab="profile"><span class="avatar">'+e((profile?.display_name||'?').slice(0,2).toUpperCase())+'</span><span class="details"><strong>'+e(profile?.display_name||'Member')+'</strong><span class="tiny muted">@'+e(profile?.handle||'member')+'</span></span></button></div></aside><div class="main-wrap"><header class="mobile-head">'+logo()+'<button class="icon-btn" data-tab="profile" aria-label="Profile">◍</button></header><header class="topbar"><h2>'+e(titleCase(view))+'</h2><div style="margin-left:auto"><span class="pill lime">LIVE COMMUNITY</span></div></header><main class="content">'+banner()+page()+'</main></div><nav class="mobile-nav">'+navs.slice(0,5).map(([id,label])=>'<button data-tab="'+id+'" class="'+(view===id?'active':'')+'"><span style="font-size:21px">'+icons[id]+'</span><span>'+label+'</span></button>').join('')+'</nav></div>';
 }
-function page(){if(view==='home')return home();if(view==='groups')return selectedGroup?groupDetail():communities();if(view==='chat')return chat();if(view==='ownership')return ownership();if(view==='invest')return research();if(view==='money')return money();if(view==='learn')return learn();if(view==='safety')return safety();return profilePage();}
+function page(){if(view==='home')return home();if(view==='groups')return selectedGroup?groupDetail():communities();if(view==='chat')return chat();if(view==='ownership')return ownership();if(view==='invest')return research();if(view==='agent')return agentPage();if(view==='money')return money();if(view==='learn')return learn();if(view==='safety')return safety();return profilePage();}
 function head(t,s='',extra=''){return '<div class="space" style="align-items:flex-start;margin-bottom:24px"><div><h1 class="page-title">'+e(t)+'</h1><p class="subhead">'+e(s)+'</p></div>'+extra+'</div>'}
 function groupName(id){return groupById(id)?.name||'Community'}
 function contentFlag(kind,id){
@@ -207,6 +207,14 @@ function research(){
  watches.map(w=>'<div class="account-row"><strong>'+e(w.symbol)+'</strong>'+button('remove-watch','Remove','secondary','data-symbol="'+e(w.symbol)+'"')+'</div>').join('')+
  '<p class="small muted" style="margin-top:16px">Use <a href="https://www.sec.gov/edgar/search/" target="_blank" rel="noopener noreferrer" style="color:#275cfa;text-decoration:underline">SEC EDGAR</a> for dated official filings.</p></div>';
 }
+function agentPage(){
+ return head('Research assistant','An evidence-first analysis workspace. You control exactly what is sent to the model.')+
+ '<div class="surface circle-tools"><div class="space"><h3>Analysis request</h3><span class="pill">'+(config.researchAgentEnabled===true?'CONFIGURED':'PROVIDER NOT CONNECTED')+'</span></div>'+
+ '<p class="muted small">Paste a research thesis, filing excerpt or backtest summary. Do not include private account details, credentials or material you cannot share with a model provider. The assistant cannot access your circles or execute trades.</p>'+
+ '<form data-form="research-agent" class="stack"><label><span class="form-label">Analysis type</span><select name="mode" class="field">'+[['review','Audit a backtest or thesis'],['explain','Explain financial evidence'],['plan','Design a research plan']].map(([k,v])=>'<option value="'+k+'" '+(k===agentMode?'selected':'')+'>'+v+'</option>').join('')+'</select></label><label><span class="form-label">Evidence and question</span><textarea class="field" name="input" maxlength="10000" minlength="20" required rows="9">'+e(agentInput)+'</textarea></label><label class="row"><input type="checkbox" name="consent" required> I agree to send this text to the configured AI provider for analysis.</label><button class="button" '+(config.researchAgentEnabled!==true||agentSending?'disabled':'')+'>'+(agentSending?'Analyzing…':'Analyze evidence')+'</button></form>'+
+ (config.researchAgentEnabled!==true?'<p class="muted small">The authenticated agent endpoint, provider and usage quotas must be configured before requests are enabled. No synthetic AI responses are shown.</p>':'')+'</div>'+
+ (agentOutput?'<div class="surface circle-tools"><div class="space"><h3>Analysis draft</h3><button class="button secondary" data-act="copy-agent">Copy analysis</button></div><p class="muted small">AI-generated · independently verify all claims and calculations.</p><pre class="agent-output">'+e(agentOutput)+'</pre></div>':'');
+}
 function money(){
  return head('Money','Future regulated wallet, card funding and trading tools.')+
  '<div class="money-card"><div class="space"><strong>COMMON Wallet</strong><span class="pill">NOT AVAILABLE</span></div><div><p>Available balance</p><div class="balance">—</div><p>No funds, deposits, or cards are accepted here.</p></div><div class="actions"><button disabled>Add funds</button><button disabled>Send money</button><button disabled>Withdraw</button></div></div>'+
@@ -235,7 +243,7 @@ async function init(){
  client=window.supabase.createClient(config.supabaseUrl,config.supabaseAnonKey,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
  checkGoogleProvider().catch(console.error);
  const r=await saved();if(r.error)throw r.error;session=r.data.session;
- client.auth.onAuthStateChange((evt,next)=>{session=next;if(evt==='PASSWORD_RECOVERY'){recovering=true;render();return}if(next&&!recovering){setTimeout(()=>refresh().catch(handleError),0)}else if(!next){profile=null;groups=[];memberships=[];posts=[];proposals=[];projects=[];watches=[];people={};likes=[];messages=[];dm=[];memberPoll=[];selectedGroup=null;selectedPeer=null;state.inviteToken=null;state.comments=null;state.composer=state.groupCreate=state.projectCreate=state.proposalCreate=false;recovering=false;render()}});
+ client.auth.onAuthStateChange((evt,next)=>{session=next;if(evt==='PASSWORD_RECOVERY'){recovering=true;render();return}if(next&&!recovering){setTimeout(()=>refresh().catch(handleError),0)}else if(!next){profile=null;agentOutput=null;agentInput='';agentMode='review';groups=[];memberships=[];posts=[];proposals=[];projects=[];watches=[];people={};likes=[];messages=[];dm=[];memberPoll=[];selectedGroup=null;selectedPeer=null;state.inviteToken=null;state.comments=null;state.composer=state.groupCreate=state.projectCreate=state.proposalCreate=false;recovering=false;render()}});
  if(session)await refresh();else render();
  const fragment=location.hash.match(/^#invite=([a-f0-9]{48})$/);
  if(fragment)pendingInvite=fragment[1];
@@ -294,6 +302,7 @@ async function dispatch(action,element){
  if(action==='create-group'){state.groupCreate=true;render();return}
  if(action==='compose'){state.composer=true;render();return}
  if(action==='close-dialog'){state.composer=state.groupCreate=state.projectCreate=state.proposalCreate=false;render();return}
+ if(action==='copy-agent'){if(agentOutput)await navigator.clipboard.writeText(agentOutput);return}
  if(action==='open-terminal'){location.assign(new URL('../terminal/',location.href).href);return}
  if(action==='open-studio'){location.assign(new URL('../lab/',location.href).href);return}
  if(action==='learn'){view='learn';render();return}
@@ -351,6 +360,7 @@ async function dispatch(action,element){
 }
 async function submitted(form){
  const f=new FormData(form),type=form.dataset.form,uid=session.user.id;
+ if(type==='research-agent'){if(config.researchAgentEnabled!==true||f.get('consent')!=='on')throw Error('Research assistant unavailable or consent missing.');agentInput=String(f.get('input')||'');agentMode=String(f.get('mode')||'review');agentOutput=null;agentSending=true;render();try{const {data,error:failure}=await client.functions.invoke('common-research-agent',{body:{mode:agentMode,input:agentInput,consent:true}});if(failure)throw failure;if(session?.user?.id!==uid)return;if(typeof data?.text!=='string')throw Error('Invalid research response');agentOutput=data.text;}finally{agentSending=false;render()}return}
  if(type==='post'){await call(client.from('discussions').insert({community_id:f.get('group'),author_id:uid,title:short(f.get('title'),160),body:short(f.get('body'),10000)}));state.composer=false;await refresh();return}
  if(type==='comment'){await call(client.from('discussions').insert({community_id:form.dataset.group,author_id:uid,parent_id:form.dataset.parent,body:short(f.get('body'),2000)}));await refresh();return}
  if(type==='group'){const name=String(f.get('name')).trim(),slug=name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,40)+'-'+Math.random().toString(36).slice(2,10);const result=await call(client.from('communities').insert({name,slug,description:f.get('description'),visibility:f.get('visibility'),category:f.get('category'),created_by:uid}).select('id').single());selectedGroup=result.id;view='groups';state.groupCreate=false;await refresh();return}
