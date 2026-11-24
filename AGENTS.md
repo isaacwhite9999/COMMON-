@@ -25,3 +25,6 @@ Inspect actual workflow commands and run affected checks locally before proposin
 
 ## Review handoff
 Report changed files, accepted requirements, tests with actual results, security/data handling, missing integrations, and rollback. Request review against common/unified-workspace; never imply a checked box proves deployment.
+
+## Granular feature acceptance
+Read docs/QUANT_FEATURE_CHECKLIST.md, docs/SOCIAL_FEATURE_CHECKLIST.md and docs/PLATFORM_FEATURE_CHECKLIST.md in addition to the grouped backlog. These are mandatory scope, not optional enhancements. Preserve every requirement; cite granular IDs and evidence in PRs. Unchecked does not mean absent; inspect existing implementation before building. Do not mark grouped parent complete until all applicable child requirements have verified evidence or explicitly documented external gates.

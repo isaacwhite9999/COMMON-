@@ -47,3 +47,6 @@ All workstreams must also follow [PAGE_AND_UX_SPEC.md](PAGE_AND_UX_SPEC.md), inc
 
 ## Scalability gate
 All workstreams must follow [SCALABILITY_ARCHITECTURE.md](SCALABILITY_ARCHITECTURE.md). Capacity is unmeasured; record actual performance evidence, resource limits and scaling risks, and avoid premature infrastructure spending. Load-test only approved disposable environments. No production readiness claims based on architectural diagrams alone.
+
+## Granular feature coverage
+The expanded checklists are [quantitative research](QUANT_FEATURE_CHECKLIST.md) (213 items), [social and ownership](SOCIAL_FEATURE_CHECKLIST.md) (199 items), and [shared platform](PLATFORM_FEATURE_CHECKLIST.md) (38 items). Together these complement the grouped backlog; preserve the full scope and record child IDs for each PR. Do not claim they are finished merely because a workstream passed tests.
