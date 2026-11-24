@@ -58,6 +58,7 @@ declare
   first_page jsonb;
   second_page jsonb;
   saved_page jsonb;
+  discovered jsonb;
 begin
   first_page := public.discussion_feed_v1('circle',circle,page_size=>2);
   if jsonb_array_length(first_page->'items') <> 2 or first_page #>> '{items,0,id}' <> post::text
@@ -77,8 +78,14 @@ begin
   if saved_page #>> '{items,0,id}' <> post::text or saved_page->'next' <> 'null'::jsonb then
     raise exception 'Saved page did not read its exact authorized id';
   end if;
+  -- Other smoke suites populate public circles first in CI. Check only this
+  -- fixture's rows within a cursor range that includes the quarantined post.
+  discovered := public.discussion_feed_v1('discover',
+    before_time=>'2024-06-04T00:00:00Z',
+    before_id=>'ffffffff-ffff-ffff-ffff-ffffffffffff');
   if jsonb_array_length(public.discussion_feed_v1('mine')->'items') <> 9
-     or jsonb_array_length(public.discussion_feed_v1('discover')->'items') <> 4
+     or (select count(*) from jsonb_array_elements(discovered->'items') item
+         where item->>'author_id'='71000000-0000-4000-8000-000000000001') <> 4
      or jsonb_array_length(public.discussion_feed_v1('replies',post)->'items') <> 1 then
     raise exception 'Timeline scope or moderation is incorrect';
   end if;
@@ -111,7 +118,8 @@ insert into public.member_blocks(blocker_id,blocked_id) values
  ('71000002-0000-4000-8000-000000000002','71000000-0000-4000-8000-000000000001');
 do $$
 begin
-  if jsonb_array_length(public.discussion_feed_v1('discover')->'items') <> 0 then
+  if jsonb_array_length(public.discussion_feed_v1(
+     'member','71000000-0000-4000-8000-000000000001')->'items') <> 0 then
     raise exception 'Blocked member appears on viewer timeline';
   end if;
 end;
