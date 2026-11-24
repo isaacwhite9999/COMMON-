@@ -12,3 +12,4 @@ jobs:
         with:
           node-version: '22'
       - run: node --check docs/workspace/model.js && node --check docs/workspace/app.js && node tests/workspace-model.test.cjs
+      - run: node --check docs/workspace/report.js && node tests/workspace-report.test.cjs
