@@ -1,13 +1,14 @@
 import assert from 'node:assert/strict';
-import { chromium } from 'playwright';
+import { launchBrowser } from './browser.mjs';
 const base = process.env.COMMON_SITE_URL || 'http://127.0.0.1:8765/';
-const browser = await chromium.launch({headless:true});
+const browser = await launchBrowser();
 try {
  const desktop = await browser.newPage({viewport:{width:1365,height:900}});
  const errors = [];
  desktop.on('pageerror', e => errors.push(e.message));
  await desktop.goto(base, {waitUntil:'domcontentloaded'});
- await desktop.waitForURL(/\/terminal\/?(?:index\.html)?(?:\?.*)?$/, {timeout:20000});
+ await desktop.getByRole("heading",{name:"Research and ownership"}).waitFor();
+ await desktop.getByRole("navigation",{name:"COMMON departments"}).getByRole("link",{name:"Markets"}).click();
  await desktop.getByRole('heading',{name:/Research begins with evidence/i}).waitFor({timeout:20000});
  await desktop.goto(new URL('live/',base).href, {waitUntil:'domcontentloaded'});
  await desktop.getByRole('heading',{name:'Welcome back'}).waitFor({timeout:20000});
@@ -33,5 +34,5 @@ try {
  const width=await mobile.evaluate(()=>document.documentElement.scrollWidth);
  assert.ok(width <= 392,'Mobile horizontal overflow: '+width+'px');
  assert.deepEqual(mobileErrors,[],'Mobile browser errors: '+mobileErrors.join('; '));
- console.log('COMMON live frontend smoke passed: public terminal landing, connected auth shell, login, signup, reset, mobile');
+ console.log('COMMON live frontend smoke passed: shared home, terminal navigation, connected auth shell, login, signup, reset, mobile');
 } finally { await browser.close(); }
