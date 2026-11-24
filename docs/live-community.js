@@ -12,7 +12,7 @@ const el=(tag,attrs={},text)=>{const node=document.createElement(tag);for(const 
 const icons={
  home:'⌂',groups:'◎',chat:'◉',ownership:'◇',invest:'↗',studio:'⌇',agent:'◇',money:'\u0024',learn:'?',profile:'◍',add:'＋',safety:'⚑'
 };
-let blockedMembers=[],bookmarks=[],memberDetail=null,profileSection='identity',memberDirectory=[],mobileMore=false;let agentOutput=null,agentInput='',agentMode='review',agentSending=false,agentDeskTab='analysis',agentDesk=CommonAgentDesk.initial(),agentDeskOwner=null,agentLastRequest=null;let client=null,session=null,profile=null,groups=[],memberships=[],posts=[],proposals=[],projects=[],watches=[],people={},likes=[],messages=[],dm=[],selectedGroup=null,selectedPeer=null,view='home',busy=false,search='',error='',info='',pendingInvite=null,memberPoll=[],pollSelection=null,lastAuthView='signin',pollTimer,recovering=false,moderationCases=[],moderationAppeals=[],accountRestrictions=[],googleProviderStatus='checking';
+let blockedMembers=[],bookmarks=[],memberDetail=null,profileSection='identity',memberDirectory=[],mobileMore=false;let agentOutput=null,agentInput='',agentMode='review',agentSending=false,agentDeskTab='analysis',agentDesk=CommonAgentDesk.initial(),agentDeskOwner=null,agentLastRequest=null;let client=null,session=null,profile=null,groups=[],memberships=[],proposals=[],projects=[],watches=[],people={},messages=[],dm=[],selectedGroup=null,selectedPeer=null,view='home',busy=false,search='',error='',info='',pendingInvite=null,memberPoll=[],pollSelection=null,lastAuthView='signin',recovering=false,moderationCases=[],moderationAppeals=[],accountRestrictions=[],googleProviderStatus='checking';
 const capitalDrafts=new Map();let capitalTab='overview';let ledgerRows=[],ledgerCircle=null,ledgerError='',ledgerLoading=false;let decisionDetail=null,pollRows=[],pollOwn=null;
 const state={directory:'mine',feed:'mine',groupTab:'posts',comments:null,composer:false,groupCreate:false,projectCreate:false,proposalCreate:false,inviteToken:null,showMembers:false};
 const base=location.pathname.replace(/\/live\/?(?:index.html)?$/,'/live/');
@@ -22,8 +22,8 @@ const own=id=>memberships.some(x=>x.community_id===id&&['owner','moderator'].inc
 const person=id=>people[id]?.display_name||'COMMON member';
 const isBlocked=id=>blockedMembers.includes(id);
 const bookmarkKey=()=>session?.user?.id?'common.bookmarks.'+session.user.id:null;
-function loadBookmarks(){try{const k=bookmarkKey(),v=k?JSON.parse(localStorage.getItem(k)||'[]'):[];bookmarks=Array.isArray(v)?v.filter(x=>typeof x==='string').slice(0,500):[];}catch{bookmarks=[];}}
-function toggleBookmark(id){const k=bookmarkKey();if(!k)throw Error('Sign in required');const next=bookmarks.includes(id)?bookmarks.filter(x=>x!==id):[id,...bookmarks];if(next.length>500)throw Error('Saved research limit reached.');localStorage.setItem(k,JSON.stringify(next));bookmarks=next;render();}
+function loadBookmarks(){try{const k=bookmarkKey(),v=k?JSON.parse(localStorage.getItem(k)||'[]'):[];bookmarks=Array.isArray(v)?v.filter(x=>typeof x==='string'&&/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(x)).slice(0,500):[];}catch{bookmarks=[];}}
+function toggleBookmark(id){const k=bookmarkKey();if(!k)throw Error('Sign in required');const next=bookmarks.includes(id)?bookmarks.filter(x=>x!==id):[id,...bookmarks];if(next.length>500)throw Error('Saved research limit reached.');localStorage.setItem(k,JSON.stringify(next));bookmarks=next;if(state.feed==='saved')resetDiscussionFeed();render();}
 const saved=async () => client.auth.getSession();
 const explainAuthError=err=>{
  const message=err?.message||String(err), code=String(err?.code||'');
@@ -146,20 +146,94 @@ function safety(){
  (mine.length?mine.map(item).join(''):'<div class="empty">No safety flags on your account.</div>')+
  '<p class="small muted" style="margin-top:16px">Confirmed scams may lead to staff-enforced account restrictions. Only trained Trust & Safety staff can review held private-message content. A flagged term alone never suspends an account.</p>';
 }
+// Only the active feed page and open thread are held in memory. Cursor
+// timestamps are opaque strings so PostgreSQL microseconds survive pagination.
+let discussionFeed=null, discussionThread=null;
+function resetDiscussionFeed(){
+ discussionFeed=discussionThread=null;
+ state.comments=null;
+}
+function currentDiscussionScope(){
+ if(view==='home')return {feed_scope:state.feed};
+ if(view==='member'&&memberDetail)return {feed_scope:'member',scope_id:memberDetail.id};
+ if(view==='groups'&&state.groupTab==='posts'&&joined(selectedGroup))return {feed_scope:'circle',scope_id:selectedGroup};
+ return null;
+}
+function prepareDiscussionFeed(){
+ const scope=(!document.hidden&&profile?.id===session?.user?.id)?currentDiscussionScope():null;
+ if(!scope){resetDiscussionFeed();return}
+ const key=[session.user.id,scope.feed_scope,scope.scope_id].join(':');
+ if(discussionFeed?.key===key)return;
+ resetDiscussionFeed();
+ discussionFeed={key,scope,items:[],next:null,cursors:[null],loading:false,error:false};
+ void readDiscussionPage(discussionFeed,{quiet:true,initial:true});
+}
+async function readDiscussionPage(page,{thread=false,quiet=false,focus=false,initial=false}={}){
+ if(!page||page.loading)return;
+ const isCurrent=()=>page===(thread?discussionThread:discussionFeed);
+ page.loading=true;
+ if(!quiet){page.error=false;page.items=[];page.next=null;render()}
+ const cursor=page.cursors.at(-1);
+ let changed=initial||!quiet||page.error;
+ try{
+  const args={...page.scope,...cursor};
+  if(args.feed_scope==='saved')args.saved_ids=bookmarks;
+  const result=await call(client.rpc('discussion_feed_v1',args,{get:false}));
+  if(!isCurrent())return;
+  changed ||= JSON.stringify(page.items)!==JSON.stringify(result.items)||
+   JSON.stringify(page.next)!==JSON.stringify(result.next);
+  page.items=result.items;
+  page.next=result.next;
+  page.error=false;
+  if(!thread&&discussionThread&&!page.items.some(post=>post.id===discussionThread.scope.scope_id)){
+   discussionThread=null;state.comments=null;
+  }
+ }catch{
+  if(!isCurrent())return;
+  changed ||= !page.error;
+  page.items=[];page.next=null;page.error=true;
+  if(!thread){discussionThread=null;state.comments=null}
+ }finally{
+  if(isCurrent()){
+   page.loading=false;if(changed)render();
+   if(focus)document.getElementById(thread?'discussion-thread-items':'discussion-feed-items')?.focus();
+  }
+ }
+}
+function discussionPageMarkup(page,format,empty,thread=false){
+ const name=thread?'discussion-thread':'discussion-feed';
+ const id=name+'-items';
+ if(!page||page.loading&&page.items.length===0)return '<div id="'+id+'" tabindex="-1" role="status">Loading '+(thread?'replies':'discussions')+'…</div>';
+ if(page.error)return '<div id="'+id+'" tabindex="-1"><p role="alert">'+(navigator.onLine?'Discussions could not be loaded.':'You are offline.')+'</p>'+button(name+'-reload','Try again')+'</div>';
+ return '<div id="'+id+'" tabindex="-1">'+(page.items.length?page.items.map(format).join(''):empty)+'</div>'+
+ '<div class="discussion-page-controls" role="group" aria-label="'+(thread?'Reply pages':'Discussion pages')+'">'+
+ (page.cursors.length>1?button(name+'-newer','Newer '+(thread?'replies':'discussions')):'')+
+ (page.next?button(name+'-older','Older '+(thread?'replies':'discussions')):'')+
+ button(name+'-reload','Refresh '+(thread?'replies':'discussions'))+'</div>';
+}
+function pageDiscussionAction(action){
+ const match=/^discussion-(feed|thread)-(older|newer|reload)$/.exec(action);
+ if(!match)return null;
+ const thread=match[1]==='thread',page=thread?discussionThread:discussionFeed;
+ if(!page||page.loading)return Promise.resolve();
+ if(match[2]==='older'&&page.next)page.cursors.push(page.next);
+ if(match[2]==='newer'&&page.cursors.length>1)page.cursors.pop();
+ return readDiscussionPage(page,{thread,focus:true});
+}
+const countLabel=count=>count>=100?'99+':String(count);
 function postCard(p){
- const mine=p.author_id===session.user.id,community=groupName(p.community_id);
- const postLikes=likes.filter(l=>l.discussion_id===p.id);
- const comments=posts.filter(x=>x.parent_id===p.id&&!isBlocked(x.author_id));
- return '<article class="surface post"><div class="post-head"><div class="avatar">'+e(person(p.author_id).slice(0,2).toUpperCase())+'</div><div class="post-meta"><button class="member-link" data-act="member-profile" data-id="'+p.author_id+'">'+e(person(p.author_id))+'</button><p>'+e(community)+' · '+new Date(p.created_at).toLocaleString()+'</p></div>'+safetyLabel('discussion',p.id)+((mine||own(p.community_id))?button('report-post','Report / moderation','ghost','data-id="'+p.id+'"'):'')+'</div>'+
+ const mine=p.author_id===session.user.id,expanded=state.comments===p.id;
+ return '<article class="surface post"><div class="post-head"><div class="avatar">'+e(p.author_name.slice(0,2).toUpperCase())+'</div><div class="post-meta"><button class="member-link" data-act="member-profile" data-id="'+p.author_id+'">'+e(p.author_name)+'</button><p>'+e(p.community_name)+' · '+new Date(p.created_at).toLocaleString()+'</p></div>'+safetyLabel('discussion',p.id)+((mine||own(p.community_id))?button('report-post','Report / moderation','ghost','data-id="'+p.id+'"'):'')+'</div>'+
  (p.title?'<h3 class="post-title">'+e(p.title)+'</h3>':'')+'<p class="post-body">'+e(p.body)+'</p>'+
- '<div class="post-actions"><button data-act="like" data-id="'+p.id+'" class="'+(postLikes.some(l=>l.user_id===session.user.id)?'liked':'')+'">♡ '+postLikes.length+'</button><button data-act="comments" data-id="'+p.id+'">◉ '+comments.length+' replies</button><button data-act="bookmark" data-id="'+p.id+'" aria-pressed="'+bookmarks.includes(p.id)+'">'+(bookmarks.includes(p.id)?'Saved':'Save')+'</button><button data-act="report-post" data-id="'+p.id+'">Report</button></div>'+
- (state.comments===p.id?'<div class="comment-list">'+comments.map(c=>'<div class="comment"><strong>'+e(person(c.author_id))+': </strong>'+e(c.body)+'</div>').join('')+'</div><form class="comment-form" data-form="comment" data-parent="'+p.id+'" data-group="'+p.community_id+'"><input class="field" name="body" maxlength="2000" required placeholder="Reply with something useful"><button type="submit" class="button small">Reply</button></form>':'')+'</article>';
+ '<div class="post-actions"><button data-act="like" data-id="'+p.id+'" class="'+(p.liked?'liked':'')+'" aria-label="Like discussion" aria-pressed="'+p.liked+'">♡ '+countLabel(p.likes_count)+'</button><button data-act="comments" data-id="'+p.id+'" aria-expanded="'+expanded+'">◉ '+countLabel(p.replies_count)+' replies</button><button data-act="bookmark" data-id="'+p.id+'" aria-pressed="'+bookmarks.includes(p.id)+'">'+(bookmarks.includes(p.id)?'Saved':'Save')+'</button><button data-act="report-post" data-id="'+p.id+'">Report</button></div>'+
+ (expanded?'<div class="comment-list">'+discussionPageMarkup(discussionThread,c=>'<div class="comment"><strong>'+e(c.author_name)+': </strong>'+e(c.body)+'</div>','<p>No visible replies.</p>',true)+'</div>'+
+ (joined(p.community_id)?'<form class="comment-form" data-form="comment" data-parent="'+p.id+'" data-group="'+p.community_id+'"><input class="field" name="body" maxlength="2000" required aria-label="Reply" placeholder="Reply with something useful"><button type="submit" class="button small">Reply</button></form>':''):'')+'</article>';
 }
 function home(){
- const visible=posts.filter(x=>!x.parent_id&&!isBlocked(x.author_id)&&(state.feed==='saved'?bookmarks.includes(x.id):state.feed==='discover'?groupById(x.community_id)?.visibility==='public':joined(x.community_id))).slice(0,70);
+ const empty=state.feed==='saved'?'<div class="empty">No saved discussions are visible.</div>':'<div class="empty"><h3>No discussions yet</h3><p>Join a community and start the first research conversation.</p>'+button('open-groups','Find a community')+'</div>';
  return '<div class="columns"><div><div class="feature-hero"><span class="pill" style="background:#ffffff29;color:white;width:max-content">THE COMMONS</span><h2>Ideas become stronger together.</h2><p>Start conversations with real members and turn community research into meaningful, lawful action.</p>'+button('create-group','Create a community','primary')+'</div>'+
- '<div class="section-bar"><h3>Research feed</h3>'+button('compose','Share research')+'</div><div class="feed-tabs">'+[['mine','My circles'],['discover','Discover'],['saved','Saved research']].map(([k,t])=>'<button class="feed-tab '+(state.feed===k?'active':'')+'" data-feed="'+k+'">'+t+'</button>').join('')+'</div>'+
- (visible.length?visible.map(postCard).join(''):'<div class="empty"><h3>No discussions yet</h3><p>Join a community and start the first research conversation.</p>'+button('open-groups','Find a community')+'</div>')+
+ '<div class="section-bar"><h3>Research feed</h3>'+button('compose','Share research')+'</div><div class="feed-tabs">'+[['mine','My circles'],['discover','Discover'],['saved','Saved research']].map(([k,t])=>'<button class="feed-tab '+(state.feed===k?'active':'')+'" data-feed="'+k+'" aria-pressed="'+(state.feed===k)+'">'+t+'</button>').join('')+'</div>'+
+ discussionPageMarkup(discussionFeed,postCard,empty)+
  '</div><aside class="rail"><div class="surface rail-box"><h3>Your communities</h3>'+memberships.map(m=>'<button class="rail-link" data-act="open-group" data-id="'+m.community_id+'"><span class="avatar">'+e(groupName(m.community_id).slice(0,1))+'</span><strong>'+e(groupName(m.community_id))+'</strong></button>').join('')+'</div><div class="surface rail-box education-prompt"><h3>Never invested before?</h3><p>Learn about stocks, ownership, funds and legal structures without the jargon.</p>'+button('learn','Explore lessons')+'</div></aside></div>';
 }
 function communities(){
@@ -217,7 +291,7 @@ function groupBody(g){
  if(state.groupTab==='members')return '<div class="surface" style="padding:22px"><h3>Members</h3><p class="muted small">Member accounts; identity and financial holdings are not independently verified.</p><div class="stack" style="margin-top:15px">'+memberPoll.map(m=>'<div class="space"><div><button class="member-link" data-act="member-profile" data-id="'+m.user_id+'">'+e(person(m.user_id))+'</button> <span class="pill">'+e(m.role)+'</span></div>'+(m.user_id!==session.user.id?button('dm-user','Message','secondary','data-id="'+m.user_id+'"'):'')+'</div>').join('')+'</div></div>';
  if(state.groupTab==='invites')return '<div class="surface" style="padding:22px"><h3>Invite people</h3><p class="muted small" style="margin:10px 0 15px">Secure invitations expire and have limited uses. Community moderators control issuance.</p>'+(own(g.id)?button('make-invite','Create invitation link','primary'):'<p>Ask a moderator for an invitation.</p>')+(state.inviteToken?'<div class="preview-banner"><strong>Invite URL</strong><input class="field" id="invite-url" readonly value="'+e(location.origin+base+'#invite='+state.inviteToken)+'">'+button('copy-invite','Copy URL')+'</div>':'')+'</div>';
  return '<div class="space" style="margin:0 0 12px"><h3>Discussions</h3></div>'+
- (posts.filter(p=>p.community_id===g.id&&!p.parent_id&&!isBlocked(p.author_id)).map(postCard).join('')||'<div class="empty">Be the first to share research here.</div>');
+ discussionPageMarkup(discussionFeed,postCard,'<div class="empty">Be the first to share research here.</div>');
 }
 function chat(){
  const peers=memberDirectory.filter(x=>x.id!==session.user.id&&x.allow_direct_messages&&!isBlocked(x.id));
@@ -263,13 +337,13 @@ function money(){
 }
 function learn(){return head('Understand ownership','Financial concepts explained in plain language.')+
  [['Can my friends buy the same stock?','Yes. Members can discuss and independently decide what to do through their own brokerages. Avoid agreements designed to artificially move prices.'],['What is a pooled investment club?','An actual pooled club needs a lawful structure and external financial accounts. A COMMON group is not automatically a legal fund.'],['Can our group buy housing?','An appropriately structured entity can research and potentially acquire properties using outside legal, banking and financing professionals. COMMON does not offer securities or collect investments.'],['Are community votes legally binding?','No. These opinion polls are not company shareholder votes or investment instructions.'],['What is AUM?','Assets under management is the value a manager oversees. Group size, hypothetical contributions and goal amounts do not count as real AUM.']].map(([q,a])=>'<details class="surface lesson"><summary>'+e(q)+'</summary><p>'+e(a)+'</p></details>').join('');}
-function memberPage(){const p=memberDetail;if(!p)return head('Member profile','Select a member from a circle.');const mine=p.id===session.user.id,shared=memberDirectory.some(x=>x.id===p.id),visible=posts.filter(x=>x.author_id===p.id&&!x.parent_id&&!isBlocked(x.author_id));
-return head(p.display_name,'@'+p.handle)+button('open-groups','Back to circles')+'<div class="surface circle-tools"><div class="space"><span class="avatar">'+e(p.display_name.slice(0,2).toUpperCase())+'</span><span class="pill">Member profile</span></div><p class="post-body">'+e(p.bio||'No public biography provided.')+'</p><p class="muted small">Member-provided profile; not an independently verified investment professional or shareholder.</p><div class="row">'+(mine?'<button class="button" data-tab="profile">Edit profile</button>':(shared&&p.allow_direct_messages&&!isBlocked(p.id)?button('dm-user','Message','primary','data-id="'+p.id+'"'):'')+button(isBlocked(p.id)?'unblock-member':'block-member',isBlocked(p.id)?'Unblock member':'Block member','secondary','data-id="'+p.id+'"'))+'</div></div><div class="section-bar"><h3>Visible recent research</h3></div>'+(visible.length?visible.map(postCard).join(''):'<div class="empty">No visible recent research.</div>');}
+function memberPage(){const p=memberDetail;if(!p)return head('Member profile','Select a member from a circle.');const mine=p.id===session.user.id,shared=memberDirectory.some(x=>x.id===p.id);
+return head(p.display_name,'@'+p.handle)+button('open-groups','Back to circles')+'<div class="surface circle-tools"><div class="space"><span class="avatar">'+e(p.display_name.slice(0,2).toUpperCase())+'</span><span class="pill">Member profile</span></div><p class="post-body">'+e(p.bio||'No public biography provided.')+'</p><p class="muted small">Member-provided profile; not an independently verified investment professional or shareholder.</p><div class="row">'+(mine?'<button class="button" data-tab="profile">Edit profile</button>':(shared&&p.allow_direct_messages&&!isBlocked(p.id)?button('dm-user','Message','primary','data-id="'+p.id+'"'):'')+button(isBlocked(p.id)?'unblock-member':'block-member',isBlocked(p.id)?'Unblock member':'Block member','secondary','data-id="'+p.id+'"'))+'</div></div><div class="section-bar"><h3>Visible recent research</h3></div>'+discussionPageMarkup(discussionFeed,postCard,'<div class="empty">No visible recent research.</div>');}
 function profilePage(){const nav='<div class="feed-tabs">'+[['identity','Profile'],['privacy','Privacy & communication'],['blocked','Blocked members'],['saved','Saved research']].map(([id,label])=>'<button class="feed-tab '+(profileSection===id?'active':'')+'" data-profile-section="'+id+'">'+label+'</button>').join('')+'</div>';let c='';
 if(profileSection==='identity')c='<form data-form="profile" class="stack"><label><span class="form-label">Display name</span><input class="field" name="name" required maxlength="80" minlength="2" value="'+e(profile?.display_name)+'"></label><label><span class="form-label">Biography (public)</span><textarea class="field" maxlength="600" name="bio">'+e(profile?.bio||'')+'</textarea></label><button type="submit" class="button">Save profile</button></form>';
 if(profileSection==='privacy')c='<form data-form="privacy" class="stack"><label class="row"><input type="checkbox" name="allow_dm" '+(profile?.allow_direct_messages?'checked':'')+'> Allow direct messages from members of my communities</label><p class="muted small">Private messaging requires a shared circle and recipient consent. Blocking prevents direct messaging in both directions.</p><button type="submit" class="button">Save privacy preferences</button></form>';
 if(profileSection==='blocked')c='<p class="muted small">Blocked profiles are hidden from your feed and cannot exchange direct messages with you. This does not remove their public content for other users.</p>'+ (blockedMembers.length?blockedMembers.map(id=>'<div class="space"><span>'+e(person(id))+'</span>'+button('unblock-member','Unblock','secondary','data-id="'+id+'"')+'</div>').join(''):'<p>No blocked members.</p>');
-if(profileSection==='saved')c='<p class="muted small">Bookmarks are saved on this device and account only. Only research still visible in your recent feed is displayed.</p>'+button('saved-feed','Open saved research')+'<button class="button secondary" data-act="clear-bookmarks">Clear saved research</button>';
+if(profileSection==='saved')c='<p class="muted small">Bookmarks are saved on this device and account only. Only research you still have permission to read is displayed.</p>'+button('saved-feed','Open saved research')+'<button class="button secondary" data-act="clear-bookmarks">Clear saved research</button>';
 return head('Your account','Control your identity, communications and privacy.')+nav+'<div class="surface circle-tools"><h3>'+e(profile?.display_name)+'</h3><p class="muted small">@'+e(profile?.handle)+'</p>'+c+'</div><button class="button soft" data-act="signout">Sign out</button>';}
 
 function dialog(){
@@ -284,27 +358,46 @@ function dialog(){
 function recoveryPage(){
  root.innerHTML='<main class="auth-shell"><section class="auth-left">'+logo()+'<div class="auth-feature"><h1>Secure your<br><em>account.</em></h1><p>Choose a new password to regain access to your community.</p></div></section><section class="auth-right"><div class="auth-form-wrap"><h2>Reset your password</h2>'+banner()+'<form id="password-change-form" class="stack"><label><span class="form-label">New password</span><input class="field" name="password" required type="password" minlength="8" autocomplete="new-password"></label><button type="submit" class="button full">Save new password</button></form></div></section></main>';
 }
-function render(){if(!client){setup();return}if(recovering){recoveryPage();return}if(!session?.user){auth();return}root.innerHTML=baseNav()+dialog()}
+function render(){if(!client){setup();return}if(recovering){resetDiscussionFeed();recoveryPage();return}if(!session?.user){resetDiscussionFeed();auth();return}prepareDiscussionFeed();root.innerHTML=baseNav()+dialog()}
 async function init(){
  if(!config.supabaseUrl||!config.supabaseAnonKey||config.communityBackendReady!==true||!window.supabase?.createClient){setup();return}
  client=window.supabase.createClient(config.supabaseUrl,config.supabaseAnonKey,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
  checkGoogleProvider().catch(console.error);
  const r=await saved();if(r.error)throw r.error;session=r.data.session;
- client.auth.onAuthStateChange((evt,next)=>{session=next;if(evt==='PASSWORD_RECOVERY'){recovering=true;render();return}if(next&&!recovering){setTimeout(()=>refresh().catch(handleError),0)}else if(!next){profile=null;ledgerRows=[];ledgerCircle=null;ledgerError='';decisionDetail=null;pollRows=[];pollOwn=null;capitalDrafts.clear();capitalTab='overview';blockedMembers=[];bookmarks=[];memberDetail=null;memberDirectory=[];profileSection='identity';mobileMore=false;agentOutput=null;agentInput='';agentMode='review';agentDeskTab='analysis';agentDesk=CommonAgentDesk.initial();agentDeskOwner=null;agentLastRequest=null;groups=[];memberships=[];posts=[];proposals=[];projects=[];watches=[];people={};likes=[];messages=[];dm=[];memberPoll=[];selectedGroup=null;selectedPeer=null;state.inviteToken=null;state.comments=null;state.composer=state.groupCreate=state.projectCreate=state.proposalCreate=false;recovering=false;render()}});
+ client.auth.onAuthStateChange((evt,next)=>{session=next;if(evt==='PASSWORD_RECOVERY'){recovering=true;render();return}if(next&&!recovering){if(evt!=='INITIAL_SESSION'&&evt!=='TOKEN_REFRESHED')setTimeout(()=>refresh().catch(handleError),0)}else if(!next){profile=null;ledgerRows=[];ledgerCircle=null;ledgerError='';decisionDetail=null;pollRows=[];pollOwn=null;capitalDrafts.clear();capitalTab='overview';blockedMembers=[];bookmarks=[];memberDetail=null;memberDirectory=[];profileSection='identity';mobileMore=false;agentOutput=null;agentInput='';agentMode='review';agentDeskTab='analysis';agentDesk=CommonAgentDesk.initial();agentDeskOwner=null;agentLastRequest=null;groups=[];memberships=[];proposals=[];projects=[];watches=[];people={};messages=[];dm=[];memberPoll=[];selectedGroup=null;selectedPeer=null;state.inviteToken=null;state.comments=null;state.composer=state.groupCreate=state.projectCreate=state.proposalCreate=false;recovering=false;render()}});
  if(session)await refresh();else render();
  const fragment=location.hash.match(/^#invite=([a-f0-9]{48})$/);
  if(fragment)pendingInvite=fragment[1];
  if(!pendingInvite){try{const savedInvite=sessionStorage.getItem('common.pendingInvite');if(/^[a-f0-9]{48}$/.test(savedInvite||''))pendingInvite=savedInvite;}catch{}}
  if(pendingInvite&&session)await acceptInvite(pendingInvite);
- pollTimer=setInterval(()=>{if(session&&!busy)refresh(false).then(()=>{if(view==='groups'&&state.groupTab==='chat'&&!document.activeElement?.matches('input,textarea'))render()}).catch(console.error)},25000);
+ // Refresh only the current visible resource, never the full member bootstrap.
+ let refreshingView=false;
+ setInterval(async()=>{
+  if(!session?.user||document.hidden||busy||refreshingView||document.activeElement?.matches('input,textarea,select'))return;
+  refreshingView=true;
+  try{
+   if(view==='groups'&&state.groupTab==='chat'&&selectedGroup){await loadMessages();if(view==='groups'&&state.groupTab==='chat')render()}
+   else if(discussionFeed){
+    await readDiscussionPage(discussionFeed,{quiet:true});
+    if(discussionThread)await readDiscussionPage(discussionThread,{thread:true,quiet:true});
+   }
+  }catch(err){console.error(err)}finally{refreshingView=false}
+ },25000);
+ document.addEventListener('visibilitychange',()=>{
+  if(!currentDiscussionScope())return;
+  resetDiscussionFeed();render();
+ });
+ window.addEventListener('online',()=>{
+  if(discussionFeed?.error)void readDiscussionPage(discussionFeed);
+  else if(discussionThread?.error)void readDiscussionPage(discussionThread,{thread:true});
+ });
 }
-async function refresh(redraw=true){
+async function refresh(){
  if(!session?.user)return;const uid=session.user.id;loadAgentDesk();
- const [p,c,m,d,q,o,w,mod,appeals,restrictions]=await Promise.all([
+ const [p,c,m,q,o,w,mod,appeals,restrictions]=await Promise.all([
  call(client.from('profiles').select('*').eq('id',uid).single()),
  call(client.from('communities').select('*').order('created_at',{ascending:false}).limit(200)),
  call(client.from('memberships').select('community_id,user_id,role').eq('user_id',uid)),
- call(client.from('discussions').select('*').is('deleted_at',null).order('created_at',{ascending:false}).limit(200)),
  call(client.from('proposals').select('*').order('created_at',{ascending:false}).limit(80)),
  call(client.from('ownership_projects').select('*').order('created_at',{ascending:false}).limit(100)),
  call(client.from('watchlist_items').select('*').eq('user_id',uid)),
@@ -312,13 +405,11 @@ async function refresh(redraw=true){
  call(client.from('moderation_appeals').select('id,case_id,appellant_id,statement,appeal_status,created_at').order('created_at',{ascending:false}).limit(100)),
  call(client.from('account_enforcement').select('restriction,reason,expires_at').eq('user_id',uid))
  ]);
- if(session?.user?.id!==uid)return;profile=p;groups=c;memberships=m;posts=d;proposals=q;projects=o;watches=w;moderationCases=mod;moderationAppeals=appeals;accountRestrictions=restrictions;
- const memberRows=memberships.length?await call(client.from('memberships').select('user_id').in('community_id',memberships.map(m=>m.community_id)).limit(1000)):[];const blockRows=await call(client.from('member_blocks').select('blocked_id').eq('blocker_id',uid));if(session?.user?.id!==uid)return;blockedMembers=blockRows.map(b=>b.blocked_id);loadBookmarks();const memberIds=new Set(memberRows.map(m=>m.user_id));const ids=[...new Set([uid,...blockedMembers,...memberIds,...posts.map(x=>x.author_id),...projects.map(x=>x.author_id)])];
+ if(session?.user?.id!==uid)return;profile=p;groups=c;memberships=m;proposals=q;projects=o;watches=w;moderationCases=mod;moderationAppeals=appeals;accountRestrictions=restrictions;
+ const memberRows=memberships.length?await call(client.from('memberships').select('user_id').in('community_id',memberships.map(m=>m.community_id)).limit(1000)):[];const blockRows=await call(client.from('member_blocks').select('blocked_id').eq('blocker_id',uid));if(session?.user?.id!==uid)return;blockedMembers=blockRows.map(b=>b.blocked_id);loadBookmarks();const memberIds=new Set(memberRows.map(m=>m.user_id));const ids=[...new Set([uid,...blockedMembers,...memberIds,...projects.map(x=>x.author_id)])];
  if(ids.length){const all=[];for(let i=0;i<ids.length;i+=100){all.push(...await call(client.from('profiles').select('id,display_name,handle,allow_direct_messages').in('id',ids.slice(i,i+100))));}if(session?.user?.id!==uid)return;people=Object.fromEntries(all.map(x=>[x.id,x]));memberDirectory=all.filter(x=>memberIds.has(x.id));}
- const postIds=posts.map(x=>x.id);
- likes=postIds.length?await call(client.from('discussion_likes').select('discussion_id,user_id').in('discussion_id',postIds)):[];
  if(selectedGroup&&joined(selectedGroup)&&state.groupTab==='chat')await loadMessages();
- if(redraw)render();
+ resetDiscussionFeed();render();
 }
 async function loadMessages(){const cid=selectedGroup,uid=session?.user?.id;if(!cid||!uid||!joined(cid))return;const rows=await call(client.from('community_messages').select('*').eq('community_id',cid).is('deleted_at',null).order('created_at',{ascending:false}).limit(100));if(selectedGroup!==cid||session?.user?.id!==uid)return;messages=rows.reverse();const ids=[...new Set(messages.map(x=>x.author_id).filter(id=>!people[id]))];if(ids.length){const p=await call(client.from('profiles').select('id,display_name,handle,allow_direct_messages').in('id',ids));if(selectedGroup===cid&&session?.user?.id===uid)for(const x of p)people[x.id]=x;}}
 async function loadGroupMembers(){const cid=selectedGroup,uid=session?.user?.id;if(!cid||!uid||!joined(cid))return;const rows=await call(client.from('memberships').select('user_id,role').eq('community_id',cid).limit(150));if(selectedGroup!==cid||session?.user?.id!==uid)return;memberPoll=rows;const ids=rows.map(x=>x.user_id).filter(id=>!people[id]);if(ids.length){const p=await call(client.from('profiles').select('id,display_name,handle,allow_direct_messages').in('id',ids));if(selectedGroup===cid&&session?.user?.id===uid)for(const x of p)people[x.id]=x;}}
@@ -343,9 +434,10 @@ async function dispatch(action,element){
  }
  if(action==='export-capital'){const draft=capitalDrafts.get(selectedGroup);if(!draft||!joined(selectedGroup))throw Error('No scenario available');const url=URL.createObjectURL(new Blob([JSON.stringify({notice:'HYPOTHETICAL ONLY — NO FUNDS OR COMMITMENTS',...draft.result},null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='common-capital-scenario.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),500);return}
  if(action==='mobile-more'){mobileMore=!mobileMore;render();return}
- if(action==='bookmark'){if(!posts.some(p=>p.id===id))throw Error('Research no longer visible');toggleBookmark(id);return}
+ const pageAction=pageDiscussionAction(action);if(pageAction)return pageAction;
+ if(action==='bookmark'){if(!discussionFeed?.items.some(p=>p.id===id))throw Error('Research no longer visible');toggleBookmark(id);return}
  if(action==='saved-feed'){view='home';state.feed='saved';render();return}
- if(action==='clear-bookmarks'){if(confirm('Clear all saved research on this device?')){localStorage.removeItem(bookmarkKey());bookmarks=[];render()}return}
+ if(action==='clear-bookmarks'){if(confirm('Clear all saved research on this device?')){localStorage.removeItem(bookmarkKey());bookmarks=[];resetDiscussionFeed();render()}return}
  if(action==='member-profile'){const uid=session.user.id,p=await call(client.from('profiles').select('id,display_name,handle,bio,allow_direct_messages').eq('id',id).single());if(session?.user?.id!==uid)return;memberDetail=p;view='member';render();return}
  if(action==='block-member'||action==='unblock-member'){if(id===session.user.id)throw Error('Cannot block yourself');if(action==='block-member'){if(!confirm('Block this member? Direct messaging will be disabled.'))return;await call(client.from('member_blocks').insert({blocker_id:session.user.id,blocked_id:id}));if(selectedPeer===id){selectedPeer=null;dm=[]}}else await call(client.from('member_blocks').delete().eq('blocker_id',session.user.id).eq('blocked_id',id));await refresh();return}
  if(action==='auth-mode'){lastAuthView=element.dataset.mode;info=error='';render();return}
@@ -364,8 +456,19 @@ async function dispatch(action,element){
  if(action==='open-terminal'){location.assign(new URL('../terminal/',location.href).href);return}
  if(action==='open-studio'){location.assign(new URL('../lab/',location.href).href);return}
  if(action==='learn'){view='learn';render();return}
- if(action==='comments'){state.comments=state.comments===id?null:id;render();return}
- if(action==='like'){const target=likes.find(x=>x.discussion_id===id&&x.user_id===session.user.id);if(target)await call(client.from('discussion_likes').delete().eq('discussion_id',id).eq('user_id',session.user.id));else await call(client.from('discussion_likes').insert({discussion_id:id,user_id:session.user.id}));await refresh();return}
+ if(action==='comments'){
+  if(state.comments===id){state.comments=null;discussionThread=null;render();return}
+  if(!discussionFeed?.items.some(post=>post.id===id))return;
+  state.comments=id;
+  discussionThread={scope:{feed_scope:'replies',scope_id:id},items:[],next:null,cursors:[null],loading:false,error:false};
+  await readDiscussionPage(discussionThread,{thread:true,focus:true});return;
+ }
+ if(action==='like'){
+  const post=discussionFeed?.items.find(item=>item.id===id);if(!post)return;
+  if(post.liked)await call(client.from('discussion_likes').delete().eq('discussion_id',id).eq('user_id',session.user.id));
+  else await call(client.from('discussion_likes').upsert({discussion_id:id,user_id:session.user.id},{ignoreDuplicates:true,onConflict:'discussion_id,user_id'}));
+  await readDiscussionPage(discussionFeed,{quiet:true});return;
+ }
  if(action==='new-proposal'){state.proposalCreate=true;render();return}
  if(action==='new-project'){state.projectCreate=true;render();return}
  if(action==='remove-watch'){await call(client.from('watchlist_items').delete().eq('symbol',element.dataset.symbol).eq('user_id',session.user.id));await refresh();return}
@@ -419,7 +522,7 @@ async function dispatch(action,element){
    status(approved?'Educational content released after review.':'Content remains hidden. A review record was saved.');
    return;
  }
- if(action==='report-post'){const post=posts.find(x=>x.id===id);if(!post)return;const reason=window.prompt('Report this discussion: spam, harassment, fraud, misinformation, other');if(!reason)return;const normalized=reason.toLowerCase().trim();if(!['spam','harassment','fraud','misinformation','other'].includes(normalized)){status('Choose one of the listed reasons.');return}await call(client.from('content_reports').insert({reporter_id:session.user.id,community_id:post.community_id,discussion_id:post.id,reason:normalized}));status('Report submitted for moderator review.');return}
+ if(action==='report-post'){const post=discussionFeed?.items.find(x=>x.id===id);if(!post)return;const reason=window.prompt('Report this discussion: spam, harassment, fraud, misinformation, other');if(!reason)return;const normalized=reason.toLowerCase().trim();if(!['spam','harassment','fraud','misinformation','other'].includes(normalized)){status('Choose one of the listed reasons.');return}await call(client.from('content_reports').insert({reporter_id:session.user.id,community_id:post.community_id,discussion_id:post.id,reason:normalized}));status('Report submitted for moderator review.');return}
 }
 async function submitted(form){
  const f=new FormData(form),type=form.getAttribute('data-form'),uid=session.user.id;
@@ -429,8 +532,8 @@ async function submitted(form){
  if(type==='agent-command'){saveAgentDesk({...agentDesk,commands:[...agentDesk.commands,CommonAgentDesk.command(Object.fromEntries(f),agentDesk.commands)]});return}
  if(type==='agent-memory'){saveAgentDesk({...agentDesk,memory:[...agentDesk.memory,CommonAgentDesk.note(Object.fromEntries(f),agentDesk.memory)]});return}
  if(type==='research-agent'){if(config.researchAgentEnabled!==true||f.get('consent')!=='on')throw Error('Research assistant unavailable or consent missing.');agentInput=String(f.get('input')||'');agentMode=String(f.get('mode')||'review');const selected=f.getAll('memory'),requestInput=CommonAgentDesk.compose(agentInput,agentDesk.memory.filter(n=>selected.includes(n.id)));agentOutput=null;agentLastRequest=null;agentSending=true;render();try{const {data,error:failure}=await client.functions.invoke('common-research-agent',{body:{mode:agentMode,input:requestInput,consent:true}});if(failure)throw failure;if(session?.user?.id!==uid)return;if(typeof data?.text!=='string')throw Error('Invalid research response');agentOutput=data.text;agentLastRequest={mode:agentMode,input:requestInput,status:data.status};}finally{agentSending=false;render()}return}
- if(type==='post'){await call(client.from('discussions').insert({community_id:f.get('group'),author_id:uid,title:short(f.get('title'),160),body:short(f.get('body'),10000)}));state.composer=false;await refresh();return}
- if(type==='comment'){await call(client.from('discussions').insert({community_id:form.dataset.group,author_id:uid,parent_id:form.dataset.parent,body:short(f.get('body'),2000)}));await refresh();return}
+ if(type==='post'){await call(client.from('discussions').insert({community_id:f.get('group'),author_id:uid,title:short(f.get('title'),160),body:short(f.get('body'),10000)}));state.composer=false;resetDiscussionFeed();render();return}
+ if(type==='comment'){await call(client.from('discussions').insert({community_id:form.dataset.group,author_id:uid,parent_id:form.dataset.parent,body:short(f.get('body'),2000)}));if(discussionThread){discussionThread.cursors=[null];await readDiscussionPage(discussionThread,{thread:true,focus:true})}await readDiscussionPage(discussionFeed,{quiet:true});return}
  if(type==='group'){const name=String(f.get('name')).trim(),slug=name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,40)+'-'+Math.random().toString(36).slice(2,10);const result=await call(client.from('communities').insert({name,slug,description:f.get('description'),visibility:f.get('visibility'),category:f.get('category'),created_by:uid}).select('id').single());selectedGroup=result.id;view='groups';state.groupCreate=false;await refresh();return}
  if(type==='proposal'){await call(client.from('proposals').insert({community_id:f.get('community'),author_id:uid,title:f.get('title'),rationale:f.get('rationale')}));state.proposalCreate=false;await refresh();return}
  if(type==='project'){await call(client.from('ownership_projects').insert({community_id:f.get('community'),author_id:uid,title:f.get('title'),thesis:f.get('thesis'),category:f.get('category')}));state.projectCreate=false;await refresh();return}
