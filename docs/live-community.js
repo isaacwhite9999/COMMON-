@@ -15,6 +15,7 @@ const icons={
 let blockedMembers=[],bookmarks=[],memberDetail=null,profileSection='identity',memberDirectory=[],mobileMore=false;let agentOutput=null,agentInput='',agentMode='review',agentSending=false,agentDeskTab='analysis',agentDesk=CommonAgentDesk.initial(),agentDeskOwner=null,agentLastRequest=null;let client=null,session=null,profile=null,groups=[],memberships=[],proposals=[],projects=[],watches=[],people={},messages=[],dm=[],selectedGroup=null,selectedPeer=null,view='home',busy=false,search='',error='',info='',pendingInvite=null,memberPoll=[],pollSelection=null,lastAuthView='signin',recovering=false,moderationCases=[],moderationAppeals=[],accountRestrictions=[],googleProviderStatus='checking';
 const capitalDrafts=new Map();let capitalTab='overview';let ledgerRows=[],ledgerCircle=null,ledgerError='',ledgerLoading=false;let decisionDetail=null,pollRows=[],pollOwn=null;
 const state={directory:'mine',feed:'mine',groupTab:'posts',comments:null,composer:false,groupCreate:false,projectCreate:false,proposalCreate:false,inviteToken:null,showMembers:false};
+let researchReview=null,pollDraft=null;
 const base=location.pathname.replace(/\/live\/?(?:index.html)?$/,'/live/');
 const groupById=id=>groups.find(x=>x.id===id);
 const joined=id=>memberships.some(x=>x.community_id===id);
@@ -85,9 +86,9 @@ function auth(){
 }
 function baseNav(){
  const items=navs.map(([id,label])=>'<button class="nav-item '+(view===id?'active':'')+'" data-tab="'+id+'"><span style="font-size:20px;width:21px">'+icons[id]+'</span><span>'+label+'</span></button>').join('');
- return '<div class="app-shell"><aside class="navbar">'+logo()+'<div class="nav-links" style="margin-top:25px">'+items+'</div><a class="nav-item workspace-link" href="../workspace/">Research workspace ↗</a><div class="nav-spacer"></div><div class="nav-person"><button data-tab="profile"><span class="avatar">'+e((profile?.display_name||'?').slice(0,2).toUpperCase())+'</span><span class="details"><strong>'+e(profile?.display_name||'Member')+'</strong><span class="tiny muted">@'+e(profile?.handle||'member')+'</span></span></button></div></aside><div class="main-wrap"><header class="mobile-head">'+logo()+'<button class="icon-btn" data-act="mobile-more" aria-expanded="'+mobileMore+'" aria-label="More navigation">☰</button></header>'+(mobileMore?'<nav class="mobile-more" aria-label="More sections">'+navs.slice(5).map(([id,label])=>'<button class="nav-item" data-tab="'+id+'">'+e(label)+'</button>').join('')+'<a href="../workspace/">Research workspace ↗</a></nav>':'')+'<header class="topbar"><h2>'+e(titleCase(view))+'</h2><div style="margin-left:auto"><span class="pill lime">LIVE COMMUNITY</span></div></header><main class="content">'+banner()+page()+'</main></div><nav class="mobile-nav">'+navs.slice(0,5).map(([id,label])=>'<button data-tab="'+id+'" class="'+(view===id?'active':'')+'"><span style="font-size:21px">'+icons[id]+'</span><span>'+label+'</span></button>').join('')+'</nav></div>';
+ return '<div class="app-shell"><aside class="navbar">'+logo()+'<div class="nav-links" style="margin-top:25px">'+items+'</div><a class="nav-item workspace-link" href="../workspace/">Research workspace ↗</a><div class="nav-spacer"></div><div class="nav-person"><button data-tab="profile"><span class="avatar">'+e((profile?.display_name||'?').slice(0,2).toUpperCase())+'</span><span class="details"><strong>'+e(profile?.display_name||'Member')+'</strong><span class="tiny muted">@'+e(profile?.handle||'member')+'</span></span></button></div></aside><div class="main-wrap"><header class="mobile-head">'+logo()+'<button class="icon-btn" data-act="mobile-more" aria-expanded="'+mobileMore+'" aria-label="More navigation">☰</button></header>'+(mobileMore?'<nav class="mobile-more" aria-label="More sections">'+navs.slice(5).map(([id,label])=>'<button class="nav-item" data-tab="'+id+'">'+e(label)+'</button>').join('')+'<a href="../workspace/">Research workspace ↗</a></nav>':'')+'<header class="topbar"><h2>'+e(titleCase(view))+'</h2><div style="margin-left:auto"><span class="pill lime">LIVE COMMUNITY</span></div></header><main class="content">'+banner()+researchDraftNotice()+page()+'</main></div><nav class="mobile-nav">'+navs.slice(0,5).map(([id,label])=>'<button data-tab="'+id+'" class="'+(view===id?'active':'')+'"><span style="font-size:21px">'+icons[id]+'</span><span>'+label+'</span></button>').join('')+'</nav></div>';
 }
-function page(){if(view==='home')return home();if(view==='groups')return selectedGroup?groupDetail():communities();if(view==='chat')return chat();if(view==='ownership')return ownership();if(view==='invest')return research();if(view==='agent')return agentPage();if(view==='member')return memberPage();if(view==='money')return money();if(view==='learn')return learn();if(view==='safety')return safety();return profilePage();}
+function page(){if(view==='research-review')return researchReviewPage();if(view==='home')return home();if(view==='groups')return selectedGroup?groupDetail():communities();if(view==='chat')return chat();if(view==='ownership')return ownership();if(view==='invest')return research();if(view==='agent')return agentPage();if(view==='member')return memberPage();if(view==='money')return money();if(view==='learn')return learn();if(view==='safety')return safety();return profilePage();}
 function head(t,s='',extra=''){return '<div class="space" style="align-items:flex-start;margin-bottom:24px"><div><h1 class="page-title">'+e(t)+'</h1><p class="subhead">'+e(s)+'</p></div>'+extra+'</div>'}
 function groupName(id){return groupById(id)?.name||'Community'}
 function contentFlag(kind,id){
@@ -225,7 +226,9 @@ function postCard(p){
  const mine=p.author_id===session.user.id,expanded=state.comments===p.id;
  return '<article class="surface post"><div class="post-head"><div class="avatar">'+e(p.author_name.slice(0,2).toUpperCase())+'</div><div class="post-meta"><button class="member-link" data-act="member-profile" data-id="'+p.author_id+'">'+e(p.author_name)+'</button><p>'+e(p.community_name)+' · '+new Date(p.created_at).toLocaleString()+'</p></div>'+safetyLabel('discussion',p.id)+((mine||own(p.community_id))?button('report-post','Report / moderation','ghost','data-id="'+p.id+'"'):'')+'</div>'+
  (p.title?'<h3 class="post-title">'+e(p.title)+'</h3>':'')+'<p class="post-body">'+e(p.body)+'</p>'+
- '<div class="post-actions"><button data-act="like" data-id="'+p.id+'" class="'+(p.liked?'liked':'')+'" aria-label="Like discussion" aria-pressed="'+p.liked+'">♡ '+countLabel(p.likes_count)+'</button><button data-act="comments" data-id="'+p.id+'" aria-expanded="'+expanded+'">◉ '+countLabel(p.replies_count)+' replies</button><button data-act="bookmark" data-id="'+p.id+'" aria-pressed="'+bookmarks.includes(p.id)+'">'+(bookmarks.includes(p.id)?'Saved':'Save')+'</button><button data-act="report-post" data-id="'+p.id+'">Report</button></div>'+
+ '<div class="post-actions"><button data-act="like" data-id="'+p.id+'" class="'+(p.liked?'liked':'')+'" aria-label="Like discussion" aria-pressed="'+p.liked+'">♡ '+countLabel(p.likes_count)+'</button><button data-act="comments" data-id="'+p.id+'" aria-expanded="'+expanded+'">◉ '+countLabel(p.replies_count)+' replies</button><button data-act="bookmark" data-id="'+p.id+'" aria-pressed="'+bookmarks.includes(p.id)+'">'+(bookmarks.includes(p.id)?'Saved':'Save')+'</button><button data-act="report-post" data-id="'+p.id+'">Report</button>'+
+ (view==='groups'&&selectedGroup===p.community_id&&joined(p.community_id)&&!contentFlag('discussion',p.id)?
+   button('poll-from-discussion','Draft circle poll','secondary','data-id="'+e(p.id)+'"'):'')+'</div>'+
  (expanded?'<div class="comment-list">'+discussionPageMarkup(discussionThread,c=>'<div class="comment"><strong>'+e(c.author_name)+': </strong>'+e(c.body)+'</div>','<p>No visible replies.</p>',true)+'</div>'+
  (joined(p.community_id)?'<form class="comment-form" data-form="comment" data-parent="'+p.id+'" data-group="'+p.community_id+'"><input class="field" name="body" maxlength="2000" required aria-label="Reply" placeholder="Reply with something useful"><button type="submit" class="button small">Reply</button></form>':''):'')+'</article>';
 }
@@ -310,7 +313,7 @@ function research(){
  '<div class="surface" style="padding:25px;margin-bottom:15px;background:#142335;color:#eef3f8;border:1px solid #314758"><span class="pill" style="background:#d0ee7f;color:#142015">FINANCIAL INTELLIGENCE</span><h3 style="margin-top:14px;color:#eef3f8">COMMON Quantitative Research Terminal</h3><p class="small" style="margin:10px 0 16px;color:#a9bdce">Official Treasury data, discounted cash flow valuation, options Greeks, interest-rate duration, historical strategy validation, and venture dilution models. Each output explains assumptions and sources.</p>'+button('open-terminal','Open Research Terminal','primary')+' '+button('open-studio','Private research workspace','secondary')+'</div>'+
  '<div class="surface" style="padding:25px"><h3>Your tracked symbols</h3><p class="muted small" style="margin:8px 0 16px">Watchlists are saved to your account. They are not brokerage positions or buy recommendations.</p>'+
  '<form class="row" data-form="watch"><input required name="symbol" class="field" maxlength="12" placeholder="Symbol e.g. TSLA" style="max-width:240px"><button class="button" type="submit">Track</button></form>'+
- watches.map(w=>'<div class="account-row"><strong>'+e(w.symbol)+'</strong>'+button('remove-watch','Remove','secondary','data-symbol="'+e(w.symbol)+'"')+'</div>').join('')+
+ watches.map(w=>'<div class="account-row"><strong>'+e(w.symbol)+'</strong><a class="button secondary" href="../lab/?symbol='+encodeURIComponent(w.symbol)+'">Research '+e(w.symbol)+'</a>'+button('remove-watch','Remove','secondary','data-symbol="'+e(w.symbol)+'"')+'</div>').join('')+
  '<p class="small muted" style="margin-top:16px">Use <a href="https://www.sec.gov/edgar/search/" target="_blank" rel="noopener noreferrer" style="color:#275cfa;text-decoration:underline">SEC EDGAR</a> for dated official filings.</p></div>';
 }
 function agentDeskKey(){return session?.user?.id?'common.agent.desk.'+session.user.id:null;}
@@ -346,13 +349,36 @@ if(profileSection==='blocked')c='<p class="muted small">Blocked profiles are hid
 if(profileSection==='saved')c='<p class="muted small">Bookmarks are saved on this device and account only. Only research you still have permission to read is displayed.</p>'+button('saved-feed','Open saved research')+'<button class="button secondary" data-act="clear-bookmarks">Clear saved research</button>';
 return head('Your account','Control your identity, communications and privacy.')+nav+'<div class="surface circle-tools"><h3>'+e(profile?.display_name)+'</h3><p class="muted small">@'+e(profile?.handle)+'</p>'+c+'</div><button class="button soft" data-act="signout">Sign out</button>';}
 
+function researchDraftNotice(){
+ if(view==='research-review'||!CommonResearchDraft.forMember(session.user.id))return '';
+ return '<section class="preview-banner"><p>Unpublished research summary from this tab.</p>'+
+  button('review-research','Review research draft')+'</section>';
+}
+function researchReviewPage(){
+ const draft=researchReview;
+ if(!draft||draft.owner!==session.user.id||!CommonResearchDraft.forMember(session.user.id)){
+  return head('Research draft','This draft is unavailable. Return to Research or Research Studio to prepare a new one.');
+ }
+ const circles=groups.filter(group=>group.visibility==='private'&&joined(group.id));
+ const destinations=circles.map(group=>'<option value="'+e(group.id)+'" '+(draft.circle===group.id?'selected':'')+'>'+e(group.name)+'</option>').join('');
+ const fields='<label><span class="form-label">Discussion title</span><input name="title" class="field" required minlength="8" maxlength="160" value="'+e(draft.title)+'"></label>'+
+  '<label><span class="form-label">Research summary</span><textarea name="body" class="field" rows="12" required minlength="3" maxlength="10000">'+e(draft.body)+'</textarea></label>';
+ return head('Review research draft','Review exactly what will be shared. The underlying data and project stay in Research.')+
+  '<form data-form="research-draft" class="surface circle-tools stack">'+fields+
+  (circles.length?'<label><span class="form-label">Private circle</span><select required class="field" name="circle"><option value="">Choose a private circle</option>'+destinations+'</select></label>'+
+    '<button type="submit" class="button">Publish to circle</button>':
+    '<p>Join or create a private circle to publish this draft.</p>'+button('open-groups','Open circles'))+
+  (config.researchAgentEnabled===true?button('review-with-agent','Open in research assistant','secondary'):'')+
+  button('discard-research','Discard draft','secondary')+'</form>';
+}
+
 function dialog(){
  if(!state.composer&&!state.groupCreate&&!state.projectCreate&&!state.proposalCreate)return '';
  let title='',fields='',form='';
  if(state.composer){title='Share research';form='post';fields='<label><span class="form-label">Community</span><select required class="field" name="group">'+memberships.map(m=>'<option value="'+m.community_id+'" '+(m.community_id===selectedGroup?'selected':'')+'>'+e(groupName(m.community_id))+'</option>').join('')+'</select></label><label><span class="form-label">Title</span><input required minlength="8" maxlength="160" class="field" name="title"></label><label><span class="form-label">Your research or question</span><textarea required minlength="3" maxlength="10000" class="field" name="body"></textarea></label>';}
  else if(state.groupCreate){title='Establish a research desk';form='group';fields='<label><span class="form-label">Research desk name</span><input class="field" name="name" required minlength="4" maxlength="100" placeholder="e.g. Industrials Fundamental Research"></label><label><span class="form-label">Mandate and methodology</span><textarea class="field" name="description" maxlength="2500" required placeholder="Define your research universe, analytical method, sources and intended deliverables."></textarea></label><label><span class="form-label">Coverage discipline</span><select class="field" name="category">'+researchDisciplines.map(([key,label])=>'<option value="'+key+'">'+e(label)+'</option>').join('')+'</select></label><label><span class="form-label">Membership visibility</span><select name="visibility" class="field"><option value="private">Private, invitation only</option><option value="public">Public research desk</option></select></label><div class="preview-banner">Research collaboration and shareholder education only. Do not use a desk to coordinate market manipulation, solicit unregistered securities, or pool money without an authorized structure.</div>';}
  else if(state.projectCreate){title='Research a project';form='project';fields='<label><span class="form-label">Linked community</span><select name="community" class="field">'+memberships.map(m=>'<option value="'+m.community_id+'" '+(m.community_id===selectedGroup?'selected':'')+'>'+e(groupName(m.community_id))+'</option>').join('')+'</select></label><label><span class="form-label">Project title</span><input name="title" class="field" required minlength="8" maxlength="160"></label><label><span class="form-label">Rationale</span><textarea name="thesis" class="field" required minlength="30" maxlength="12000"></textarea></label><label><span class="form-label">Focus</span><select name="category" class="field"><option value="public_company">Public company</option><option value="housing">Housing</option><option value="local_business">Business</option><option value="community_land">Community land</option><option value="other">Other</option></select></label>';}
- else{title='Start a discussion poll';form='proposal';fields='<input type="hidden" name="community" value="'+e(selectedGroup)+'"><label><span class="form-label">Question</span><input class="field" name="title" required minlength="8" maxlength="160"></label><label><span class="form-label">What members should consider</span><textarea class="field" name="rationale" required minlength="30" maxlength="15000"></textarea></label>';}
+ else{title='Start a discussion poll';form='proposal';fields='<input type="hidden" name="community" value="'+e(selectedGroup)+'"><label><span class="form-label">Question</span><input class="field" name="title" required minlength="8" maxlength="160" value="'+e(pollDraft?.title||'')+'"></label><label><span class="form-label">What members should consider</span><textarea class="field" name="rationale" required minlength="30" maxlength="15000">'+e(pollDraft?.rationale||'')+'</textarea></label>';}
  return '<div class="modal-backdrop"><div class="modal" role="dialog" aria-modal="true"><div class="space"><h2>'+title+'</h2><button class="icon-btn" data-act="close-dialog">✕</button></div><p class="muted small" style="margin:10px 0 16px">This is a live community contribution, not a request to collect investment money.</p><form data-form="'+form+'" class="stack">'+fields+'<button type="submit" class="button full">Publish</button></form></div></div>';
 }
 function recoveryPage(){
@@ -364,7 +390,26 @@ async function init(){
  if(!client){setup();return}
  checkGoogleProvider().catch(console.error);
  const r=await saved();if(r.error)throw r.error;session=r.data.session;
- client.auth.onAuthStateChange((evt,next)=>{session=next;if(evt==='PASSWORD_RECOVERY'){recovering=true;render();return}if(next&&!recovering){if(evt!=='INITIAL_SESSION'&&evt!=='TOKEN_REFRESHED')setTimeout(()=>refresh().catch(handleError),0)}else if(!next){profile=null;ledgerRows=[];ledgerCircle=null;ledgerError='';decisionDetail=null;pollRows=[];pollOwn=null;capitalDrafts.clear();capitalTab='overview';blockedMembers=[];bookmarks=[];memberDetail=null;memberDirectory=[];profileSection='identity';mobileMore=false;agentOutput=null;agentInput='';agentMode='review';agentDeskTab='analysis';agentDesk=CommonAgentDesk.initial();agentDeskOwner=null;agentLastRequest=null;groups=[];memberships=[];proposals=[];projects=[];watches=[];people={};messages=[];dm=[];memberPoll=[];selectedGroup=null;selectedPeer=null;state.inviteToken=null;state.comments=null;state.composer=state.groupCreate=state.projectCreate=state.proposalCreate=false;recovering=false;render()}});
+ client.auth.onAuthStateChange((evt,next)=>{
+  if(session?.user?.id!==next?.user?.id){
+   researchReview=pollDraft=null;view='home';error=info='';
+   profile=null;ledgerRows=[];ledgerCircle=null;ledgerError='';decisionDetail=null;pollRows=[];pollOwn=null;
+   capitalDrafts.clear();capitalTab='overview';blockedMembers=[];bookmarks=[];memberDetail=null;memberDirectory=[];
+   profileSection='identity';mobileMore=false;agentOutput=null;agentInput='';agentMode='review';agentDeskTab='analysis';
+   agentDesk=CommonAgentDesk.initial();agentDeskOwner=null;agentLastRequest=null;
+   groups=[];memberships=[];proposals=[];projects=[];watches=[];people={};messages=[];dm=[];memberPoll=[];
+   moderationCases=[];moderationAppeals=[];accountRestrictions=[];selectedGroup=selectedPeer=null;
+   state.inviteToken=null;state.comments=null;state.composer=state.groupCreate=state.projectCreate=state.proposalCreate=false;
+   recovering=false;resetDiscussionFeed();
+  }
+  session=next;
+  if(evt==='PASSWORD_RECOVERY'){recovering=true;render();return}
+  if(!next){render();return}
+  if(!recovering&&evt!=='INITIAL_SESSION'&&evt!=='TOKEN_REFRESHED'){
+   render();
+   setTimeout(()=>refresh().catch(handleError),0);
+  }
+ });
  if(session)await refresh();else render();
  const fragment=location.hash.match(/^#invite=([a-f0-9]{48})$/);
  if(fragment)pendingInvite=fragment[1];
@@ -447,7 +492,22 @@ async function dispatch(action,element){
  if(action==='join-group'){await call(client.rpc('join_public_community',{cid:id}));await refresh();return}
  if(action==='create-group'){state.groupCreate=true;render();return}
  if(action==='compose'){state.composer=true;render();return}
- if(action==='close-dialog'){state.composer=state.groupCreate=state.projectCreate=state.proposalCreate=false;render();return}
+ if(action==='review-research'){
+  const draft=CommonResearchDraft.claim(session.user.id);
+  if(!draft)throw Error('Research draft unavailable.');
+  researchReview=researchReview?.id===draft.id?researchReview:{...draft,circle:''};
+  view='research-review';error=info='';render();return;
+ }
+ if(action==='discard-research'){
+  if(researchReview?.owner!==session.user.id)return;
+  CommonResearchDraft.clear(researchReview.id);researchReview=null;view='home';error=info='';render();return;
+ }
+ if(action==='review-with-agent'){
+  if(config.researchAgentEnabled!==true||researchReview?.owner!==session.user.id)return;
+  agentMode='review';agentInput=researchReview.body;agentOutput=null;agentLastRequest=null;
+  agentDeskTab='analysis';view='agent';error=info='';render();return;
+ }
+ if(action==='close-dialog'){pollDraft=null;state.composer=state.groupCreate=state.projectCreate=state.proposalCreate=false;render();return}
  if(action==='use-agent-command'){const c=agentDesk.commands.find(x=>x.id===id);if(!c)throw Error('Command not found.');agentInput=c.template;agentMode=c.mode;agentDeskTab='analysis';render();return}
  if(action==='save-agent-output'){if(!agentLastRequest||!agentOutput)throw Error('No completed analysis.');if(agentDesk.history.length>=20)throw Error('Delete an old analysis before saving another.');if(confirm('Save the submitted evidence and AI output locally on this device?'))saveAgentDesk({...agentDesk,history:[CommonAgentDesk.record(agentLastRequest.mode,agentLastRequest.input,agentOutput,agentLastRequest.status),...agentDesk.history]});return}
  if(['delete-agent-command','delete-agent-memory','delete-agent-history'].includes(action)){const k=action==='delete-agent-command'?'commands':action==='delete-agent-memory'?'memory':'history';if(confirm('Delete this local research item?'))saveAgentDesk({...agentDesk,[k]:agentDesk[k].filter(x=>x.id!==id)});return}
@@ -469,7 +529,16 @@ async function dispatch(action,element){
   else await call(client.from('discussion_likes').upsert({discussion_id:id,user_id:session.user.id},{ignoreDuplicates:true,onConflict:'discussion_id,user_id'}));
   await readDiscussionPage(discussionFeed,{quiet:true});return;
  }
- if(action==='new-proposal'){state.proposalCreate=true;render();return}
+ if(action==='new-proposal'){pollDraft=null;state.proposalCreate=true;render();return}
+ if(action==='poll-from-discussion'){
+  const post=discussionFeed?.items.find(item=>item.id===id);
+  if(!post||post.community_id!==selectedGroup||!joined(selectedGroup)||contentFlag('discussion',id)){
+   throw Error('The discussion is unavailable in this circle.');
+  }
+  pollDraft={title:('Review: '+(post.title||'Circle discussion')).slice(0,160),
+    rationale:'Evidence from circle discussion '+post.id+'\n\n'+post.body};
+  state.proposalCreate=true;render();return;
+ }
  if(action==='new-project'){state.projectCreate=true;render();return}
  if(action==='remove-watch'){await call(client.from('watchlist_items').delete().eq('symbol',element.dataset.symbol).eq('user_id',session.user.id));await refresh();return}
  if(action==='poll-detail'){await loadPoll(id);return}
@@ -532,10 +601,29 @@ async function submitted(form){
  if(type==='agent-command'){saveAgentDesk({...agentDesk,commands:[...agentDesk.commands,CommonAgentDesk.command(Object.fromEntries(f),agentDesk.commands)]});return}
  if(type==='agent-memory'){saveAgentDesk({...agentDesk,memory:[...agentDesk.memory,CommonAgentDesk.note(Object.fromEntries(f),agentDesk.memory)]});return}
  if(type==='research-agent'){if(config.researchAgentEnabled!==true||f.get('consent')!=='on')throw Error('Research assistant unavailable or consent missing.');agentInput=String(f.get('input')||'');agentMode=String(f.get('mode')||'review');const selected=f.getAll('memory'),requestInput=CommonAgentDesk.compose(agentInput,agentDesk.memory.filter(n=>selected.includes(n.id)));agentOutput=null;agentLastRequest=null;agentSending=true;render();try{const {data,error:failure}=await client.functions.invoke('common-research-agent',{body:{mode:agentMode,input:requestInput,consent:true}});if(failure)throw failure;if(session?.user?.id!==uid)return;if(typeof data?.text!=='string')throw Error('Invalid research response');agentOutput=data.text;agentLastRequest={mode:agentMode,input:requestInput,status:data.status};}finally{agentSending=false;render()}return}
+ if(type==='research-draft'){
+  const draft=researchReview,circle=f.get('circle'),title=String(f.get('title')||'').trim(),body=String(f.get('body')||'').trim();
+  if(draft?.owner!==uid||CommonResearchDraft.forMember(uid)?.id!==draft.id||!joined(circle)||groupById(circle)?.visibility!=='private'){
+   throw Error('An active research draft and current private circle membership are required.');
+  }
+  CommonResearchDraft.update(uid,draft.id,title,body);
+  await call(client.rpc('publish_research_draft_v1',{draft_id:draft.id,circle_id:circle,discussion_title:title,discussion_body:body}));
+  CommonResearchDraft.clear(draft.id);
+  if(session?.user?.id!==uid)return;
+  researchReview=null;selectedGroup=circle;decisionDetail=null;pollRows=[];pollOwn=null;capitalTab='overview';state.groupTab='posts';state.comments=null;view='groups';
+  resetDiscussionFeed();status('Research submitted to your circle. Community moderation applies.');return;
+ }
  if(type==='post'){await call(client.from('discussions').insert({community_id:f.get('group'),author_id:uid,title:short(f.get('title'),160),body:short(f.get('body'),10000)}));state.composer=false;resetDiscussionFeed();render();return}
  if(type==='comment'){await call(client.from('discussions').insert({community_id:form.dataset.group,author_id:uid,parent_id:form.dataset.parent,body:short(f.get('body'),2000)}));if(discussionThread){discussionThread.cursors=[null];await readDiscussionPage(discussionThread,{thread:true,focus:true})}await readDiscussionPage(discussionFeed,{quiet:true});return}
  if(type==='group'){const name=String(f.get('name')).trim(),slug=name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,40)+'-'+Math.random().toString(36).slice(2,10);const result=await call(client.from('communities').insert({name,slug,description:f.get('description'),visibility:f.get('visibility'),category:f.get('category'),created_by:uid}).select('id').single());selectedGroup=result.id;view='groups';state.groupCreate=false;await refresh();return}
- if(type==='proposal'){await call(client.from('proposals').insert({community_id:f.get('community'),author_id:uid,title:f.get('title'),rationale:f.get('rationale')}));state.proposalCreate=false;await refresh();return}
+ if(type==='proposal'){
+  const circle=f.get('community');
+  if(!joined(circle)||circle!==selectedGroup)throw Error('Current circle membership required.');
+  await call(client.from('proposals').insert({community_id:circle,author_id:uid,title:f.get('title'),rationale:f.get('rationale')}));
+  if(session?.user?.id!==uid)return;
+  pollDraft=null;state.proposalCreate=false;state.groupTab='decisions';await refresh();
+  status('Nonbinding research poll published. No transaction is authorized.');return;
+ }
  if(type==='project'){await call(client.from('ownership_projects').insert({community_id:f.get('community'),author_id:uid,title:f.get('title'),thesis:f.get('thesis'),category:f.get('category')}));state.projectCreate=false;await refresh();return}
  if(type==='watch'){const symbol=String(f.get('symbol')).toUpperCase().trim();if(!/^[A-Z][A-Z0-9.-]{0,11}$/.test(symbol))throw new Error('Enter a valid stock symbol');await call(client.from('watchlist_items').upsert({user_id:uid,symbol}));await refresh();return}
  if(type==='chat'){await call(client.from('community_messages').insert({community_id:selectedGroup,author_id:uid,body:short(f.get('body'),2000)}));await loadMessages();render();return}
@@ -550,7 +638,7 @@ document.addEventListener('click',async ev=>{
  if(busy)return;busy=true;try{await dispatch(btn.dataset.act,btn)}catch(err){handleError(err)}finally{busy=false}
 });
 document.addEventListener('change',ev=>{const node=ev.target.closest('[data-agent-command]');if(node){const cmd=agentDesk.commands.find(x=>x.id===node.value);if(cmd){const form=node.closest('form');form.elements.mode.value=cmd.mode;form.elements.input.value=cmd.template;}}});
-document.addEventListener('input',ev=>{if(ev.target.id==='group-search'){search=ev.target.value;const active=document.activeElement;const start=active.selectionStart;render();const input=document.getElementById('group-search');input?.focus();if(start!==null)input?.setSelectionRange(start,start)}});
+document.addEventListener('input',ev=>{const input=ev.target;if(researchReview?.owner===session?.user?.id&&researchReview&&input.closest('[data-form="research-draft"]')&&['title','body','circle'].includes(input.name)){researchReview[input.name]=input.value;return}if(ev.target.id==='group-search'){search=ev.target.value;const active=document.activeElement;const start=active.selectionStart;render();const input=document.getElementById('group-search');input?.focus();if(start!==null)input?.setSelectionRange(start,start)}});
 document.addEventListener('submit',async ev=>{
  const form=ev.target;if(form.id!=='auth-form'&&form.id!=='password-change-form'&&!form.dataset.form)return;ev.preventDefault();if(busy)return;busy=true;
  try{

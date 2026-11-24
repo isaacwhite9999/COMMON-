@@ -6,6 +6,10 @@ on:
       - 'docs/live/**'
       - 'docs/live-community.js'
       - 'tests/discussion-feed-browser.test.mjs'
+      - 'tests/research-journey.test.mjs'
+      - 'docs/shared/research-draft.js'
+      - 'docs/workspace/**'
+      - 'docs/lab/**'
       - '.github/workflows/discussion-feed-browser.yml'
 
 jobs:
@@ -25,3 +29,4 @@ jobs:
           trap 'kill $!' EXIT
           curl -fsS --retry 10 --retry-connrefused --retry-delay 1 http://127.0.0.1:8765/live/ >/dev/null
           node tests/discussion-feed-browser.test.mjs
+          node tests/research-journey.test.mjs

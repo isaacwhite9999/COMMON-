@@ -122,6 +122,8 @@ Q04.01 browser metadata, source isolation, and upgrade evidence are recorded in 
 
 ### X01 — Unified product and release infrastructure (workstream 01/10)
 
+The [department integration evidence](DEPARTMENT_INTEGRATION.md) records the completed research-to-circle journey and remaining release requirements for X01.07.
+
 API operations evidence for X01.05 and X01.06 is recorded in [isolated API staging and performance results](API_OPERATIONS.md). Production member identity and full-workload capacity remain open.
 
 - [ ] X01.01 **Partial / implemented in branch** — Separate static research, terminal, studio and community entrypoints; FastAPI prototype and Supabase auth/community backend; draft PR, not unified deployment
