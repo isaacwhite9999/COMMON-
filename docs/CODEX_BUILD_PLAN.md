@@ -38,3 +38,6 @@ Own cross-cutting review and separate test/security modules. Threat model, RLS n
 
 ## Integration workflow
 Use branch names codex/common-01-foundation, codex/common-02-agents, etc. (or equivalent unique task branches). Open PRs targeting common/unified-workspace, not main. Do not merge specialist changes until shared contracts are reviewed and tests pass. Each task should read AGENTS.md and this plan, inspect current state, implement rather than merely describe, run tests and update its acceptance evidence. Finish vertical slices and explicitly list blocked items. No paid services or real financial activation. Owner controls launch and merge decisions.
+
+## Mandatory acceptance inventory
+Read [PRODUCT_ACCEPTANCE_BACKLOG.md](PRODUCT_ACCEPTANCE_BACKLOG.md) before implementing any workstream. It contains existing capability/source mapping, partial and remaining requirements, known CI blockers and release gates. Track requirement IDs in each PR, preserve prior capabilities and verify before checking items off.
