@@ -14,7 +14,7 @@ jobs:
       - run: node --check docs/workspace/model.js && node --check docs/workspace/app.js && node tests/workspace-model.test.cjs
       - run: node --check docs/live-community.js && node --check docs/capital-model.js && node tests/capital-model.test.cjs && node --check docs/capital-ledger.js && node tests/capital-ledger.test.cjs
       - run: node --check docs/workspace/report.js && node tests/workspace-report.test.cjs
-      - run: node --check docs/workspace/quant-worker.js && node tests/workspace-quant.test.cjs && node --check docs/workspace/datasets.js && node tests/workspace-data.test.cjs && node --check docs/workspace/risk.js && node tests/workspace-risk.test.cjs && node --check docs/workspace/notebook.js && node tests/workspace-notebook.test.cjs
+      - run: node --check docs/workspace/quant-worker.js && node tests/workspace-quant.test.cjs && node --check docs/workspace/datasets.js && node tests/workspace-data.test.cjs && node --check docs/workspace/risk.js && node tests/workspace-risk.test.cjs && node --check docs/workspace/notebook.js && node tests/workspace-notebook.test.cjs && node --check docs/workspace/python-runtime.js && node tests/workspace-python.test.cjs
   browser:
     runs-on: ubuntu-24.04
     steps:
