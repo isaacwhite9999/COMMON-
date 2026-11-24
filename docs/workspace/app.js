@@ -102,6 +102,7 @@ case 'reset-paper':if(confirm('Reset simulation?'))save({...s,cash:100000,orders
 case 'export-all':if(blocked){const raw=localStorage.getItem(key);exportData('common-recovery.json',{raw});}else exportData('common-workspace.json',s);break;
 case 'reset-all':if(confirm('Delete all browser-local workspace data?')){localStorage.removeItem(key);s=M.initial();blocked=false;render();}break;
 }}catch(err){toast(err.message);}});
+dialog.addEventListener('close',()=>{if(!dialog.open)dialog.replaceChildren();});
 dialog.addEventListener('click',e=>{if(e.target.closest('a[href^="#"]'))dialog.close();});
 document.addEventListener('submit',async e=>{const f=e.target.closest('form[data-form]');if(!f)return;e.preventDefault();const [act,id,detail]=f.dataset.form.split(':'),d=Object.fromEntries(new FormData(f)),submit=f.querySelector('button[type=submit],button.primary');if(submit)submit.disabled=true;try{switch(act){
 case 'new-file':{const p=s.projects.find(x=>x.id===id);if(!p)throw Error('Project not found.');const next=F.write(p,d.path,d.content);update(id,()=>next);location.hash='research/'+id+'/files/'+next.files.at(-1).id;break;}

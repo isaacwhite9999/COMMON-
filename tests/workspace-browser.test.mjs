@@ -10,11 +10,11 @@ try {
  await page.getByRole('heading',{name:'Research thesis'}).waitFor();
  await page.getByRole('link',{name:'Project files',exact:true}).click();
  await page.getByRole('button',{name:'New file',exact:true}).click();
- await page.getByLabel('Relative path').fill('models/research.py');
- await page.getByLabel('Source editor').fill('print("research only")');
+ await page.locator('dialog').getByLabel('Relative path').fill('models/research.py');
+ await page.locator('dialog').getByLabel('Source editor').fill('print("research only")');
  await page.getByRole('button',{name:'Create file',exact:true}).click();
  await page.getByRole('button',{name:'Save revision',exact:true}).waitFor();
- await page.getByLabel('Source editor').fill('print("revision")');
+ await page.locator('main').getByLabel('Source editor').fill('print("revision")');
  await page.getByRole('button',{name:'Save revision',exact:true}).click();
  await page.getByRole('button',{name:'Restore',exact:true}).waitFor();
  await page.getByRole('link',{name:'Validation lab',exact:true}).click();
