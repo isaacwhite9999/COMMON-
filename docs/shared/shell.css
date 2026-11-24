@@ -1,0 +1,76 @@
+:root {
+  --common-chrome: #121918;
+  --common-ink: #f5f7f6;
+  --common-muted: #b8c5bf;
+  --common-line: #43504b;
+  --common-accent: #c6edaf;
+  --common-space: 12px;
+  --common-font: system-ui, sans-serif;
+}
+:root[data-common-density="compact"] { --common-space: 8px; }
+
+.common-shell {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--common-space);
+  padding: var(--common-space) clamp(12px, 3vw, 36px);
+  background: var(--common-chrome);
+  color: var(--common-ink);
+  border-bottom: 1px solid var(--common-line);
+  font: 500 14px/1.35 var(--common-font);
+}
+.common-shell nav { display: flex; flex: 1; flex-wrap: wrap; gap: 4px; }
+.common-shell a, .common-search a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 38px;
+  padding: 4px var(--common-space);
+  color: var(--common-ink);
+  text-decoration: none;
+}
+.common-shell .common-brand { font-weight: 750; letter-spacing: .08em; padding-inline: 0; }
+.common-shell a:hover, .common-shell a[aria-current], .common-search a:hover {
+  color: var(--common-accent);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.common-shell button, .common-search button, .common-search input {
+  min-height: 38px;
+  font: inherit;
+  color: var(--common-ink);
+  background: var(--common-chrome);
+  border: 1px solid var(--common-line);
+  border-radius: 4px;
+  padding: 4px var(--common-space);
+}
+.common-shell button, .common-search button { cursor: pointer; }
+.common-shell :focus-visible, .common-search :focus-visible { outline: 2px solid var(--common-accent); }
+.common-search {
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  box-sizing: border-box;
+  width: min(32rem, calc(100vw - 24px));
+  max-height: calc(100dvh - 24px);
+  overflow: auto;
+  padding: 20px;
+  background: var(--common-chrome);
+  color: var(--common-ink);
+  border: 1px solid var(--common-line);
+  border-radius: 6px;
+  font: 14px/1.4 var(--common-font);
+}
+.common-search::backdrop { background: #0009; }
+.common-search h2 { color: inherit; font: 650 1.4rem var(--common-font); }
+.common-search form { float: right; margin: 0; }
+.common-search label, .common-search input { display: block; }
+.common-search input { width: 100%; box-sizing: border-box; margin-block: 6px; }
+.common-search ul { list-style: none; margin: 12px 0 0; padding: 0; }
+.common-search li + li { border-top: 1px solid var(--common-line); }
+
+@media (max-width: 650px) {
+  .common-shell { justify-content: space-between; }
+  .common-shell nav { order: 1; flex-basis: 100%; }
+  .common-shell nav a { min-height: 44px; }
+}

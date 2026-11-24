@@ -59,6 +59,10 @@ try {
  const page=await browser.newPage({viewport:{width:1365,height:900}});
  const jsErrors=[];
  page.on('pageerror',err=>jsErrors.push(err.message));
+ await page.route('**/config.js',route=>route.fulfill({
+  contentType:'text/javascript',
+  body:'window.COMMON_CONFIG = {communityBackendReady:true,supabaseUrl:"https://example.invalid",supabaseAnonKey:"test-key"};'
+ }));
  await page.route('**/supabase.min.js',route=>route.fulfill({status:200,contentType:'text/javascript',body:stub}));
  await page.goto(new URL('lab/',base).href,{waitUntil:'domcontentloaded'});
  await page.getByRole('heading',{name:'Think rigorously. Invest independently.'}).waitFor({timeout:25000});

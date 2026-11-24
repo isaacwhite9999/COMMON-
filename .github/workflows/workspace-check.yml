@@ -11,12 +11,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - run: node --check docs/shared/shell.js && node --check docs/shared/session.js && node tests/session.test.cjs
       - run: node --check docs/workspace/model.js && node --check docs/workspace/app.js && node tests/workspace-model.test.cjs
       - run: node --check docs/live-community.js && node --check docs/capital-model.js && node tests/capital-model.test.cjs && node --check docs/capital-ledger.js && node tests/capital-ledger.test.cjs && node --check docs/agent-desk.js && node tests/agent-desk.test.cjs
       - run: node --check docs/workspace/report.js && node tests/workspace-report.test.cjs
       - run: node --check docs/workspace/quant-worker.js && node tests/workspace-quant.test.cjs && node --check docs/workspace/datasets.js && node tests/workspace-data.test.cjs && node --check docs/workspace/risk.js && node tests/workspace-risk.test.cjs && node --check docs/workspace/notebook.js && node tests/workspace-notebook.test.cjs && node --check docs/workspace/python-runtime.js && node tests/workspace-python.test.cjs && node --check docs/workspace/editor.js && node tests/workspace-editor.test.cjs
   browser:
     runs-on: ubuntu-24.04
+    timeout-minutes: 8
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -24,12 +26,15 @@ jobs:
           node-version: '22'
       - run: npm install --no-save --no-package-lock playwright@1.56.1
       - run: npx playwright install --with-deps chromium
-      - name: Exercise research workspace
+      - name: Exercise foundation, research workspace, studio and market tools
         run: |
-          python3 -m http.server 8765 --directory docs > /tmp/common-server.log 2>&1 &
+          python3 scripts/serve-preview.py > /tmp/common-server.log 2>&1 &
           trap 'kill $!' EXIT
-          for i in {1..20}; do curl -fsS http://127.0.0.1:8765/workspace/ >/dev/null && break; sleep 1; done
+          curl -fsS --retry 10 --retry-connrefused --retry-delay 1 http://127.0.0.1:8765/workspace/ >/dev/null
+          node tests/foundation-browser.test.mjs
           node tests/workspace-browser.test.mjs
+          node tests/lab-browser.test.mjs
+          node tests/terminal-browser.test.mjs
   agent:
     runs-on: ubuntu-24.04
     steps:
@@ -41,6 +46,7 @@ jobs:
 
   python-runtime:
     runs-on: ubuntu-24.04
+    timeout-minutes: 8
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -50,7 +56,7 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - name: Verify actual Python runtime and sandbox boundary
         run: |
-          python3 -m http.server 8765 --directory docs > /tmp/common-python.log 2>&1 &
+          python3 scripts/serve-preview.py > /tmp/common-python.log 2>&1 &
           trap 'kill $!' EXIT
-          for i in {1..20}; do curl -fsS http://127.0.0.1:8765/workspace/ >/dev/null && break; sleep 1; done
+          curl -fsS --retry 10 --retry-connrefused --retry-delay 1 http://127.0.0.1:8765/workspace/ >/dev/null
           node tests/workspace-python-browser.test.mjs

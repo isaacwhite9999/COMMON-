@@ -9,11 +9,6 @@ on:
       - 'tests/pg_*.sql'
       - '.github/workflows/test-community-db.yml'
   pull_request:
-    paths:
-      - 'supabase/migrations/**'
-      - 'supabase/schema-drafts/**'
-      - 'tests/pg_*.sql'
-      - '.github/workflows/test-community-db.yml'
 
 jobs:
   database:
