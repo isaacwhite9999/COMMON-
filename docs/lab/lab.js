@@ -4,8 +4,9 @@
 (() => {
 'use strict';
 const root=document.getElementById('lab-root');
-const config=window.COMMON_CONFIG||{};
 const engine=window.COMMON_RESEARCH_ENGINE;
+const requestedSymbol=new URLSearchParams(location.search).get('symbol')||'';
+let projectSymbol=/^[A-Z][A-Z0-9.-]{0,11}$/.test(requestedSymbol)?requestedSymbol:'';
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 const clean=s=>String(s??'').trim();
@@ -109,10 +110,10 @@ function workspaces(){
  '<label class="lab-label">Observations and counterarguments<textarea class="lab-input" name="notes" maxlength="12000" rows="5">'+esc(p.research_notes)+'</textarea></label>'+
  '<div class="lab-split">'+action('Delete project','delete-project',true)+
  '<button class="lab-button" type="submit">Save changes</button></div></form></div>':'')+
- '<div id="create-project-dialog" class="lab-card" hidden><h2>New project</h2><form id="create-form" class="lab-form">'+
+ '<div id="create-project-dialog" class="lab-card" '+(projectSymbol?'':'hidden')+'><h2>New project</h2><form id="create-form" class="lab-form">'+
  '<label class="lab-label">Name<input class="lab-input" name="title" minlength="3" maxlength="110" required placeholder="e.g. Momentum versus buy-and-hold"></label>'+
  '<label class="lab-label">Asset type<select class="lab-input" name="asset_class"><option value="equity">US equity</option><option value="etf">Exchange-traded fund</option><option value="futures">Futures research</option><option value="equity_options">Options research</option><option value="macro">Macro / economics</option><option value="housing">Housing</option><option value="business">Local business</option></select></label>'+
- '<label class="lab-label">Instrument (optional)<input class="lab-input" name="symbol" maxlength="30" placeholder="e.g. SPY"></label>'+
+ '<label class="lab-label">Instrument (optional)<input class="lab-input" name="symbol" maxlength="30" value="'+esc(projectSymbol)+'" placeholder="e.g. SPY"></label>'+
  '<label class="lab-label">Hypothesis<textarea class="lab-input" name="hypothesis" maxlength="5000" rows="3" placeholder="What observation would falsify the idea?"></textarea></label>'+
  '<div class="lab-row"><button type="submit" class="lab-button">Create workspace</button>'+action('Cancel','close-create',true)+'</div></form></div>';
 }
@@ -161,7 +162,7 @@ function runSummary(r){
  metric('Position changes',String(r.turnover))+'</div>'+
  lineChart(r.test.curve,r.dates.slice(-r.test.observations),'Holdout strategy equity (start = 1.0)')+
  '<div class="lab-hint">'+esc(r.warning)+'</div>'+
- '<div class="lab-row">'+action('Inspect validation','to-validation')+'</div></div>';
+ '<div class="lab-row">'+action('Inspect validation','to-validation')+action('Review for circle sharing','share-run')+'</div></div>';
 }
 function strategy(){
  return hdr('Strategy lab','Execute a simple, reproducible cost-aware strategy using your own price series.')+
@@ -263,6 +264,7 @@ async function refresh(){
  api(client.from('research_workspaces').select('*').order('updated_at',{ascending:false}).limit(100)),
  api(client.from('research_learning_progress').select('lesson_key,completed').eq('user_id',uid))
  ]);
+ if(session?.user?.id!==uid)return;
  state.projects=p;state.progress=progress;
  if(state.selected&&!p.some(x=>x.id===state.selected))state.selected=null;
  if(!state.selected&&p.length)state.selected=p[0].id;
@@ -271,8 +273,10 @@ async function refresh(){
 }
 async function loadRuns(){
  if(!state.selected){state.runs=[];return;}
- state.runs=await api(client.from('research_experiments').select('id,workspace_id,strategy,source_label,sample_start,sample_end,metrics,created_at')
- .eq('workspace_id',state.selected).order('created_at',{ascending:false}).limit(75));
+ const owner=session?.user?.id,project=state.selected;
+ const runs=await api(client.from('research_experiments').select('id,workspace_id,strategy,source_label,sample_start,sample_end,metrics,created_at')
+ .eq('workspace_id',project).order('created_at',{ascending:false}).limit(75));
+ if(session?.user?.id===owner&&state.selected===project)state.runs=runs;
 }
 async function hash(s){
  if(!globalThis.crypto?.subtle)throw Error('Secure context required for SHA-256 provenance. Use HTTPS.');
@@ -281,10 +285,12 @@ async function hash(s){
 }
 async function fileSelected(file){
  if(!file)return;
+ const owner=session?.user?.id;
  if(file.size>16_000_000)throw Error('CSV exceeds the 16MB limit.');
  const text=await file.text();
  const parsed=engine.parseCsv(text);
  const digest=await hash(text);
+ if(!owner||session?.user?.id!==owner)return;
  state.bars=parsed.bars;state.diagnostics=parsed.diagnostics;state.sourceSha=digest;
  state.sourceLabel=file.name.slice(0,120);state.lastRun=null;state.sim=null;
  state.view='data';
@@ -295,7 +301,7 @@ async function createProject(form){
  const item=await api(client.from('research_workspaces').insert({
   owner_id:session.user.id,title,asset_class:f.get('asset_class'),symbol,hypothesis
  }).select('*').single());
- state.selected=item.id;state.view='workspaces';
+ projectSymbol='';state.selected=item.id;state.view='workspaces';
  await refresh();info('Private research project created.');
 }
 async function saveNotes(form){
@@ -334,9 +340,18 @@ async function saveRun(){
  await loadRuns();info('Experiment saved as a private, immutable research run. It is not verified trading performance.');
 }
 async function dispatch(action,element){
+ if(action==='share-run'){
+  const r=state.lastRun,owner=session?.user?.id;
+  if(!r||!owner)throw Error('Sign in and calculate a backtest before sharing.');
+  const draft=CommonResearchDraft.backtest(state.projects.find(item=>item.id===state.selected)?.title,r,{
+   sha256:state.sourceSha,first:r.dates[0],last:r.dates.at(-1)
+  });
+  if(CommonResearchDraft.stage(draft,owner))location.assign('../live/');
+  return;
+ }
  if(action==='level'){state.expert=!state.expert;render();return;}
  if(action==='new-project'){state.view='workspaces';render();const dialog=$('#create-project-dialog');if(dialog){dialog.hidden=false;dialog.scrollIntoView({block:'nearest'});}return;}
- if(action==='close-create'){const d=$('#create-project-dialog');if(d)d.hidden=true;return;}
+ if(action==='close-create'){projectSymbol='';const d=$('#create-project-dialog');if(d)d.hidden=true;return;}
  if(action==='open-project'){
   state.selected=element.dataset.id;state.lastRun=null;state.sim=null;state.bars=null;state.diagnostics=null;
   await loadRuns();state.view='workspaces';render();return;
@@ -398,11 +413,20 @@ document.addEventListener('submit',ev=>{
 });
 async function init(){
  if(!engine)throw Error('Research engine is missing.');
- if(!config.communityBackendReady||!config.supabaseUrl||!config.supabaseAnonKey||!window.supabase?.createClient)throw Error('Supabase backend has not been configured.');
- client=window.supabase.createClient(config.supabaseUrl,config.supabaseAnonKey,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
+ client=window.CommonSession.memberClient();
+ if(!client)throw Error('Research Studio sign-in is unavailable in this environment.');
  const r=await client.auth.getSession();if(r.error)throw r.error;
  session=r.data.session;
- client.auth.onAuthStateChange((_evt,next)=>{session=next;if(next)queueMicrotask(()=>refresh().catch(fail));else render();});
+ if(projectSymbol)state.view='workspaces';
+ client.auth.onAuthStateChange((event,next)=>{
+  if(session?.user?.id!==next?.user?.id){
+   Object.assign(state,{projects:[],runs:[],progress:[],selected:null,bars:null,diagnostics:null,
+    sourceSha:null,sourceLabel:'',lastRun:null,sim:null,error:'',notice:'',view:projectSymbol?'workspaces':'overview'});
+  }
+  session=next;
+  if(!next)render();
+  else if(event!=='INITIAL_SESSION'&&event!=='TOKEN_REFRESHED')setTimeout(()=>refresh().catch(fail),0);
+ });
  if(session)await refresh();else render();
 }
 init().catch(fail);

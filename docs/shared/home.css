@@ -1,0 +1,13 @@
+* { box-sizing: border-box; }
+body { margin: 0; background: #f4f6f4; color: #17211d; font: 16px/1.5 var(--common-font); }
+.common-home { max-width: 1100px; margin: auto; padding: clamp(24px, 5vw, 64px) 20px; }
+.common-home h1 { font-size: clamp(2rem, 4vw, 3rem); line-height: 1.1; margin: 0 0 16px; }
+.common-home h2 { font-size: 1.15rem; margin: 0; }
+.common-home a { color: #20513a; text-underline-offset: 3px; }
+.common-home a:focus-visible, .common-home select:focus-visible { outline: 2px solid #20513a; outline-offset: 3px; }
+.common-home p { max-width: 60ch; margin: 0 0 16px; }
+.common-tools { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 12px; }
+.common-tools article { padding: calc(var(--common-space) + 8px); border: 1px solid #cbd4ce; border-radius: 6px; background: white; }
+.common-tools p { margin: 8px 0 0; }
+.common-home label { display: block; font-weight: 600; }
+.common-home select { font: inherit; padding: 8px; margin-block: 4px 12px; }
