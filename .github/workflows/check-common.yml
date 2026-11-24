@@ -8,6 +8,8 @@ on:
       - 'docs/**'
       - 'backend/**'
       - 'tests/**'
+      - 'scripts/**'
+      - 'Dockerfile'
       - 'requirements.txt'
       - '.github/workflows/check-common.yml'
 
@@ -67,3 +69,29 @@ jobs:
         run: pip install -r requirements.txt
       - name: Run API security and functional tests
         run: pytest -q
+
+  backend-postgres:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: common_test
+          POSTGRES_PASSWORD: disposable
+          POSTGRES_DB: common_test_api
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U common_test -d common_test_api"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      COMMON_TEST_POSTGRES_DSN: postgresql://common_test:disposable@127.0.0.1:5432/common_test_api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r requirements.txt
+      - run: pytest -q tests/test_api_postgres.py
+      - run: python scripts/load_api.py --population 1000 --concurrency 8 --rounds 5
