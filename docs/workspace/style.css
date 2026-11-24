@@ -10,3 +10,5 @@ dialog.wide-report{width:min(1000px,calc(100% - 28px));padding:24px}
 .report-kpis strong{overflow-wrap:anywhere}.report-kpis .eyebrow{line-height:1.4}
 
 .risk-input-row{display:grid;grid-template-columns:minmax(0,3fr) minmax(0,1fr);gap:14px}.corr-cell{display:inline-block;min-width:55px;padding:5px 8px;border-radius:3px;text-align:center;font:12px var(--mono)}
+
+.notebook-layout{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:18px;align-items:start}.notebook-layout>div,.notebook-layout>aside{min-width:0;display:grid;gap:14px}.notebook-cell{display:grid;gap:12px}.notebook-text{white-space:pre-wrap;overflow-wrap:anywhere}.notebook-actions{flex-wrap:wrap}.notebook-result{border-top:1px solid var(--line);padding-top:14px;overflow-wrap:anywhere}.notebook-histogram{display:grid;gap:5px;padding:12px 0}.notebook-histogram>div{display:grid;grid-template-columns:80px 1fr 40px;gap:8px;align-items:center;font:11px var(--mono)}.notebook-track{height:10px;background:var(--raised)}.notebook-track i{display:block;height:100%;background:var(--accent)}@media(max-width:900px){.notebook-layout{grid-template-columns:1fr}.notebook-layout>aside{grid-row:1}}

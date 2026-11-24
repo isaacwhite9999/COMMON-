@@ -59,6 +59,14 @@ try {
  await page.getByRole('link',{name:'Research projects',exact:true}).click();
  await page.getByRole('link',{name:'Research workflow test',exact:true}).click();
  await page.getByRole('link',{name:'Backtest',exact:true}).click();
+ await page.getByRole('link',{name:'Research notebook',exact:true}).click();
+ await page.getByLabel('Cell title').fill('Daily returns');
+ await page.getByLabel('Cell type').selectOption('returns');
+ await page.getByLabel('Cell dataset').selectOption({label:'TEST · synthetic-test.csv'});
+ await page.getByRole('button',{name:'Save cell',exact:true}).click();
+ await page.getByRole('button',{name:'Run cell',exact:true}).click();
+ await page.getByText('Mean daily return',{exact:true}).waitFor();
+ await page.getByRole('link',{name:'Backtest',exact:true}).click();
  await page.getByLabel('Saved dataset').selectOption({label:'TEST · synthetic-test.csv · 180 rows'});
  await page.getByRole('button',{name:'Run backtest'}).click();
  await page.getByRole('heading',{name:'Execution history'}).waitFor();
