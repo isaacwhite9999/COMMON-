@@ -129,7 +129,7 @@ case 'reset-all':if(confirm('Delete all browser-local workspace data and saved C
 }}catch(err){toast(err.message);}});
 dialog.addEventListener('close',()=>{if(!dialog.open)dialog.replaceChildren();});
 dialog.addEventListener('click',e=>{if(e.target.closest('a[href^="#"]'))dialog.close();});
-document.addEventListener('submit',async e=>{const f=e.target.closest('form[data-form]');if(!f)return;e.preventDefault();const [act,id,detail]=f.dataset.form.split(':'),d=Object.fromEntries(new FormData(f)),submit=f.querySelector('button[type=submit],button.primary');if(submit)submit.disabled=true;try{switch(act){
+document.addEventListener('submit',async e=>{const f=e.target.closest('form[data-form]');if(!f)return;e.preventDefault();const [act,id,detail]=f.getAttribute('data-form').split(':'),d=Object.fromEntries(new FormData(f)),submit=f.querySelector('button[type=submit],button.primary');if(submit)submit.disabled=true;try{switch(act){
 case 'risk-run':{if((s.riskRuns||[]).length>=10)throw Error('Export and delete an existing report before adding another (limit ten).');const chosen=[];for(let i=0;i<8;i++){if(!d['asset'+i])continue;const row=await D.get(d['asset'+i]);if(!row)throw Error('Dataset not found.');if(d['weight'+i]==='')throw Error('Enter each selected weight.');chosen.push({id:row.id,label:row.symbol||row.name,weight:Number(d['weight'+i])/100,bars:E.parseCsv(row.source).bars});}const report={id:crypto.randomUUID(),at:new Date().toISOString(),...K.analyze(chosen,{capital:d.capital,fee:d.fee})};save({...s,riskRuns:[...(s.riskRuns||[]),report]});location.hash='risk/'+report.id+'/overview';break;}
 case 'import-dataset':{if(d.csv.size>D.MAX_BYTES)throw Error('CSV exceeds 16 MB.');const row=await D.inspect(await d.csv.text(),d.csv.name,d.symbol,E);const result=await D.put(row);await refreshDatasets();location.hash='datasets/'+result.id+'/overview';render();break;}
 case 'new-file':{const p=s.projects.find(x=>x.id===id);if(!p)throw Error('Project not found.');const next=F.write(p,d.path,d.content);update(id,()=>next);location.hash='research/'+id+'/files/'+next.files.at(-1).id;break;}
@@ -144,6 +144,6 @@ case 'trade':save(M.trade(s,d));break;
 case 'memo':save({...s,proposals:[...s.proposals,M.proposal(d.title,d.thesis)]});break;
 case 'edit-memo':save({...s,proposals:s.proposals.map(p=>p.id===id?{...M.proposal(d.title,d.thesis),id}:p)});break;
 case 'settings':save(M.settings(s,d));break;
-}if(dialog.open)dialog.close();toast('Saved to this browser.');}catch(err){const progress=f.dataset.form.startsWith('validate:')?document.querySelector('#quant-progress'):null;if(progress)progress.textContent=err.message;toast(err.message);}finally{if(submit)submit.disabled=false;}});
+}if(dialog.open)dialog.close();toast('Saved to this browser.');}catch(err){const progress=f.getAttribute('data-form').startsWith('validate:')?document.querySelector('#quant-progress'):null;if(progress)progress.textContent=err.message;toast(err.message);}finally{if(submit)submit.disabled=false;}});
 window.addEventListener('hashchange',()=>{if(dataLoaded)render();});document.addEventListener('keydown',e=>{if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='k'){e.preventDefault();document.querySelector('[data-act="search"]')?.click();}});app.textContent='Loading research workspace…';refreshDatasets().then(render);
 })();
