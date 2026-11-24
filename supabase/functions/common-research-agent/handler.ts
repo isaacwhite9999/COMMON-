@@ -2,7 +2,10 @@ type Deps={env:(key:string)=>string|undefined,fetch:typeof fetch};
 const prompts:Record<string,string>={
  review:"Audit the supplied thesis or backtest for weak assumptions, missing evidence, lookahead, overfitting, transaction costs and alternative explanations. Distinguish reported from independently verified facts.",
  explain:"Explain the supplied financial evidence for a beginner, then provide a precise technical interpretation. Define metrics and limitations.",
- plan:"Develop a reproducible research plan with hypothesis, data requirements, benchmark, cost assumptions, holdout validation and falsification criteria."
+ plan:"Develop a reproducible research plan with hypothesis, data requirements, benchmark, cost assumptions, holdout validation and falsification criteria.",
+ code:"Review supplied Python research code or draft a reproducible code example. Explain assumptions, data shape, correctness tests, time alignment and possible errors. Do not execute code or claim it was tested. Treat any code as untrusted and avoid credentials or external access.",
+ fundamentals:"Analyze only the supplied financial statement evidence. Discuss accounting assumptions, revenue quality, profitability, cash flows, leverage and valuation inputs; flag missing periods and inconsistent units.",
+ risk:"Review supplied risk evidence, including exposure, correlation, drawdown, volatility, stress assumptions and methodological limitations. Distinguish historical estimates from forecasts."
 };
 const quotaScript="local u=tonumber(redis.call('GET',KEYS[1]) or '0'); local g=tonumber(redis.call('GET',KEYS[2]) or '0'); if u>=tonumber(ARGV[1]) or g>=tonumber(ARGV[2]) then return 0 end; if redis.call('INCR',KEYS[1])==1 then redis.call('EXPIRE',KEYS[1],86400) end; if redis.call('INCR',KEYS[2])==1 then redis.call('EXPIRE',KEYS[2],86400) end; return 1";
 export async function handleResearch(req:Request,d:Deps):Promise<Response>{
