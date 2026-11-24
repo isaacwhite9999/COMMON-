@@ -118,6 +118,8 @@ Baseline: development branch `common/unified-workspace` at d5b4e100a600f0b9565cd
 
 ### X01 — Unified product and release infrastructure (workstream 01/10)
 
+API operations evidence for X01.05 and X01.06 is recorded in [isolated API staging and performance results](API_OPERATIONS.md). Production member identity and full-workload capacity remain open.
+
 - [ ] X01.01 **Partial / implemented in branch** — Separate static research, terminal, studio and community entrypoints; FastAPI prototype and Supabase auth/community backend; draft PR, not unified deployment
 - [ ] X01.02 **Remaining** — Unified session, navigation, shared component system and responsive institutional UX; accessible dense data and beginner progressive disclosure
 - [ ] X01.03 **Remaining** — Deep nested settings: account/security/privacy, appearance/density, AI/model/memory/commands, data/entitlements, compute, portfolio, circles/governance, integrations/API, notifications, billing/usage
