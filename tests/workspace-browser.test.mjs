@@ -26,7 +26,12 @@ try {
  await page.getByLabel('Test observations').fill('30');
  await page.getByRole('button',{name:'Run walk-forward analysis'}).click();
  await page.getByRole('heading',{name:'Out-of-sample performance'}).waitFor();
+ await page.getByRole('link',{name:'Parameter grid',exact:true}).click();
  await page.getByRole('heading',{name:'First training parameter sweep'}).waitFor();
+ await page.getByRole('link',{name:'Market regimes',exact:true}).click();
+ await page.getByRole('heading',{name:'Historical market regimes'}).waitFor();
+ await page.getByRole('link',{name:'Trade log',exact:true}).click();
+ await page.getByRole('heading',{name:'Simulated position changes'}).waitFor();
  await page.getByRole('link',{name:'Backtest',exact:true}).click();
  const lines=Array.from({length:180},(_,i)=>new Date(Date.UTC(2023,0,i+1)).toISOString().slice(0,10)+','+(100+i*.15+Math.sin(i/8)*2).toFixed(4));
  await page.getByLabel('Historical data CSV').setInputFiles({name:'synthetic-test.csv',mimeType:'text/csv',buffer:Buffer.from('Date,Close\n'+lines.join('\n'))});
