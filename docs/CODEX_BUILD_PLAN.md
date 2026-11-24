@@ -41,3 +41,6 @@ Use branch names codex/common-01-foundation, codex/common-02-agents, etc. (or eq
 
 ## Mandatory acceptance inventory
 Read [PRODUCT_ACCEPTANCE_BACKLOG.md](PRODUCT_ACCEPTANCE_BACKLOG.md) before implementing any workstream. It contains existing capability/source mapping, partial and remaining requirements, known CI blockers and release gates. Track requirement IDs in each PR, preserve prior capabilities and verify before checking items off.
+
+## Page-level specification
+All workstreams must also follow [PAGE_AND_UX_SPEC.md](PAGE_AND_UX_SPEC.md), including route depth, nested settings, microinteractions, coherent design, beginner-to-professional presentation, and cross-feature acceptance journeys. Implement real functionality rather than just rendering navigation links.
