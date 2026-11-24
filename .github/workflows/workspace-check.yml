@@ -13,3 +13,18 @@ jobs:
           node-version: '22'
       - run: node --check docs/workspace/model.js && node --check docs/workspace/app.js && node tests/workspace-model.test.cjs
       - run: node --check docs/workspace/report.js && node tests/workspace-report.test.cjs
+  browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-save --no-package-lock playwright@1.56.1
+      - run: npx playwright install --with-deps chromium
+      - name: Exercise research workspace
+        run: |
+          python3 -m http.server 8765 --directory docs > /tmp/common-server.log 2>&1 &
+          trap 'kill $!' EXIT
+          for i in {1..20}; do curl -fsS http://127.0.0.1:8765/workspace/ >/dev/null && break; sleep 1; done
+          node tests/workspace-browser.test.mjs

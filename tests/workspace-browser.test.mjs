@@ -1,0 +1,35 @@
+import assert from 'node:assert/strict';
+import { chromium } from 'playwright';
+const browser=await chromium.launch({headless:true});
+try {
+ const page=await browser.newPage({viewport:{width:1440,height:900}});
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.goto('http://127.0.0.1:8765/workspace/#research');
+ await page.getByLabel('Project name').fill('Research workflow test');
+ await page.getByRole('button',{name:'Create project'}).click();
+ await page.getByRole('heading',{name:'Research thesis'}).waitFor();
+ await page.getByRole('link',{name:'Backtest',exact:true}).click();
+ const lines=Array.from({length:180},(_,i)=>new Date(Date.UTC(2023,0,i+1)).toISOString().slice(0,10)+','+(100+i*.15+Math.sin(i/8)*2).toFixed(4));
+ await page.getByLabel('Historical data CSV').setInputFiles({name:'synthetic-test.csv',mimeType:'text/csv',buffer:Buffer.from('Date,Close\n'+lines.join('\n'))});
+ await page.getByRole('button',{name:'Run backtest'}).click();
+ await page.getByRole('heading',{name:'Execution history'}).waitFor();
+ await page.getByRole('button',{name:'Inspect',exact:true}).click();
+ await page.getByRole('img',{name:'Strategy and benchmark normalized equity curves'}).waitFor();
+ await page.getByRole('button',{name:'Validation',exact:true}).click();
+ await page.getByText('Fraction of simulated losses',{exact:true}).waitFor();
+ await page.getByRole('button',{name:'Data provenance',exact:true}).click();
+ assert.match(await page.getByLabel('Dataset SHA-256').inputValue(),/^[a-f0-9]{64}$/);
+ await page.getByRole('button',{name:'Methodology',exact:true}).click();
+ await page.getByRole('heading',{name:'Execution parameters'}).waitFor();
+ await page.getByRole('button',{name:'Close',exact:true}).click();
+ await page.getByRole('link',{name:'Compare runs',exact:true}).click();
+ await page.getByRole('heading',{name:'Holdout comparison'}).waitFor();
+ await page.reload();
+ await page.getByRole('button',{name:'Run 1',exact:true}).waitFor();
+ await page.setViewportSize({width:390,height:844});
+ await page.getByRole('button',{name:'Run 1',exact:true}).click();
+ await page.getByRole('img',{name:'Strategy and benchmark normalized equity curves'}).waitFor();
+ assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=394),'Mobile workspace overflows');
+ assert.deepEqual(errors,[]);
+ console.log('PASS nested research workspace, run persistence, provenance, validation and mobile layout');
+}finally{await browser.close();}
