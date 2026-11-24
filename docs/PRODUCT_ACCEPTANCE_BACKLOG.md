@@ -51,6 +51,8 @@ Baseline: development branch `common/unified-workspace` at d5b4e100a600f0b9565cd
 
 ### Q04 — Market data and APIs (workstream 04)
 
+Q04.01 browser metadata, source isolation, and upgrade evidence are recorded in [Browser dataset catalog](DATASET_STORAGE.md).
+
 - [ ] Q04.01 **Partial / implemented in branch** — Historical CSV import, IndexedDB dataset library, provenance hashes, quality checks and reusable inputs; user-uploaded daily close data
 - [ ] Q04.02 **Partial / implemented in branch** — Existing SEC EDGAR/fundamentals and official economic-data integrations; audit availability and source correctness
 - [ ] Q04.03 **Remaining** — Equity, ETF, international, futures, options, FX, fixed income, trade/quote and depth provider adapters; entitlements
@@ -120,6 +122,8 @@ Baseline: development branch `common/unified-workspace` at d5b4e100a600f0b9565cd
 
 ### X01 — Unified product and release infrastructure (workstream 01/10)
 
+API operations evidence for X01.05 and X01.06 is recorded in [isolated API staging and performance results](API_OPERATIONS.md). Production member identity and full-workload capacity remain open.
+
 - [ ] X01.01 **Partial / implemented in branch** — Separate static research, terminal, studio and community entrypoints; FastAPI prototype and Supabase auth/community backend; draft PR, not unified deployment
 - [ ] X01.02 **Remaining** — Unified session, navigation, shared component system and responsive institutional UX; accessible dense data and beginner progressive disclosure
 - [ ] X01.03 **Remaining** — Deep nested settings: account/security/privacy, appearance/density, AI/model/memory/commands, data/entitlements, compute, portfolio, circles/governance, integrations/API, notifications, billing/usage
@@ -131,3 +135,7 @@ Baseline: development branch `common/unified-workspace` at d5b4e100a600f0b9565cd
 ## Definition of done for each ID
 
 Record the PR, exact files/routes, persistence and authorization, empty/loading/error/recovery states, desktop/mobile accessibility, unit/integration/security and numerical tests with actual results, limitations, and dependency/activation status. Check off only after review of working evidence. Never silently remove a requirement or replace it with placeholders; split into smaller acceptance IDs if useful. Preserve previous functionality. See AGENTS.md for engineering standards.
+
+### Durable queue evidence
+
+X01.05, X01.06, Q01.07 and Q03.05 have tested infrastructure coverage for durable job scheduling, scoped database roles, admission caps, concurrency and crash recovery. See [Durable PostgreSQL jobs](DURABLE_JOB_QUEUE.md) for interfaces, query-plan evidence and remaining handler, isolation and rollout gates.

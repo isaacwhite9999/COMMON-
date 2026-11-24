@@ -12,20 +12,25 @@ from uuid import uuid4
 from typing import Annotated, Literal
 
 from fastapi import Cookie, Depends, FastAPI, HTTPException, Request, Response
-from fastapi.responses import FileResponse
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, EmailStr, Field, field_validator
-from sqlalchemy import create_engine, func, select
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy import func, select
+from sqlalchemy.dialects.postgresql import insert as postgres_insert
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+from sqlalchemy.exc import DBAPIError, IntegrityError, TimeoutError as PoolTimeout
 from sqlalchemy.orm import Session as DbSession, sessionmaker
 
 from .models import Base, User, Session, Community, Membership, Proposal, PollVote, Watch, AuditEvent, Invite, FundLabPlan
 from .seed import seed
 from .edgar import COMPANIES, company_snapshot
+from .database import build_engine
+from .operations import APIOperations
 
 ROOT = Path(__file__).resolve().parent.parent
 DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///" + str(ROOT / "common_dev.sqlite3"))
-engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}, pool_pre_ping=True)
+engine = build_engine(DATABASE_URL)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 SESSION_DAYS = 7
 COOKIE = "common_session"
@@ -33,32 +38,77 @@ COOKIE = "common_session"
 
 def public_preview_only() -> bool:
     """Read at request time so test deployments can control the preview gate."""
-    return os.environ.get("PUBLIC_PREVIEW_ONLY", "false").strip().lower() == "true"
+    return os.environ.get("COMMON_API_ENV") == "staging" or (
+        os.environ.get("PUBLIC_PREVIEW_ONLY", "false").strip().lower() == "true"
+    )
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    Base.metadata.create_all(engine)
-    with SessionLocal() as db:
-        seed(db)
-    yield
+    if engine.dialect.name == "sqlite":
+        Base.metadata.create_all(engine)
+        with SessionLocal() as db:
+            seed(db)
+    try:
+        yield
+    finally:
+        engine.dispose()
 
 app = FastAPI(title="COMMON Ownership Network", version="0.1.0", lifespan=lifespan,
     docs_url="/api/docs" if os.environ.get("ENABLE_API_DOCS", "true") == "true" else None,
     openapi_url="/api/openapi.json" if os.environ.get("ENABLE_API_DOCS", "true") == "true" else None)
 
-@app.middleware("http")
-async def security_headers(request: Request, call_next):
-    if request.method in {"POST", "PUT", "PATCH", "DELETE"}:
-        origin = request.headers.get("origin")
-        allowed = os.environ.get("PUBLIC_ORIGIN", str(request.base_url).rstrip("/"))
-        if origin and origin.rstrip("/") != allowed.rstrip("/"):
-            return Response("Cross-origin write requests are not allowed", status_code=403)
-    response = await call_next(request)
-    response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["X-Frame-Options"] = "DENY"
-    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-    response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
-    return response
+app.add_middleware(APIOperations)
+
+
+class Liveness(BaseModel):
+    status: Literal["ok"] = "ok"
+
+
+class Readiness(BaseModel):
+    status: Literal["ready", "unavailable"]
+
+
+@app.get("/api/v1/health/live")
+def liveness() -> Liveness:
+    return Liveness()
+
+
+@app.get("/api/v1/health/ready", responses={503: {"model": Readiness}})
+def readiness(response: Response) -> Readiness:
+    try:
+        with engine.connect() as connection:
+            # Probe the application's actual schema without reading member data.
+            connection.execute(select(User.id).limit(0))
+    except (DBAPIError, PoolTimeout):
+        response.status_code = 503
+        return Readiness(status="unavailable")
+    return Readiness(status="ready")
+
+
+@app.exception_handler(PoolTimeout)
+def pool_exhausted(request: Request, _error: PoolTimeout | DBAPIError):
+    return JSONResponse(
+        {"detail": "Database capacity is temporarily unavailable", "request_id": request.state.request_id},
+        status_code=503,
+        headers={"Retry-After": "1"},
+    )
+
+
+@app.exception_handler(DBAPIError)
+def database_error(request: Request, error: DBAPIError):
+    sqlstate = getattr(error.orig, "sqlstate", None)
+    if error.connection_invalidated or sqlstate in {"57014", "55P03"} or (sqlstate or "").startswith("08"):
+        return pool_exhausted(request, error)
+    raise error
+
+
+@app.exception_handler(RequestValidationError)
+def validation_error(request: Request, error: RequestValidationError):
+    fields = [
+        {key: issue[key] for key in ("loc", "msg", "type") if key in issue}
+        for issue in error.errors()
+    ]
+    return JSONResponse({"detail": fields, "request_id": request.state.request_id}, status_code=422)
 
 
 def db_dep():
@@ -136,7 +186,7 @@ class RegisterRequest(BaseModel):
 
 class LoginRequest(BaseModel):
     email: EmailStr
-    password: str
+    password: str = Field(max_length=128)
 
 
 class ProposalRequest(BaseModel):
@@ -347,16 +397,40 @@ def community_json(c: Community, db: DbSession, user_id: str | None = None):
             "owner": bool(user_id and c.owner_id == user_id), "visibility": c.visibility}
 
 
-def proposal_json(p: Proposal, db: DbSession, user_id: str | None = None):
-    community = db.get(Community, p.community_id)
-    author = db.get(User, p.author_id)
-    votes = db.execute(select(PollVote.choice, func.count(PollVote.id)).where(PollVote.proposal_id == p.id).group_by(PollVote.choice)).all()
-    mine = db.scalar(select(PollVote.choice).where(PollVote.proposal_id == p.id, PollVote.user_id == user_id)) if user_id else None
-    return {"id": p.id, "title": p.title, "body": p.body, "topic": p.topic, "community_slug": community.slug,
-            "community_name": community.name, "author": author.name, "created_at": p.created_at.isoformat(), "sample": p.sample,
-            "poll_counts": {"SUPPORT": next((n for c,n in votes if c == "SUPPORT"), 0),
-                            "OPPOSE": next((n for c,n in votes if c == "OPPOSE"), 0),
-                            "ABSTAIN": next((n for c,n in votes if c == "ABSTAIN"), 0)}, "my_vote": mine}
+def proposals_json(query, db: DbSession, user_id: str):
+    rows = db.execute(
+        query.add_columns(Community.slug, Community.name, User.name)
+        .join(Community, Community.id == Proposal.community_id)
+        .join(User, User.id == Proposal.author_id)
+    ).all()
+    ids = [proposal.id for proposal, *_ in rows]
+    if not ids:
+        return []
+    counts = {proposal_id: {"SUPPORT": 0, "OPPOSE": 0, "ABSTAIN": 0} for proposal_id in ids}
+    for proposal_id, choice, count in db.execute(
+        select(PollVote.proposal_id, PollVote.choice, func.count())
+        .where(PollVote.proposal_id.in_(ids)).group_by(PollVote.proposal_id, PollVote.choice)
+    ):
+        if choice in counts[proposal_id]:
+            counts[proposal_id][choice] = count
+    own_votes = {
+        proposal_id: choice
+        for proposal_id, choice in db.execute(
+            select(PollVote.proposal_id, PollVote.choice)
+            .where(PollVote.proposal_id.in_(ids), PollVote.user_id == user_id)
+        )
+    }
+    return [
+        {"id": p.id, "title": p.title, "body": p.body, "topic": p.topic,
+         "community_slug": slug, "community_name": community, "author": author,
+         "created_at": p.created_at.isoformat(), "sample": p.sample,
+         "poll_counts": counts[p.id], "my_vote": own_votes.get(p.id)}
+        for p, slug, community, author in rows
+    ]
+
+
+def proposal_json(p: Proposal, db: DbSession, user_id: str):
+    return proposals_json(select(Proposal).where(Proposal.id == p.id), db, user_id)[0]
 
 
 @app.get("/api/communities")
@@ -421,8 +495,8 @@ def community_detail(slug: str, db: Db, auth: Auth):
     if not c or (c.visibility == "PRIVATE" and not db.scalar(select(Membership.id).where(
         Membership.community_id == c.id, Membership.user_id == user.id))):
         raise HTTPException(404, "Community not found")
-    proposals = db.scalars(select(Proposal).where(Proposal.community_id == c.id).order_by(Proposal.created_at.desc())).all()
-    return {"community": community_json(c, db, user.id), "proposals": [proposal_json(p, db, user.id) for p in proposals]}
+    query = select(Proposal).where(Proposal.community_id == c.id).order_by(Proposal.created_at.desc(), Proposal.id.desc())
+    return {"community": community_json(c, db, user.id), "proposals": proposals_json(query, db, user.id)}
 
 
 @app.get("/api/communities/{slug}/fund-lab")
@@ -485,8 +559,8 @@ def proposals(db: Db, auth: Auth):
     allowed = select(Community.id).where(
         (Community.visibility == "PUBLIC") | (Community.id.in_(select(Membership.community_id).where(Membership.user_id == user.id)))
     )
-    rows = db.scalars(select(Proposal).where(Proposal.community_id.in_(allowed)).order_by(Proposal.created_at.desc()).limit(100)).all()
-    return {"items": [proposal_json(p, db, user.id) for p in rows]}
+    query = select(Proposal).where(Proposal.community_id.in_(allowed)).order_by(Proposal.created_at.desc(), Proposal.id.desc()).limit(100)
+    return {"items": proposals_json(query, db, user.id)}
 
 
 @app.post("/api/communities/{slug}/proposals", status_code=201)
@@ -510,11 +584,12 @@ def vote(proposal_id: str, payload: VoteRequest, user: WriteUser, db: Db):
         raise HTTPException(404, "Discussion not found")
     if not db.scalar(select(Membership.id).where(Membership.community_id == p.community_id, Membership.user_id == user.id)):
         raise HTTPException(403, "Join the community to participate")
-    v = db.scalar(select(PollVote).where(PollVote.proposal_id == p.id, PollVote.user_id == user.id))
-    if v:
-        v.choice = payload.choice
-    else:
-        db.add(PollVote(proposal_id=p.id, user_id=user.id, choice=payload.choice))
+    insert = postgres_insert if db.bind.dialect.name == "postgresql" else sqlite_insert
+    statement = insert(PollVote).values(proposal_id=p.id, user_id=user.id, choice=payload.choice)
+    db.execute(statement.on_conflict_do_update(
+        index_elements=[PollVote.proposal_id, PollVote.user_id],
+        set_={"choice": statement.excluded.choice},
+    ))
     audit(db, user, "DISCUSSION_POLL_VOTE", "proposal", p.id)
     db.commit()
     return {"proposal": proposal_json(p, db, user.id), "notice": "Community opinion only. Not an actual proxy vote or investment order."}

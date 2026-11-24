@@ -1,0 +1,30 @@
+name: Validate browser dataset storage
+
+on:
+  pull_request:
+    paths:
+      - 'docs/workspace/datasets.js'
+      - 'tests/workspace-dataset-storage.test.mjs'
+      - '.github/workflows/test-dataset-storage.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  dataset-storage:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-save --no-package-lock playwright@1.56.1
+      - run: npx playwright install --with-deps chromium
+      - name: Verify migration and atomic dataset storage
+        run: |
+          python3 -m http.server 8765 --bind 127.0.0.1 --directory docs >/tmp/common-data-server.log 2>&1 &
+          trap 'kill $!' EXIT
+          curl -fsS --retry 10 --retry-connrefused --retry-delay 1 http://127.0.0.1:8765/workspace/ >/dev/null
+          node tests/workspace-data.test.cjs
+          node tests/workspace-dataset-storage.test.mjs
