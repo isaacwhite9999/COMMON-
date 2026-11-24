@@ -5,11 +5,13 @@ on:
     branches: [main]
     paths:
       - 'supabase/migrations/**'
+      - 'supabase/schema-drafts/**'
       - 'tests/pg_*.sql'
       - '.github/workflows/test-community-db.yml'
   pull_request:
     paths:
       - 'supabase/migrations/**'
+      - 'supabase/schema-drafts/**'
       - 'tests/pg_*.sql'
       - '.github/workflows/test-community-db.yml'
 
@@ -55,3 +57,7 @@ jobs:
         run: psql -X -v ON_ERROR_STOP=1 -f tests/pg_enforcement_smoke.sql
       - name: Verify private research workspaces and experiment RLS
         run: psql -X -v ON_ERROR_STOP=1 -f tests/pg_research_smoke.sql
+      - name: Validate external recordkeeping schema draft in disposable database
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -f supabase/schema-drafts/external-journal.sql
+          psql -X -v ON_ERROR_STOP=1 -f tests/pg_external_journal_smoke.sql

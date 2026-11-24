@@ -1,0 +1,8 @@
+(function(root,factory){const api=factory();if(typeof module==='object'&&module.exports)module.exports=api;root.CommonFiles=api;})(globalThis,function(){'use strict';
+function path(v){const x=String(v??'').trim();if(x.length>120||!x.split('/').every(s=>/^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,59}$/.test(s))||!(/\.(md|txt|py|json|csv)$/i.test(x)))throw Error('Use a relative project path ending in .md, .txt, .py, .json or .csv.');return x;}
+function body(v){const x=String(v??'');if(x.length>40000)throw Error('Text files are limited to 40,000 characters.');return x;}
+function list(p){return Array.isArray(p.files)?p.files:[];}
+function write(p,name,content,id){const files=list(p),name2=path(name),text=body(content),old=id?files.find(f=>f.id===id):null;if(id&&!old)throw Error('File not found.');if(files.some(f=>f.path.toLowerCase()===name2.toLowerCase()&&f.id!==id))throw Error('A file already exists at that path.');if(!id&&files.length>=30)throw Error('Maximum 30 text files per project.');if(old&&old.path===name2&&old.content===text)return p;const at=new Date().toISOString(),revision=old?{path:old.path,content:old.content,at:old.updated}:null;const f={id:old?.id||crypto.randomUUID(),path:name2,content:text,updated:at,revisions:old?[revision,...(old.revisions||[])].slice(0,4):[]};return {...p,files:old?files.map(x=>x.id===id?f:x):[...files,f]};}
+function remove(p,id){return {...p,files:list(p).filter(f=>f.id!==id)};}
+function restore(p,id,index){const f=list(p).find(x=>x.id===id),r=f?.revisions?.[index];if(!r)throw Error('Revision not found.');return write(p,r.path,r.content,id);}
+return {path,body,list,write,remove,restore};});

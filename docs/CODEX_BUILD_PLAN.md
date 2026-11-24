@@ -1,0 +1,52 @@
+# COMMON parallel engineering program
+
+Baseline: common/unified-workspace, inspect HEAD and CI at task start. This plan is the full-product target, not a declaration of completed features. $0 additional spending unless owner explicitly approves. Workstreams below can run concurrently on separate branches if they respect ownership boundaries. Start with the integration/foundation task, then launch specialist tasks against its reviewed contracts; avoid simultaneous edits to docs/workspace/app.js or docs/live-community.js by using modules and coordinating integration changes.
+
+## Acceptance gates
+A requirement is done only when the full user workflow is functional, data persists in the appropriate store, authorization and validation are enforced server-side where applicable, loading/empty/error/recovery states are implemented, desktop/mobile and keyboard interaction are usable, and relevant automated tests pass. Provider-dependent capabilities are implemented but explicitly inactive until configured and tested. Production is not authorized by this plan.
+
+## Workstreams (copy each task into Codex)
+### 01 — Foundation and integration (first)
+Own application shell, shared design tokens, routing, session contract, API contracts, test harness and integration plan. Audit existing source and all CI failures; fix editor accessibility regression and Python smoke-test failures with evidence. Unify entrypoints without deleting functioning workflows. Define typed domain boundaries and modular interfaces for specialists. Establish staging configuration and cost-free local test setup. Review each PR, resolve shared-file conflicts and verify end-to-end integration. Deliver contracts and an evidence-based backlog.
+
+### 02 — AI orchestration
+Own agent modules and model gateway. Extend the existing gated assistant into persistent project-scoped sessions, goals, context selection/compaction, commands, conversation history, streaming events and tool traces. Implement a bounded state machine: plan, request authorized data, propose code, request approval when needed, run in isolated compute, inspect outputs, retry with limits, validate, report with evidence. Pause/cancel/resume, quotas, timeouts, tool schemas, per-project permissions, prompt-injection defense, idempotency and observability. Specialized workflows for fundamentals, technicals, risk, macro, filings, strategy and verification. Use mock providers in tests, never fake live responses. Model/remote execution disabled until configured. Coordinate compute contracts with 03.
+
+### 03 — Research IDE and computing
+Own project editor, files, notebook and compute modules. Upgrade to a professional licensed editor (evaluate Monaco), tabs, search, folders, diffs, diagnostics, linting, autocomplete, versioning, project duplication/import/export, keyboard navigation, resizable panels and artifact browser. Secure persistent project storage with RLS. Real Python notebook cells, kernel lifecycle, package lock, execution logs, cancel and errors. Verify existing Pyodide isolation and browser runtime, including network controls; do not treat it as hardened cloud compute. Add separately isolated worker/container adapter with no secrets/host access, deny-by-default networking, CPU/memory/time quotas and job recovery; provider inactive until verified. No arbitrary code on API host.
+
+### 04 — Market data and institutional intelligence
+Own market-data contracts, ingestion, cache, symbol/security master and market intelligence modules. Implement official SEC EDGAR and macro sources with provenance, caching, rate limits, as-of dates and error states. Design provider interfaces for equities/ETFs, futures, options, FX, fixed income, corporate actions, calendars, adjusted OHLCV, tick/quote data and order books. Licensed feeds remain unavailable unless entitled. Add filings/financials, ownership/13F, insiders, governance/proxy, DCF, comparables, capital structure and private-capital due diligence. Provide typed APIs and fixtures; no fabricated market data.
+
+### 05 — Quantitative engine and portfolio engineering
+Own analytical libraries and tests. Extend existing CSV, backtest, walk-forward, bootstrap and risk systems. Custom strategies, multi-asset event-driven execution simulation, cost/slippage/liquidity/position sizing/margin, options and futures models, attribution, trade logs. Scientific validation: parameter stability, sensitivity, regime-conditioned analysis, significance/multiple testing, bias checks, reproducibility. Portfolio optimization, frontier, risk parity, factor exposure, rebalancing and stress tests. Order-flow/volume/market-depth analysis on licensed or user-supplied appropriate data; prop-firm scenario modeling. Explicit assumptions, numerical tolerance and independent test fixtures. Do not claim parity without verified workflows.
+
+### 06 — Social graph, profiles and discovery
+Own social graph schema/service/UI modules. Follow/unfollow, connection requests/accept/decline, mutual connections, lists, profile identity and interests, discovery/search, privacy, blocks/mutes, pagination, notifications and recommendations with transparent controls. Expand account settings, session/recovery/export/delete where supported. Authenticated data and cross-user RLS tests, no unauthorized directory leaks or contact scraping. Keep private data private.
+
+### 07 — Publishing and collaborative research
+Own feed/publishing and research collaboration modules. Drafts, revisions, threaded replies, tags/tickers, mentions, bookmarks, reposts, search, visibility, attachments with validation, shared chart and evidence artifacts, article editing and research citations. Joint project permissions, notes, peer review, tasks, versioning and publish approvals. Feed following/discovery with real persistence, no invented users. Link research to circle discussions and governance without copying private data by default.
+
+### 08 — Messaging and trusted circles
+Own messaging and circle administration modules. Real-time private/group channels, conversation list, unread state, delivery/read status, replies/reactions, presence, search, attachment safety, notifications/mute, edit/delete, archive and mobile. Circle requests/invites, roles/permissions, committees, channel visibility, pinned material, member removal, ownership transfer, archive and audit. Test blocked users, unrelated users, former members and cross-circle isolation. No claim of end-to-end encryption unless implemented.
+
+### 09 — Governance and collective capital
+Own governance/capital modules, separate from social polls. Versioned charters, eligibility snapshots, quorum and voting thresholds, conflicts, amendments, abstentions, approval audit, revocation, independent review and decision tracking. Build provider-neutral entity onboarding, member capital-account schema, exact-cent double-entry ledger, idempotent transaction lifecycle, reconciliations, positions/NAV, distributions, statements and exit workflows. Use disposable fixtures and approved external recordkeeping only; no live custody, deposits, real money movement, orders or offerings until legal, partner and operational gates are met. External bookkeeping is not verified balances. Do not activate financial integrations.
+
+### 10 — Trust, security, developer APIs and release
+Own cross-cutting review and separate test/security modules. Threat model, RLS negative tests, abuse/rate limits, safe attachments, moderation/appeals, financial disclosures and manipulation defenses, privacy, secure secrets, backups, error monitoring and incident response. Scoped API keys, rotation/revocation, documented REST/Python SDK/MCP and usage limits for entitled resources. Review permissions and cost controls. Test staging builds and accessibility/mobile. Coordinate release with 01; do not deploy production or override failed checks.
+
+## Integration workflow
+Use branch names codex/common-01-foundation, codex/common-02-agents, etc. (or equivalent unique task branches). Open PRs targeting common/unified-workspace, not main. Do not merge specialist changes until shared contracts are reviewed and tests pass. Each task should read AGENTS.md and this plan, inspect current state, implement rather than merely describe, run tests and update its acceptance evidence. Finish vertical slices and explicitly list blocked items. No paid services or real financial activation. Owner controls launch and merge decisions.
+
+## Mandatory acceptance inventory
+Read [PRODUCT_ACCEPTANCE_BACKLOG.md](PRODUCT_ACCEPTANCE_BACKLOG.md) before implementing any workstream. It contains existing capability/source mapping, partial and remaining requirements, known CI blockers and release gates. Track requirement IDs in each PR, preserve prior capabilities and verify before checking items off.
+
+## Page-level specification
+All workstreams must also follow [PAGE_AND_UX_SPEC.md](PAGE_AND_UX_SPEC.md), including route depth, nested settings, microinteractions, coherent design, beginner-to-professional presentation, and cross-feature acceptance journeys. Implement real functionality rather than just rendering navigation links.
+
+## Scalability gate
+All workstreams must follow [SCALABILITY_ARCHITECTURE.md](SCALABILITY_ARCHITECTURE.md). Capacity is unmeasured; record actual performance evidence, resource limits and scaling risks, and avoid premature infrastructure spending. Load-test only approved disposable environments. No production readiness claims based on architectural diagrams alone.
+
+## Granular feature coverage
+The expanded checklists are [quantitative research](QUANT_FEATURE_CHECKLIST.md) (213 items), [social and ownership](SOCIAL_FEATURE_CHECKLIST.md) (199 items), and [shared platform](PLATFORM_FEATURE_CHECKLIST.md) (38 items). Together these complement the grouped backlog; preserve the full scope and record child IDs for each PR. Do not claim they are finished merely because a workstream passed tests.
