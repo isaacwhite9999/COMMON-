@@ -286,8 +286,8 @@ function recoveryPage(){
 }
 function render(){if(!client){setup();return}if(recovering){recoveryPage();return}if(!session?.user){auth();return}root.innerHTML=baseNav()+dialog()}
 async function init(){
- if(!config.supabaseUrl||!config.supabaseAnonKey||config.communityBackendReady!==true||!window.supabase?.createClient){setup();return}
- client=window.supabase.createClient(config.supabaseUrl,config.supabaseAnonKey,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
+ client=window.CommonSession.memberClient();
+ if(!client){setup();return}
  checkGoogleProvider().catch(console.error);
  const r=await saved();if(r.error)throw r.error;session=r.data.session;
  client.auth.onAuthStateChange((evt,next)=>{session=next;if(evt==='PASSWORD_RECOVERY'){recovering=true;render();return}if(next&&!recovering){setTimeout(()=>refresh().catch(handleError),0)}else if(!next){profile=null;ledgerRows=[];ledgerCircle=null;ledgerError='';decisionDetail=null;pollRows=[];pollOwn=null;capitalDrafts.clear();capitalTab='overview';blockedMembers=[];bookmarks=[];memberDetail=null;memberDirectory=[];profileSection='identity';mobileMore=false;agentOutput=null;agentInput='';agentMode='review';agentDeskTab='analysis';agentDesk=CommonAgentDesk.initial();agentDeskOwner=null;agentLastRequest=null;groups=[];memberships=[];posts=[];proposals=[];projects=[];watches=[];people={};likes=[];messages=[];dm=[];memberPoll=[];selectedGroup=null;selectedPeer=null;state.inviteToken=null;state.comments=null;state.composer=state.groupCreate=state.projectCreate=state.proposalCreate=false;recovering=false;render()}});

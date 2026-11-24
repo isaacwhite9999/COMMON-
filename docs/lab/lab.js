@@ -4,7 +4,6 @@
 (() => {
 'use strict';
 const root=document.getElementById('lab-root');
-const config=window.COMMON_CONFIG||{};
 const engine=window.COMMON_RESEARCH_ENGINE;
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
@@ -398,8 +397,8 @@ document.addEventListener('submit',ev=>{
 });
 async function init(){
  if(!engine)throw Error('Research engine is missing.');
- if(!config.communityBackendReady||!config.supabaseUrl||!config.supabaseAnonKey||!window.supabase?.createClient)throw Error('Supabase backend has not been configured.');
- client=window.supabase.createClient(config.supabaseUrl,config.supabaseAnonKey,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
+ client=window.CommonSession.memberClient();
+ if(!client)throw Error('Research Studio sign-in is unavailable in this environment.');
  const r=await client.auth.getSession();if(r.error)throw r.error;
  session=r.data.session;
  client.auth.onAuthStateChange((_evt,next)=>{session=next;if(next)queueMicrotask(()=>refresh().catch(fail));else render();});

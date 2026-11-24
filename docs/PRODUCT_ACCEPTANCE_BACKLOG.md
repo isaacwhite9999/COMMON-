@@ -14,6 +14,8 @@ Baseline: development branch `common/unified-workspace` at d5b4e100a600f0b9565cd
 
 ## Status and known blockers
 
+- Workstream 01 foundation evidence and remaining coverage are tracked in [Foundation contracts](FOUNDATION_CONTRACTS.md). Existing product-level acceptance remains subject to review.
+
 - Latest known frontend/API and disposable database checks passed at d5b4e10. Full workspace checks were still running for that head at inventory creation. Prior workspace runs failed. Inspect fresh job logs, particularly editor browser and Python runtime smoke tests, before claiming readiness.
 - AI provider and external journal flags remain disabled unless independently configured and verified; no paid activation authorized.
 - No actual pooled money, deposit, withdrawal, securities execution or legally binding vote is active. No production merge or deployment is authorized by this inventory.

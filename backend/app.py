@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from uuid import uuid4
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import Cookie, Depends, FastAPI, HTTPException, Request, Response
 from fastapi.responses import FileResponse
@@ -259,16 +259,30 @@ def research_company(symbol: str, auth: Auth):
     return company_snapshot(symbol.upper())
 
 
+class PublicConfig(BaseModel):
+    public_preview_only: bool
+    data_persistence: Literal["temporary", "deployment-dependent"]
+    real_money_enabled: Literal[False] = False
+
+
+class HealthStatus(BaseModel):
+    status: Literal["ok"] = "ok"
+    mode: Literal["research-and-community-only"] = "research-and-community-only"
+    real_money_enabled: Literal[False] = False
+
+
 @app.get("/api/config")
-def public_config():
-    return {"public_preview_only": public_preview_only(),
-            "data_persistence": "temporary" if public_preview_only() else "deployment-dependent",
-            "real_money_enabled": False}
+def public_config() -> PublicConfig:
+    preview = public_preview_only()
+    return PublicConfig(
+        public_preview_only=preview,
+        data_persistence="temporary" if preview else "deployment-dependent",
+    )
 
 
 @app.get("/api/health")
-def health():
-    return {"status": "ok", "mode": "research-and-community-only", "real_money_enabled": False}
+def health() -> HealthStatus:
+    return HealthStatus()
 
 
 @app.post("/api/auth/demo")
