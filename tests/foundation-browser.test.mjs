@@ -26,7 +26,7 @@ try {
   await page.getByText('No matching destinations.').waitFor();
   await search.fill('');
   await page.keyboard.press('Escape');
-  await page.waitForFunction(() => document.activeElement.textContent === 'Find a tool');
+  await page.waitForFunction(() => document.activeElement.getAttribute('aria-label') === 'Find a tool');
   await openSearch.click();
   await search.fill('settings density');
   await page.getByRole('dialog').getByRole('link', { name: 'Appearance' }).click();

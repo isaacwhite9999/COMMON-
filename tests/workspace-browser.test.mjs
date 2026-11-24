@@ -81,6 +81,15 @@ try {
  await page.getByRole('heading',{name:'Execution history'}).waitFor();
  await page.getByRole('button',{name:'Inspect',exact:true}).click();
  await page.getByRole('img',{name:'Strategy and benchmark normalized equity curves'}).waitFor();
+ const observation=page.getByRole('slider',{name:'Inspect holdout observation'});
+ await observation.focus();
+ await page.keyboard.press('Home');
+ await page.getByText(/^Observation 1 of /).waitFor();
+ await page.getByText('Columns',{exact:true}).click();
+ await page.getByLabel('Benchmark',{exact:true}).uncheck();
+ assert.equal(await page.getByRole('columnheader',{name:'Sort by Benchmark'}).count(),0);
+ await page.getByRole('button',{name:'Sort by Metric'}).click();
+ assert.equal(await page.getByRole('columnheader',{name:'Sort by Metric'}).getAttribute('aria-sort'),'ascending');
  await page.getByRole('button',{name:'Validation',exact:true}).click();
  await page.getByText('Fraction of simulated losses',{exact:true}).waitFor();
  await page.getByRole('button',{name:'Data provenance',exact:true}).click();

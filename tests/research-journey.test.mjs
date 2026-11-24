@@ -96,6 +96,13 @@ try {
   assert.equal(calls[1].circle_id,circle);
   assert.equal(calls[1].discussion_body,summary);
   assert.equal(await page.evaluate(()=>CommonResearchDraft.forMember('84000002-0000-4000-8000-000000000002')),null);
+  await page.setViewportSize({width:820,height:900});
+  const openPoll = page.getByRole('button',{name:'Draft circle poll'});
+  await openPoll.click();
+  await page.keyboard.press('Escape');
+  await page.getByRole('dialog').waitFor({state:'hidden'});
+  assert.equal(await openPoll.evaluate(node=>node===document.activeElement),true);
+  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
   await page.getByRole('button',{name:'Draft circle poll'}).click();
   const poll = page.getByRole('dialog');
   assert.equal(await poll.getByLabel('Question').inputValue(),'Review: Reviewed backtest');
@@ -110,7 +117,7 @@ try {
   await page.getByRole('button',{name:'Capital & treasury'}).click();
   await page.getByRole('button',{name:'External journal'}).click();
   await page.getByRole('heading',{name:'External journal not activated'}).waitFor();
-  await page.locator('.navbar [data-tab=invest]').click();
+  await page.locator('.navbar').getByRole('button',{name:'Research',exact:true}).click();
   await page.getByRole('link',{name:'Research SPY'}).click();
   assert.equal(await page.getByLabel('Instrument (optional)').inputValue(),'SPY');
   assert.deepEqual(failures,[]);

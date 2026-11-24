@@ -85,7 +85,7 @@ function auth(){
  '<div class="auth-notice"><strong>Registration notice:</strong> Public email confirmation is not fully configured. The default Supabase mail sender restricts delivery to project-team addresses. COMMON does not hold deposits, execute trades, or accept pooled investment contributions.</div></div></section></main>';
 }
 function baseNav(){
- const items=navs.map(([id,label])=>'<button class="nav-item '+(view===id?'active':'')+'" data-tab="'+id+'"><span style="font-size:20px;width:21px">'+icons[id]+'</span><span>'+label+'</span></button>').join('');
+ const items=navs.map(([id,label])=>'<button class="nav-item '+(view===id?'active':'')+'" data-tab="'+id+'" aria-label="'+e(label)+'"'+(view===id?' aria-current="location"':'')+'><span aria-hidden="true" style="font-size:20px;width:21px">'+icons[id]+'</span><span>'+label+'</span></button>').join('');
  return '<div class="app-shell"><aside class="navbar">'+logo()+'<div class="nav-links" style="margin-top:25px">'+items+'</div><a class="nav-item workspace-link" href="../workspace/">Research workspace ↗</a><div class="nav-spacer"></div><div class="nav-person"><button data-tab="profile"><span class="avatar">'+e((profile?.display_name||'?').slice(0,2).toUpperCase())+'</span><span class="details"><strong>'+e(profile?.display_name||'Member')+'</strong><span class="tiny muted">@'+e(profile?.handle||'member')+'</span></span></button></div></aside><div class="main-wrap"><header class="mobile-head">'+logo()+'<button class="icon-btn" data-act="mobile-more" aria-expanded="'+mobileMore+'" aria-label="More navigation">☰</button></header>'+(mobileMore?'<nav class="mobile-more" aria-label="More sections">'+navs.slice(5).map(([id,label])=>'<button class="nav-item" data-tab="'+id+'">'+e(label)+'</button>').join('')+'<a href="../workspace/">Research workspace ↗</a></nav>':'')+'<header class="topbar"><h2>'+e(titleCase(view))+'</h2><div style="margin-left:auto"><span class="pill lime">LIVE COMMUNITY</span></div></header><main class="content">'+banner()+researchDraftNotice()+page()+'</main></div><nav class="mobile-nav">'+navs.slice(0,5).map(([id,label])=>'<button data-tab="'+id+'" class="'+(view===id?'active':'')+'"><span style="font-size:21px">'+icons[id]+'</span><span>'+label+'</span></button>').join('')+'</nav></div>';
 }
 function page(){if(view==='research-review')return researchReviewPage();if(view==='home')return home();if(view==='groups')return selectedGroup?groupDetail():communities();if(view==='chat')return chat();if(view==='ownership')return ownership();if(view==='invest')return research();if(view==='agent')return agentPage();if(view==='member')return memberPage();if(view==='money')return money();if(view==='learn')return learn();if(view==='safety')return safety();return profilePage();}
@@ -379,12 +379,40 @@ function dialog(){
  else if(state.groupCreate){title='Establish a research desk';form='group';fields='<label><span class="form-label">Research desk name</span><input class="field" name="name" required minlength="4" maxlength="100" placeholder="e.g. Industrials Fundamental Research"></label><label><span class="form-label">Mandate and methodology</span><textarea class="field" name="description" maxlength="2500" required placeholder="Define your research universe, analytical method, sources and intended deliverables."></textarea></label><label><span class="form-label">Coverage discipline</span><select class="field" name="category">'+researchDisciplines.map(([key,label])=>'<option value="'+key+'">'+e(label)+'</option>').join('')+'</select></label><label><span class="form-label">Membership visibility</span><select name="visibility" class="field"><option value="private">Private, invitation only</option><option value="public">Public research desk</option></select></label><div class="preview-banner">Research collaboration and shareholder education only. Do not use a desk to coordinate market manipulation, solicit unregistered securities, or pool money without an authorized structure.</div>';}
  else if(state.projectCreate){title='Research a project';form='project';fields='<label><span class="form-label">Linked community</span><select name="community" class="field">'+memberships.map(m=>'<option value="'+m.community_id+'" '+(m.community_id===selectedGroup?'selected':'')+'>'+e(groupName(m.community_id))+'</option>').join('')+'</select></label><label><span class="form-label">Project title</span><input name="title" class="field" required minlength="8" maxlength="160"></label><label><span class="form-label">Rationale</span><textarea name="thesis" class="field" required minlength="30" maxlength="12000"></textarea></label><label><span class="form-label">Focus</span><select name="category" class="field"><option value="public_company">Public company</option><option value="housing">Housing</option><option value="local_business">Business</option><option value="community_land">Community land</option><option value="other">Other</option></select></label>';}
  else{title='Start a discussion poll';form='proposal';fields='<input type="hidden" name="community" value="'+e(selectedGroup)+'"><label><span class="form-label">Question</span><input class="field" name="title" required minlength="8" maxlength="160" value="'+e(pollDraft?.title||'')+'"></label><label><span class="form-label">What members should consider</span><textarea class="field" name="rationale" required minlength="30" maxlength="15000">'+e(pollDraft?.rationale||'')+'</textarea></label>';}
- return '<div class="modal-backdrop"><div class="modal" role="dialog" aria-modal="true"><div class="space"><h2>'+title+'</h2><button class="icon-btn" data-act="close-dialog">✕</button></div><p class="muted small" style="margin:10px 0 16px">This is a live community contribution, not a request to collect investment money.</p><form data-form="'+form+'" class="stack">'+fields+'<button type="submit" class="button full">Publish</button></form></div></div>';
+ return '<dialog class="modal common-member-dialog" aria-labelledby="member-dialog-title"><div class="space"><h2 id="member-dialog-title">'+title+'</h2><button type="button" class="icon-btn" aria-label="Close dialog" data-act="close-dialog">✕</button></div><p class="muted small" style="margin:10px 0 16px">This is a live community contribution, not a request to collect investment money.</p><form data-form="'+form+'" class="stack">'+fields+'<button type="submit" class="button full">Publish</button></form></dialog>';
 }
 function recoveryPage(){
  root.innerHTML='<main class="auth-shell"><section class="auth-left">'+logo()+'<div class="auth-feature"><h1>Secure your<br><em>account.</em></h1><p>Choose a new password to regain access to your community.</p></div></section><section class="auth-right"><div class="auth-form-wrap"><h2>Reset your password</h2>'+banner()+'<form id="password-change-form" class="stack"><label><span class="form-label">New password</span><input class="field" name="password" required type="password" minlength="8" autocomplete="new-password"></label><button type="submit" class="button full">Save new password</button></form></div></section></main>';
 }
-function render(){if(!client){setup();return}if(recovering){resetDiscussionFeed();recoveryPage();return}if(!session?.user){resetDiscussionFeed();auth();return}prepareDiscussionFeed();root.innerHTML=baseNav()+dialog()}
+let modalTrigger=null;
+function closeMemberDialog(){
+ pollDraft=null;state.composer=state.groupCreate=state.projectCreate=state.proposalCreate=false;
+ render();
+ const trigger=modalTrigger&&root.querySelector('[data-act="'+CSS.escape(modalTrigger)+'"]');
+ trigger?.focus();
+ modalTrigger=null;
+}
+function render(){
+ if(!client){setup();return}
+ if(recovering){resetDiscussionFeed();recoveryPage();return}
+ if(!session?.user){resetDiscussionFeed();auth();return}
+ prepareDiscussionFeed();
+ const previous=root.querySelector('.common-member-dialog[open]');
+ const values=previous?new FormData(previous.querySelector('form')):null;
+ root.innerHTML=baseNav()+dialog();
+ const modal=root.querySelector('.common-member-dialog');
+ if(!modal)return;
+ const form=modal.querySelector('form');
+ if(values&&previous.querySelector('form').dataset.form===form.dataset.form){
+  for(const [name,value] of values){
+   const control=form.elements.namedItem(name);
+   if(control&&control.type!=='hidden')control.value=value;
+  }
+ }
+ form.querySelector('input:not([type=hidden]), textarea, select')?.setAttribute('autofocus','');
+ modal.addEventListener('cancel',event=>{event.preventDefault();if(!busy)closeMemberDialog();});
+ modal.showModal();
+}
 async function init(){
  client=window.CommonSession.memberClient();
  if(!client){setup();return}
@@ -507,7 +535,7 @@ async function dispatch(action,element){
   agentMode='review';agentInput=researchReview.body;agentOutput=null;agentLastRequest=null;
   agentDeskTab='analysis';view='agent';error=info='';render();return;
  }
- if(action==='close-dialog'){pollDraft=null;state.composer=state.groupCreate=state.projectCreate=state.proposalCreate=false;render();return}
+ if(action==='close-dialog'){closeMemberDialog();return}
  if(action==='use-agent-command'){const c=agentDesk.commands.find(x=>x.id===id);if(!c)throw Error('Command not found.');agentInput=c.template;agentMode=c.mode;agentDeskTab='analysis';render();return}
  if(action==='save-agent-output'){if(!agentLastRequest||!agentOutput)throw Error('No completed analysis.');if(agentDesk.history.length>=20)throw Error('Delete an old analysis before saving another.');if(confirm('Save the submitted evidence and AI output locally on this device?'))saveAgentDesk({...agentDesk,history:[CommonAgentDesk.record(agentLastRequest.mode,agentLastRequest.input,agentOutput,agentLastRequest.status),...agentDesk.history]});return}
  if(['delete-agent-command','delete-agent-memory','delete-agent-history'].includes(action)){const k=action==='delete-agent-command'?'commands':action==='delete-agent-memory'?'memory':'history';if(confirm('Delete this local research item?'))saveAgentDesk({...agentDesk,[k]:agentDesk[k].filter(x=>x.id!==id)});return}
@@ -635,7 +663,9 @@ document.addEventListener('click',async ev=>{
  const agentTab=ev.target.closest('[data-agent-tab]');if(agentTab){agentDeskTab=agentTab.dataset.agentTab;render();return}const capital=ev.target.closest('[data-capital-tab]');if(capital){if(joined(selectedGroup)){capitalTab=capital.dataset.capitalTab;if(capitalTab==='ledger'){await loadLedger();}render()}return}const prof=ev.target.closest('[data-profile-section]');if(prof){profileSection=prof.dataset.profileSection;render();return}const nav=ev.target.closest('[data-tab]');if(nav){mobileMore=false;if(nav.dataset.tab==='studio'){location.assign(new URL('../lab/',location.href).href);return}view=nav.dataset.tab;selectedGroup=null;error=info='';render();return}
  const feed=ev.target.closest('[data-feed]');if(feed){state.feed=feed.dataset.feed;render();return}const dir=ev.target.closest('[data-directory]');if(dir){state.directory=dir.dataset.directory;render();return}const tab=ev.target.closest('[data-group-tab]');if(tab){state.groupTab=tab.dataset.groupTab;try{if(state.groupTab==='chat')await loadMessages();if(state.groupTab==='members'){memberPoll=[];await loadGroupMembers();}}catch(e){handleError(e);return}render();return}
  const btn=ev.target.closest('[data-act]');if(!btn)return;
- if(busy)return;busy=true;try{await dispatch(btn.dataset.act,btn)}catch(err){handleError(err)}finally{busy=false}
+ if(busy)return;
+ if(['compose','create-group','new-project','new-proposal','poll-from-discussion'].includes(btn.dataset.act))modalTrigger=btn.dataset.act;
+ busy=true;try{await dispatch(btn.dataset.act,btn)}catch(err){handleError(err)}finally{busy=false}
 });
 document.addEventListener('change',ev=>{const node=ev.target.closest('[data-agent-command]');if(node){const cmd=agentDesk.commands.find(x=>x.id===node.value);if(cmd){const form=node.closest('form');form.elements.mode.value=cmd.mode;form.elements.input.value=cmd.template;}}});
 document.addEventListener('input',ev=>{const input=ev.target;if(researchReview?.owner===session?.user?.id&&researchReview&&input.closest('[data-form="research-draft"]')&&['title','body','circle'].includes(input.name)){researchReview[input.name]=input.value;return}if(ev.target.id==='group-search'){search=ev.target.value;const active=document.activeElement;const start=active.selectionStart;render();const input=document.getElementById('group-search');input?.focus();if(start!==null)input?.setSelectionRange(start,start)}});

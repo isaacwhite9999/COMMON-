@@ -1,11 +1,17 @@
 :root {
-  --common-chrome: #121918;
-  --common-ink: #f5f7f6;
-  --common-muted: #b8c5bf;
-  --common-line: #43504b;
-  --common-accent: #c6edaf;
+  --common-chrome: #101820;
+  --common-ink: #f4f7fa;
+  --common-muted: #aab9c8;
+  --common-line: #344553;
+  --common-accent: #a4d3f8;
   --common-space: 12px;
-  --common-font: system-ui, sans-serif;
+  --common-font: "DM Sans", Inter, system-ui, sans-serif;
+  --common-mono: "IBM Plex Mono", ui-monospace, monospace;
+  --common-paper: #f2f5f7;
+  --common-text: #172631;
+  --common-subtle: #526373;
+  --common-divider: #d2dbe3;
+  --common-link: #174c77;
 }
 :root[data-common-density="compact"] { --common-space: 8px; }
 
@@ -32,8 +38,8 @@
 .common-shell .common-brand { font-weight: 750; letter-spacing: .08em; padding-inline: 0; }
 .common-shell a:hover, .common-shell a[aria-current], .common-search a:hover {
   color: var(--common-accent);
-  text-decoration: underline;
-  text-underline-offset: 4px;
+  background: #1d2b38;
+  border-radius: 4px;
 }
 .common-shell button, .common-search button, .common-search input {
   min-height: 38px;
@@ -74,3 +80,9 @@
   .common-shell nav { order: 1; flex-basis: 100%; }
   .common-shell nav a { min-height: 44px; }
 }
+
+.common-shell nav a[aria-current] { box-shadow: inset 0 -2px var(--common-accent); }
+.common-shell .common-brand { letter-spacing: .13em; margin-right: 12px; }
+.common-shell button:hover { border-color: var(--common-accent); }
+.common-shell kbd { font: .69rem var(--common-mono); color: var(--common-muted); margin-left: 8px; }
+.common-search a { width: 100%; }

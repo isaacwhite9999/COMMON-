@@ -58,20 +58,40 @@
   }
 
   document.documentElement.dataset.commonDensity = persistedDensity();
-  const preference = document.querySelector('#common-density');
-  if (preference) {
-    preference.value = persistedDensity();
-    preference.addEventListener('change', () => {
-      const status = document.querySelector('#common-preference-status');
-      document.documentElement.dataset.commonDensity = preference.value;
+  function preference(id, key, fallback, validate, apply) {
+    let current = fallback;
+    try {
+      const stored = localStorage.getItem(key);
+      if (stored !== null && validate(stored)) current = stored;
+    } catch {
+      // The interface still works without browser storage.
+    }
+    apply(current);
+    const control = document.getElementById(id);
+    if (!control) return;
+    control.value = current;
+    control.addEventListener('input', () => {
+      if (validate(control.value)) apply(control.value);
+    });
+    control.addEventListener('change', () => {
+      const status = document.getElementById('common-preference-status');
+      if (!validate(control.value)) return;
       try {
-        localStorage.setItem(densityKey, preference.value);
-        status.textContent = 'Appearance saved on this browser.';
+        localStorage.setItem(key, control.value);
+        if (status) status.textContent = 'Appearance saved on this browser.';
       } catch {
-        status.textContent = 'Browser storage is unavailable. This change applies to this page.';
+        if (status) status.textContent = 'Browser storage is unavailable. This change applies to this page.';
       }
     });
   }
+  preference('common-density', densityKey, persistedDensity(), value => ['comfortable','compact'].includes(value),
+    value => { document.documentElement.dataset.commonDensity = value; });
+  preference('common-guidance', 'common.guidance.v1', 'essential',
+    value => ['essential','advanced'].includes(value),
+    value => { document.documentElement.dataset.commonGuidance = value; });
+  preference('common-sidebar', 'common.sidebar.v1', '228',
+    value => /^\d{3}$/.test(value) && Number(value) >= 184 && Number(value) <= 320,
+    value => { document.documentElement.style.setProperty('--common-sidebar', value + 'px'); });
 
   const brand = link('COMMON', './');
   brand.className = 'common-brand';
@@ -87,7 +107,9 @@
 
   const open = document.createElement('button');
   open.type = 'button';
-  open.textContent = 'Find a tool';
+  open.innerHTML = 'Find a tool <kbd aria-hidden="true">Alt K</kbd>';
+  open.setAttribute('aria-keyshortcuts', 'Alt+K');
+  open.setAttribute('aria-label', 'Find a tool');
   const dialog = document.createElement('dialog');
   dialog.className = 'common-search';
   dialog.setAttribute('aria-labelledby', 'common-search-title');
@@ -120,6 +142,24 @@
     input.value = '';
     filter();
     dialog.showModal();
+  });
+  document.addEventListener('keydown', event => {
+    if (event.altKey && !event.ctrlKey && !event.metaKey && event.code === 'KeyK' &&
+        !document.querySelector('dialog[open], [aria-modal="true"]:not([aria-hidden="true"] *)') &&
+        !event.defaultPrevented) {
+      event.preventDefault();
+      open.click();
+    }
+  });
+  dialog.addEventListener('keydown', event => {
+    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+    const links = Array.from(results.querySelectorAll('a'));
+    if (!links.length) return;
+    const index = links.indexOf(document.activeElement);
+    const next = event.key === 'ArrowDown' ? index + 1 : index < 0 ? links.length - 1 : index - 1;
+    event.preventDefault();
+    if (next < 0) input.focus();
+    else links[next % links.length].focus();
   });
   input.addEventListener('input', filter);
   dialog.addEventListener('close', () => open.focus());

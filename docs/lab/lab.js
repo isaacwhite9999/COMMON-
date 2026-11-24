@@ -35,7 +35,7 @@ const lessons=[
 ];
 let client=null,session=null;
 const state={view:'overview',projects:[],runs:[],progress:[],selected:null,bars:null,diagnostics:null,sourceSha:null,sourceLabel:'',
-  lastRun:null,sim:null,busy:false,error:'',notice:'',expert:false,lesson:'hypothesis',working:false,uploading:false};
+  lastRun:null,sim:null,busy:false,error:'',notice:'',expert:document.documentElement.dataset.commonGuidance==='advanced',lesson:'hypothesis',working:false,uploading:false};
 function info(msg){state.notice=msg;state.error='';render();}
 function fail(err){console.error(err);state.error=err?.message||String(err);state.notice='';render();}
 function safe(fn){return async ev=>{ev?.preventDefault?.();if(state.busy)return;state.busy=true;try{await fn(ev);}catch(e){fail(e);}finally{state.busy=false;}};}

@@ -1,0 +1,64 @@
+/* Shared typography and surface treatment. Department palettes keep their semantic data colors. */
+body { font-family: var(--common-font); }
+h1, h2, h3 { font-family: var(--common-font); letter-spacing: -.025em; }
+.page-title, .lab-section-head h1, .main .head h1 { font-size: clamp(1.55rem, 2.5vw, 2rem); line-height: 1.2; }
+[data-common-shell="terminal"] ~ #app .screen-header h1 { font-size: clamp(1.7rem, 3.4vw, 2.65rem); }
+.surface, .panel, .lab-card { box-shadow: none; border-radius: 6px; }
+.button, .field, .lab-button, .lab-input, .btn { border-radius: 5px; }
+td, .metric, .value-cell strong, .lab-metric strong { font-variant-numeric: tabular-nums; }
+th { text-align: start; }
+.common-shell ~ :is(#root, #lab-root) {
+  --paper: var(--common-paper);
+  --ink: var(--common-text);
+  --muted: var(--common-subtle);
+  --line: var(--common-divider);
+  --blue: #23557d;
+  --blueDark: #153d60;
+}
+#root .feature-hero { background-image: none; border-radius: 6px; }
+#root .auth-left { background: #101820; }
+#root .auth-feature h1 { font-size: clamp(2rem, 4vw, 3.25rem); }
+#lab-root .lab-hero { background-image: none; }
+[data-common-shell="workspace"] ~ #app .shell {
+  --panel: #151e27; --raised: #1e2a36; --line: #344553;
+}
+body[data-theme="light"] [data-common-shell="workspace"] ~ #app .shell {
+  --panel: #fff; --raised: #e7edf2; --line: #cfdae3;
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+}
+@media (min-width: 901px) {
+  [data-common-shell="workspace"] ~ #app .shell { grid-template-columns: var(--common-sidebar, 228px) minmax(0, 1fr); }
+}
+.equity-inspector { display: grid; gap: 7px; margin-block: 10px; }
+.equity-inspector input { padding: 0; min-height: 26px; accent-color: var(--accent); }
+.equity-inspector output { color: var(--muted); font: 12px/1.5 var(--common-mono); }
+.comparison-columns { justify-self: start; border: 1px solid var(--line); padding: 6px 10px; border-radius: 5px; background: var(--bg); }
+.comparison-columns summary { cursor: pointer; }
+.comparison-columns label { display: flex; gap: 8px; align-items: center; padding-block: 4px; }
+.comparison-columns input { width: auto; accent-color: var(--accent); }
+.comparison-columns [role=status]:not(:empty) { display: block; margin: 4px 0; }
+[data-report-comparison] th button { background: transparent; border: 0; padding: 2px 0; text-align: start; }
+[data-report-comparison] [aria-sort="ascending"] button::after { content: " ↑"; }
+[data-report-comparison] [aria-sort="descending"] button::after { content: " ↓"; }
+:root[data-common-density="compact"] [data-report-comparison] :is(th,td) { padding-block: 6px; }
+@media (max-width: 1080px) {
+  #app .topbar .command-button { min-width: 0; }
+  #app .top-meta .date-stamp { display: none; }
+}
+[data-common-shell="workspace"] ~ #app .shell > div { min-width: 0; }
+@media (max-width: 360px) {
+  [data-common-shell="workspace"] ~ #app .top { gap: 6px; padding-inline: 12px; }
+  [data-common-shell="workspace"] ~ #app .top .search { padding-inline: 6px; }
+  .common-shell kbd { display: none; }
+}
+#root .common-member-dialog {
+  border: 1px solid var(--line); border-radius: 7px; color: var(--ink);
+  width: min(510px, calc(100vw - 28px)); max-height: calc(100dvh - 28px);
+}
+#root .common-member-dialog::backdrop { background: rgb(9 19 29 / 65%); }
+@media (min-width: 671px) and (max-width: 990px) {
+  #root .navbar .nav-item > span:first-child { display: inline-flex; justify-content: center; }
+  #root .navbar .workspace-link { font-size: .67rem; padding-inline: 4px; }
+}
