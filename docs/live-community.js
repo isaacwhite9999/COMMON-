@@ -266,8 +266,8 @@ async function refresh(redraw=true){
  if(redraw)render();
 }
 async function loadMessages(){const cid=selectedGroup,uid=session?.user?.id;if(!cid||!uid||!joined(cid))return;const rows=await call(client.from('community_messages').select('*').eq('community_id',cid).is('deleted_at',null).order('created_at',{ascending:false}).limit(100));if(selectedGroup!==cid||session?.user?.id!==uid)return;messages=rows.reverse();const ids=[...new Set(messages.map(x=>x.author_id).filter(id=>!people[id]))];if(ids.length){const p=await call(client.from('profiles').select('id,display_name,handle,allow_direct_messages').in('id',ids));if(selectedGroup===cid&&session?.user?.id===uid)for(const x of p)people[x.id]=x;}}
-async function loadGroupMembers(){memberPoll=await call(client.from('memberships').select('user_id,role').eq('community_id',selectedGroup).limit(150));const ids=memberPoll.map(x=>x.user_id).filter(id=>!people[id]);if(ids.length){const p=await call(client.from('profiles').select('id,display_name,handle,allow_direct_messages').in('id',ids));for(const x of p)people[x.id]=x;}}
-async function loadDM(){if(!selectedPeer)return;const uid=session.user.id;const incoming=await call(client.from('direct_messages').select('*').eq('sender_id',selectedPeer).eq('recipient_id',uid).order('created_at',{ascending:true}).limit(100));const outgoing=await call(client.from('direct_messages').select('*').eq('sender_id',uid).eq('recipient_id',selectedPeer).order('created_at',{ascending:true}).limit(100));dm=[...incoming,...outgoing].sort((a,b)=>a.created_at.localeCompare(b.created_at));}
+async function loadGroupMembers(){const cid=selectedGroup,uid=session?.user?.id;if(!cid||!uid||!joined(cid))return;const rows=await call(client.from('memberships').select('user_id,role').eq('community_id',cid).limit(150));if(selectedGroup!==cid||session?.user?.id!==uid)return;memberPoll=rows;const ids=rows.map(x=>x.user_id).filter(id=>!people[id]);if(ids.length){const p=await call(client.from('profiles').select('id,display_name,handle,allow_direct_messages').in('id',ids));if(selectedGroup===cid&&session?.user?.id===uid)for(const x of p)people[x.id]=x;}}
+async function loadDM(){const peer=selectedPeer,uid=session?.user?.id;if(!peer||!uid)return;const [incoming,outgoing]=await Promise.all([call(client.from('direct_messages').select('*').eq('sender_id',peer).eq('recipient_id',uid).order('created_at',{ascending:false}).limit(100)),call(client.from('direct_messages').select('*').eq('sender_id',uid).eq('recipient_id',peer).order('created_at',{ascending:false}).limit(100))]);if(selectedPeer===peer&&session?.user?.id===uid)dm=[...incoming,...outgoing].sort((a,b)=>a.created_at.localeCompare(b.created_at));}
 async function acceptInvite(token){await call(client.rpc('accept_private_invite',{token}));pendingInvite=null;try{sessionStorage.removeItem('common.pendingInvite')}catch{}history.replaceState(null,'',base);await refresh();status('Joined the private community.');}
 async function dispatch(action,element){
  const id=element.dataset.id, choice=element.dataset.choice;
@@ -305,7 +305,7 @@ async function dispatch(action,element){
  if(action==='poll-vote'){await call(client.from('proposal_votes').upsert({proposal_id:id,user_id:session.user.id,choice},{onConflict:'proposal_id,user_id'}));status('Your nonbinding member opinion was recorded. This is not a corporate shareholder proxy vote.');return}
  if(action==='make-invite'){const token=await call(client.rpc('create_private_invite',{cid:selectedGroup,permitted_uses:10}));state.inviteToken=token;render();return}
  if(action==='copy-invite'){const input=document.getElementById('invite-url');if(input){await navigator.clipboard.writeText(input.value);status('Invitation link copied.')}return}
- if(action==='dm-user'){selectedPeer=id;view='chat';await loadDM();render();return}
+ if(action==='dm-user'){selectedPeer=id;dm=[];view='chat';await loadDM();render();return}
  if(action==='appeal-case'){
    const c=moderationCases.find(x=>x.id===id);
    if(!c||c.actor_id!==session.user.id||c.review_status!=='rejected')
@@ -363,7 +363,7 @@ async function submitted(form){
 }
 document.addEventListener('click',async ev=>{
  const nav=ev.target.closest('[data-tab]');if(nav){if(nav.dataset.tab==='studio'){location.assign(new URL('../lab/',location.href).href);return}view=nav.dataset.tab;selectedGroup=null;error=info='';render();return}
- const feed=ev.target.closest('[data-feed]');if(feed){state.feed=feed.dataset.feed;render();return}const dir=ev.target.closest('[data-directory]');if(dir){state.directory=dir.dataset.directory;render();return}const tab=ev.target.closest('[data-group-tab]');if(tab){state.groupTab=tab.dataset.groupTab;try{if(state.groupTab==='chat')await loadMessages();if(state.groupTab==='members')await loadGroupMembers();}catch(e){handleError(e);return}render();return}
+ const feed=ev.target.closest('[data-feed]');if(feed){state.feed=feed.dataset.feed;render();return}const dir=ev.target.closest('[data-directory]');if(dir){state.directory=dir.dataset.directory;render();return}const tab=ev.target.closest('[data-group-tab]');if(tab){state.groupTab=tab.dataset.groupTab;try{if(state.groupTab==='chat')await loadMessages();if(state.groupTab==='members'){memberPoll=[];await loadGroupMembers();}}catch(e){handleError(e);return}render();return}
  const btn=ev.target.closest('[data-act]');if(!btn)return;
  if(busy)return;busy=true;try{await dispatch(btn.dataset.act,btn)}catch(err){handleError(err)}finally{busy=false}
 });
