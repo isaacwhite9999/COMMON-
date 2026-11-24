@@ -10,3 +10,6 @@
 Monaco-class editor, isolated Python compute and package installation, notebooks, server-side project storage, agent tool execution, custom agent commands, research memory, Pine Script, licensed market data, order books, institutional APIs, MCP, and full multi-asset research. Keep real trading, brokerage and custody disabled.
 ## Verification
 Run node tests/workspace-quant.test.cjs and the Chromium workspace browser test. Synthetic fixtures are for tests only; user analytics require uploaded data. Historical results are not forecasts, and selection bias remains possible if users repeatedly tune using holdout results.
+
+## Structured notebook increment
+Project notebooks provide ordered editable note, dataset-profile, distribution, drawdown and SMA backtest cells, with saved dataset selection, outputs, export, and source fingerprints. Editing inputs invalidates prior output. This is a fixed-function analytical notebook, not Jupyter or an arbitrary-code execution environment. Cloud compute, Python kernels and autonomous agents remain outstanding.

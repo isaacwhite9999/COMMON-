@@ -48,6 +48,7 @@ try {
  await page.getByRole('button',{name:'Import and validate'}).click();
  await page.getByRole('heading',{name:'Observation summary'}).waitFor();
  await page.getByRole('link',{name:'Multi-asset risk',exact:true}).click();
+ await page.getByRole('heading',{name:'Historical portfolio model'}).waitFor();
  await page.getByLabel('Asset 1',{exact:true}).selectOption({label:'TEST · synthetic-test.csv'});
  await page.getByLabel('Asset 2',{exact:true}).selectOption({label:'TEST2 · synthetic-second.csv'});
  await page.getByRole('button',{name:'Calculate portfolio risk'}).click();
@@ -65,6 +66,8 @@ try {
  await page.getByLabel('Cell dataset').selectOption({label:'TEST · synthetic-test.csv'});
  await page.getByRole('button',{name:'Save cell',exact:true}).click();
  await page.getByRole('button',{name:'Run cell',exact:true}).click();
+ await page.getByText('Mean daily return',{exact:true}).waitFor();
+ await page.reload();
  await page.getByText('Mean daily return',{exact:true}).waitFor();
  await page.getByRole('link',{name:'Backtest',exact:true}).click();
  await page.getByLabel('Saved dataset').selectOption({label:'TEST · synthetic-test.csv · 180 rows'});
