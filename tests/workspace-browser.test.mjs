@@ -60,6 +60,9 @@ try {
  await page.getByRole('heading',{name:'Historical correlation matrix'}).waitFor();
  await page.getByRole('link',{name:'Downside risk',exact:true}).click();
  await page.getByRole('heading',{name:'Historical downside estimates'}).waitFor();
+ await page.getByRole('button',{name:'Prepare risk summary for sharing'}).click();
+ assert.match(await page.getByLabel('Research summary').inputValue(), /Hypothetical portfolio/);
+ await page.getByRole('dialog').getByRole('button',{name:'Close',exact:true}).click();
  await page.getByRole('link',{name:'Research projects',exact:true}).click();
  await page.getByRole('link',{name:'Research workflow test',exact:true}).click();
  await page.getByRole('link',{name:'Backtest',exact:true}).click();

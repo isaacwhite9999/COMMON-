@@ -41,7 +41,19 @@ else:
   });
   assert.equal(stopped.ok, false);
   assert.match(stopped.output, /cancelled/);
-  console.log('PASS browser Python, blocked application-origin access and cancellation');
+  await page.goto(new URL('workspace/#research',base).href);
+  await page.getByLabel('Project name').fill('Local compute fixture');
+  await page.getByRole('button',{name:'Create project'}).click();
+  await page.getByRole('link',{name:'Python lab',exact:true}).click();
+  await page.getByRole('textbox',{name:'Python source',exact:true}).fill('print("PRIVATE_WORKSPACE_OUTPUT")');
+  await page.getByLabel(/Run my own reviewed code locally/).check();
+  await page.getByRole('button',{name:'Run Python',exact:true}).click();
+  await page.getByRole('button',{name:'Prepare execution summary'}).click();
+  const evidence=await page.getByLabel('Research summary').inputValue();
+  assert.match(evidence,/Pyodide version: 0\.27\.7/);
+  assert.match(evidence,/Execution status: Completed/);
+  assert.doesNotMatch(evidence,/PRIVATE_WORKSPACE_OUTPUT|print\(/);
+  console.log('PASS browser Python, blocked application-origin access, cancellation and reviewed evidence');
 } finally {
   await browser.close();
 }

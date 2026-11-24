@@ -43,6 +43,18 @@
     ].join('\n') };
   }
 
+  function python(run) {
+    const version = /^\d+\.\d+\.\d+$/.test(run.version || '') ? run.version : 'Unavailable';
+    const timestamp = new Date(run.at);
+    return { title: 'Local Python execution review', body: [
+      'Browser-local Python run on ' + (Number.isFinite(timestamp.valueOf()) ? timestamp.toISOString() : 'an unavailable date'),
+      'Pyodide version: ' + version,
+      'Execution status: ' + (run.ok ? 'Completed' : 'Failed or cancelled'),
+      'Output status: ' + (run.truncated ? 'Truncated by the runtime' : 'Within the runtime output limit'),
+      'Review notes: Add only the findings and methodology you intend to share.'
+    ].join('\n') };
+  }
+
   function read() {
     try {
       const draft = JSON.parse(sessionStorage.getItem(key));
@@ -91,5 +103,5 @@
     if (read()?.id === id) sessionStorage.removeItem(key);
   }
 
-  window.CommonResearchDraft = Object.freeze({ backtest, portfolio, stage, forMember, claim, update, clear });
+  window.CommonResearchDraft = Object.freeze({ backtest, portfolio, python, stage, forMember, claim, update, clear });
 })();

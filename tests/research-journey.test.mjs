@@ -11,7 +11,7 @@ try {
   page.on('pageerror', error => failures.push(error.message));
   await page.route('**/config.js', route => route.fulfill({
     contentType: 'text/javascript',
-    body: 'window.COMMON_CONFIG={communityBackendReady:true,supabaseUrl:"https://fixture.invalid",supabaseAnonKey:"fixture",researchAgentEnabled:false,externalLedgerEnabled:false};'
+    body: 'window.COMMON_CONFIG={communityBackendReady:true,supabaseUrl:"https://fixture.invalid",supabaseAnonKey:"fixture",researchAgentEnabled:true,externalLedgerEnabled:false};'
   }));
   await page.route('https://fixture.invalid/**', route => route.fulfill({json:{external:{}}}));
   await page.route('**/supabase.min.js', route => route.fulfill({
@@ -25,6 +25,7 @@ try {
       let session=sessionStorage.getItem('fixture-session')?{user:{id:uid}}:null, posted=null;
       window.journey={calls:[],reject:true};
       const api={
+        functions:{invoke(){throw Error('The draft must never invoke a model automatically')}},
         auth:{getSession:async()=>({data:{session}}),onAuthStateChange(){},
           signInWithPassword:async()=>{sessionStorage.setItem('fixture-session','1');return {data:{session:session={user:{id:uid}}}}}},
         from(table){
@@ -78,6 +79,10 @@ try {
   await page.getByRole('button',{name:'Review research draft'}).click();
   assert.equal(await page.getByRole('option',{name:'Public Circle'}).count(),0);
   assert.equal(await page.evaluate(()=>CommonResearchDraft.forMember('84000003-0000-4000-8000-000000000003')),null);
+  await page.getByRole('button',{name:'Open in research assistant'}).click();
+  assert.equal(await page.locator('[data-form="research-agent"] [name=input]').inputValue(),summary);
+  assert.equal(await page.locator('[data-form="research-agent"] [name=consent]').isChecked(),false);
+  await page.getByRole('button',{name:'Review research draft'}).click();
   await page.getByLabel('Private circle').selectOption(circle);
   await page.getByLabel('Discussion title').fill('Reviewed backtest');
   await page.getByRole('button',{name:'Publish to circle'}).click();
