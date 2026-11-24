@@ -44,3 +44,6 @@ Read [PRODUCT_ACCEPTANCE_BACKLOG.md](PRODUCT_ACCEPTANCE_BACKLOG.md) before imple
 
 ## Page-level specification
 All workstreams must also follow [PAGE_AND_UX_SPEC.md](PAGE_AND_UX_SPEC.md), including route depth, nested settings, microinteractions, coherent design, beginner-to-professional presentation, and cross-feature acceptance journeys. Implement real functionality rather than just rendering navigation links.
+
+## Scalability gate
+All workstreams must follow [SCALABILITY_ARCHITECTURE.md](SCALABILITY_ARCHITECTURE.md). Capacity is unmeasured; record actual performance evidence, resource limits and scaling risks, and avoid premature infrastructure spending. Load-test only approved disposable environments. No production readiness claims based on architectural diagrams alone.
