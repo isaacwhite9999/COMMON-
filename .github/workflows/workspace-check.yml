@@ -13,7 +13,7 @@ jobs:
           node-version: '22'
       - run: node --check docs/workspace/model.js && node --check docs/workspace/app.js && node tests/workspace-model.test.cjs
       - run: node --check docs/workspace/report.js && node tests/workspace-report.test.cjs
-      - run: node --check docs/workspace/quant-worker.js && node tests/workspace-quant.test.cjs
+      - run: node --check docs/workspace/quant-worker.js && node tests/workspace-quant.test.cjs && node --check docs/workspace/datasets.js && node tests/workspace-data.test.cjs
   browser:
     runs-on: ubuntu-24.04
     steps:

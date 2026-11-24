@@ -34,7 +34,17 @@ try {
  await page.getByRole('heading',{name:'Simulated position changes'}).waitFor();
  await page.getByRole('link',{name:'Backtest',exact:true}).click();
  const lines=Array.from({length:180},(_,i)=>new Date(Date.UTC(2023,0,i+1)).toISOString().slice(0,10)+','+(100+i*.15+Math.sin(i/8)*2).toFixed(4));
- await page.getByLabel('Historical data CSV').setInputFiles({name:'synthetic-test.csv',mimeType:'text/csv',buffer:Buffer.from('Date,Close\n'+lines.join('\n'))});
+ await page.getByRole('link',{name:'Dataset library',exact:true}).click();
+ await page.getByLabel('CSV source').setInputFiles({name:'synthetic-test.csv',mimeType:'text/csv',buffer:Buffer.from('Date,Close\n'+lines.join('\n'))});
+ await page.getByLabel('Optional symbol label').fill('TEST');
+ await page.getByRole('button',{name:'Import and validate'}).click();
+ await page.getByRole('heading',{name:'Observation summary'}).waitFor();
+ await page.getByRole('link',{name:'Quality checks'}).click();
+ await page.getByRole('heading',{name:'Data quality'}).waitFor();
+ await page.getByRole('link',{name:'Research projects',exact:true}).click();
+ await page.getByRole('link',{name:'Research workflow test',exact:true}).click();
+ await page.getByRole('link',{name:'Backtest',exact:true}).click();
+ await page.getByLabel('Saved dataset').selectOption({label:'TEST · synthetic-test.csv · 180 rows'});
  await page.getByRole('button',{name:'Run backtest'}).click();
  await page.getByRole('heading',{name:'Execution history'}).waitFor();
  await page.getByRole('button',{name:'Inspect',exact:true}).click();
