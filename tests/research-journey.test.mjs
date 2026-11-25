@@ -19,11 +19,12 @@ try {
     body: `(() => {
       const uid=${JSON.stringify(uid)}, circle=${JSON.stringify(circle)};
       const profile={id:uid,display_name:'Researcher Fixture',handle:'researcher'};
+      const peer={id:'84000003-0000-4000-8000-000000000003',display_name:'Circle Peer',handle:'circle_peer',allow_direct_messages:true};
       const groups=[{id:circle,name:'Private Review Circle',visibility:'private',category:'markets',description:'Fixture circle'},
         {id:'84100000-0000-4000-8000-000000000002',name:'Public Circle',visibility:'public',category:'markets'}];
-      const tables={profiles:[profile],communities:groups,proposals:[],community_messages:[],watchlist_items:[{user_id:uid,symbol:'SPY'}],memberships:groups.map(group=>({community_id:group.id,user_id:uid,role:'member'}))};
+      const tables={profiles:[profile,peer],communities:groups,proposals:[],community_messages:[],direct_messages:[],watchlist_items:[{user_id:uid,symbol:'SPY'}],memberships:groups.map(group=>({community_id:group.id,user_id:uid,role:'member'})).concat([{community_id:circle,user_id:peer.id,role:'member'}])};
       let session=sessionStorage.getItem('fixture-session')?{user:{id:uid}}:null, posted=null;
-      window.journey={calls:[],reject:true};
+      window.journey={calls:[],reject:true,incoming(){tables.direct_messages.push({id:'fixture-dm',sender_id:peer.id,recipient_id:uid,created_at:'2024-01-01T00:00:00Z',body:'New private reply'});}};
       const api={
         functions:{invoke(){throw Error('The draft must never invoke a model automatically')}},
         auth:{getSession:async()=>({data:{session}}),onAuthStateChange(){},
@@ -37,7 +38,9 @@ try {
           },select(){return query},eq(key,value){predicates.push(row=>row[key]===value);return query},
             is(key,value){predicates.push(row=>row[key]===value);return query},in(key,values){predicates.push(row=>values.includes(row[key]));return query},
             order(){return query},limit(){return query},single(){single=true;return query},
-            then(resolve,reject){const rows=(tables[table]||[]).filter(row=>predicates.every(predicate=>predicate(row)));
+            then(resolve,reject){
+              if(table==='direct_messages'&&journey.failDM)return Promise.resolve({error:{message:'Fixture read failure'}}).then(resolve,reject);
+              const rows=(tables[table]||[]).filter(row=>predicates.every(predicate=>predicate(row)));
               return Promise.resolve({data:single?rows[0]:rows}).then(resolve,reject)}};
           return query;
         },
@@ -117,6 +120,17 @@ try {
   await page.getByRole('button',{name:'Capital & treasury'}).click();
   await page.getByRole('button',{name:'External journal'}).click();
   await page.getByRole('heading',{name:'External journal not activated'}).waitFor();
+  await page.locator('.navbar').getByRole('button',{name:'Messages',exact:true}).click();
+  await page.getByRole('button',{name:'Open chat'}).click();
+  await page.getByLabel('Private message').fill('Unsent research question');
+  await page.evaluate(()=>{journey.incoming();journey.failDM=true;});
+  await page.getByRole('button',{name:'Refresh conversation'}).click();
+  await page.getByText('Conversation could not refresh. Try again.').waitFor();
+  assert.equal(await page.getByLabel('Private message').inputValue(),'Unsent research question');
+  await page.evaluate(()=>{journey.failDM=false;});
+  await page.getByRole('button',{name:'Refresh conversation'}).click();
+  await page.getByText('New private reply').waitFor();
+  assert.equal(await page.getByLabel('Private message').inputValue(),'Unsent research question');
   await page.locator('.navbar').getByRole('button',{name:'Research',exact:true}).click();
   await page.getByRole('link',{name:'Research SPY'}).click();
   assert.equal(await page.getByLabel('Instrument (optional)').inputValue(),'SPY');

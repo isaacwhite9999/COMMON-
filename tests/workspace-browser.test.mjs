@@ -18,8 +18,16 @@ try {
  await page.getByRole('button',{name:'Create file',exact:true}).click();
  await page.getByRole('button',{name:'Save revision',exact:true}).waitFor();
  await page.locator('main').getByRole('textbox', {name:'Source editor', exact:true}).fill('print("revision")');
+ await page.locator('main').getByLabel('Relative path').fill('analysis/revised.py');
  await page.getByRole('button',{name:'Save revision',exact:true}).click();
- await page.getByRole('button',{name:'Restore',exact:true}).waitFor();
+ await page.getByRole('link',{name:'analysis/revised.py'}).waitFor();
+ page.once('dialog', dialog => dialog.accept());
+ await page.getByRole('button',{name:'Restore',exact:true}).click();
+ assert.equal(await page.locator('main').getByLabel('Relative path').inputValue(),'models/research.py');
+ assert.equal(await page.locator('main').getByRole('textbox',{name:'Source editor',exact:true}).inputValue(),'print("research only")');
+ page.once('dialog', dialog => dialog.accept());
+ await page.getByRole('button',{name:'Delete file',exact:true}).click();
+ await page.getByRole('heading',{name:'Project source files'}).waitFor();
  await page.getByRole('link',{name:'Validation lab',exact:true}).click();
  const walkLines=Array.from({length:420},(_,i)=>new Date(Date.UTC(2023,0,i+1)).toISOString().slice(0,10)+','+(100+i*.12+Math.sin(i/8)*4+Math.sin(i/2)*.5).toFixed(4));
  await page.getByLabel('Validation dataset CSV').setInputFiles({name:'synthetic-walk.csv',mimeType:'text/csv',buffer:Buffer.from('Date,Close\n'+walkLines.join('\n'))});

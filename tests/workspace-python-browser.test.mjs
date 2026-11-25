@@ -47,8 +47,11 @@ else:
   await page.getByRole('link',{name:'Python lab',exact:true}).click();
   await page.getByRole('textbox',{name:'Python source',exact:true}).fill('print("PRIVATE_WORKSPACE_OUTPUT")');
   await page.getByLabel(/Run my own reviewed code locally/).check();
+  const stop=page.getByRole('button',{name:'Stop execution',exact:true});
+  assert.equal(await stop.isDisabled(),true);
   await page.getByRole('button',{name:'Run Python',exact:true}).click();
   await page.getByRole('button',{name:'Prepare execution summary'}).click();
+  assert.equal(await stop.isDisabled(),true);
   const evidence=await page.getByLabel('Research summary').inputValue();
   assert.match(evidence,/Pyodide version: 0\.27\.7/);
   assert.match(evidence,/Execution status: Completed/);

@@ -90,6 +90,8 @@ try {
  await page.getByRole('heading',{name:'Research instructor'}).waitFor();
  await page.getByRole('button',{name:/Avoid lookahead bias/}).click();
  await page.getByText(/Signals from bar/).waitFor();
+ await page.getByRole('button',{name:'Mark lesson complete'}).click();
+ await page.getByRole('button',{name:'Mark incomplete'}).waitFor();
  assert.deepEqual(jsErrors,[],'JavaScript exceptions in Research Studio: '+jsErrors.join('; '));
  await page.setViewportSize({width:390,height:844});
  await page.reload({waitUntil:'domcontentloaded'});
