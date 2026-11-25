@@ -42,7 +42,7 @@ const urlRates=apiBase+'/v2/accounting/od/avg_interest_rates?fields=record_date,
 const finance=window.COMMON_FINANCE;
 const engine=window.COMMON_RESEARCH_ENGINE;
 const state={
- route:'overview',expert:false,macro:{loading:true,debt:[],rates:[],error:null,loadedAt:null},range:60,
+ route:'overview',expert:document.documentElement.dataset.commonGuidance==='advanced',macro:{loading:true,debt:[],rates:[],error:null,loadedAt:null},range:60,
  bs:{spot:100,strike:100,days:90,ivPct:25,ratePct:4,divPct:0},bsType:'call',bsResult:null,
  dcf:{fcf:5,growthPct:6,waccPct:9,terminalPct:2.5,netDebt:8,shares:2},dcfResult:null,
  bond:{face:1000,couponPct:4,yieldPct:4.5,years:10,frequency:2},bondResult:null,

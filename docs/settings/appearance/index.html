@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Appearance · COMMON</title>
+  <link rel="stylesheet" href="../../shared/shell.css">
+  <link rel="stylesheet" href="../../shared/home.css">
+  <script defer src="../../shared/shell.js"></script>
+</head>
+<body>
+  <header class="common-shell" data-common-shell="appearance"></header>
+  <main class="common-home">
+    <nav class="settings-path" aria-label="Settings location"><a href="../../">Workspace</a> <span aria-hidden="true">/</span> Appearance</nav>
+    <h1>Appearance</h1>
+    <p>Change the spacing of COMMON navigation and home tools in this browser.</p>
+    <label for="common-density">Display density</label>
+    <select id="common-density">
+      <option value="comfortable">Comfortable</option>
+      <option value="compact">Compact</option>
+    </select>
+    <section class="appearance-group" aria-labelledby="guidance-title">
+      <h2 id="guidance-title">Research guidance</h2>
+      <label for="common-guidance">Default explanations</label>
+      <select id="common-guidance">
+        <option value="essential">Essential</option>
+        <option value="advanced">Advanced methodology</option>
+      </select>
+      <p>Applies to Markets and Research Studio. Analytical controls remain available in both modes.</p>
+    </section>
+    <section class="appearance-group" aria-labelledby="layout-title">
+      <h2 id="layout-title">Workspace layout</h2>
+      <label for="common-sidebar">Research navigation width</label>
+      <input id="common-sidebar" type="range" min="184" max="320" step="4" aria-describedby="width-hint">
+      <p id="width-hint">Applies when the Research navigation is beside the workspace.</p>
+    </section>
+    <p id="common-preference-status" role="status"></p>
+  </main>
+</body>
+</html>

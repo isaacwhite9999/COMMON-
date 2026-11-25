@@ -1,10 +1,43 @@
 <!doctype html>
-<html lang="en"><head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#080d13"><meta name="description" content="COMMON is an independent financial intelligence and investor research network.">
-<title>COMMON — Research & Ownership</title>
-<meta http-equiv="refresh" content="0;url=./terminal/">
-<script>location.replace(new URL('./terminal/',location.href).href)</script>
-</head><body style="font:16px system-ui;background:#080d13;color:#edf3f9;padding:24px">
-<p>Opening COMMON… <a href="./terminal/" style="color:#d0ee7f">Enter the research workspace</a>.</p>
-</body></html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101820">
+  <title>COMMON — Research &amp; Ownership</title>
+  <link rel="stylesheet" href="./shared/shell.css">
+  <link rel="stylesheet" href="./shared/home.css">
+  <script defer src="./shared/shell.js"></script>
+</head>
+<body class="common-index">
+  <header class="common-shell" data-common-shell="home"></header>
+  <main class="common-home">
+    <div class="index-intro">
+      <p class="home-label">Workspace</p>
+      <h1>Research and ownership</h1>
+      <p>Explore market data, test investment ideas, and share reviewed evidence with your circles.</p>
+      <a class="home-primary" href="./workspace/#research">Open research workspace <span aria-hidden="true">→</span></a>
+    </div>
+    <div class="index-grid">
+      <section class="department-index" aria-labelledby="departments-title">
+        <h2 id="departments-title">Departments</h2>
+        <ul class="common-tools">
+          <li><a href="./terminal/"><strong>Markets</strong><span>Treasury data, equity valuation and options analysis</span><small>Public</small><i aria-hidden="true">→</i></a></li>
+          <li><a href="./workspace/#research"><strong>Local research</strong><span>Datasets, notebooks, backtests and portfolio risk</span><small>This browser</small><i aria-hidden="true">→</i></a></li>
+          <li><a href="./lab/"><strong>Research Studio</strong><span>Private projects, saved experiments and methods</span><small>Member</small><i aria-hidden="true">→</i></a></li>
+          <li><a href="./live/"><strong>Community</strong><span>Research desks, discussions and member messaging</span><small>Member</small><i aria-hidden="true">→</i></a></li>
+        </ul>
+      </section>
+      <aside class="research-path" aria-labelledby="workflow-title">
+        <p class="home-label">Research workflow</p>
+        <h2 id="workflow-title">From data to discussion</h2>
+        <ul>
+          <li><a href="./workspace/#datasets">Import a dataset <span aria-hidden="true">→</span></a></li>
+          <li><a href="./workspace/#research">Create a research project <span aria-hidden="true">→</span></a></li>
+          <li><a href="./live/">Review evidence in a circle <span aria-hidden="true">→</span></a></li>
+        </ul>
+      </aside>
+    </div>
+  </main>
+</body>
+</html>

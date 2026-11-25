@@ -10,24 +10,29 @@
 <link rel="stylesheet" href="./terminal.css">
 <script defer src="../lab/research-engine.js"></script>
 <script defer src="./analytics.js"></script>
+<script defer src="../shared/shell.js"></script>
 <script defer src="./terminal.js"></script>
+<link rel="stylesheet" href="../shared/shell.css">
+<link rel="stylesheet" href="../shared/departments.css">
 </head><body>
+<header class="common-shell" data-common-shell="terminal"></header>
+
 <div id="app">
  <aside class="sidebar" aria-label="Workspace">
   <a class="brand" href="./"><span class="logo">C<span class="logo-dot">.</span></span><span class="brand-text">COMMON <span>WORKSPACE</span></span></a>
-  <div class="sidebar-workspace"><span class="status-light"></span><div><strong>Research environment</strong><small>Public preview · No account</small></div><span class="side-chevron">⌄</span></div>
+  <div class="sidebar-workspace"><span class="status-light"></span><div><strong>Research environment</strong><small>Public preview · No account</small></div></div>
   <nav class="side-nav" aria-label="Main navigation">
    <div class="nav-label">YOUR WORKSPACE</div>
-   <button class="navlink active" data-go="overview"><span class="nav-ico">◫</span> Overview <span class="nav-shortcut">01</span></button>
-   <button class="navlink" data-go="macro"><span class="nav-ico">⌁</span> Macro intelligence <span class="nav-shortcut">02</span></button>
-   <button class="navlink" data-go="equities"><span class="nav-ico">▥</span> Equity research <span class="nav-shortcut">03</span></button>
-   <button class="navlink" data-go="options"><span class="nav-ico">◈</span> Options lab <span class="nav-shortcut">04</span></button>
-   <button class="navlink" data-go="strategies"><span class="nav-ico">⌇</span> Strategy lab <span class="nav-shortcut">05</span></button>
+   <button class="navlink active" data-go="overview"><span class="nav-ico">◫</span> Overview </button>
+   <button class="navlink" data-go="macro"><span class="nav-ico">⌁</span> Macro intelligence </button>
+   <button class="navlink" data-go="equities"><span class="nav-ico">▥</span> Equity research </button>
+   <button class="navlink" data-go="options"><span class="nav-ico">◈</span> Options lab </button>
+   <button class="navlink" data-go="strategies"><span class="nav-ico">⌇</span> Strategy lab </button>
    <div class="nav-label nav-gap">THE NETWORK</div>
-   <button class="navlink" data-go="communities"><span class="nav-ico">◎</span> Communities <span class="nav-shortcut">06</span></button>
-   <button class="navlink" data-go="venture"><span class="nav-ico">↗</span> Startup capital <span class="nav-shortcut">07</span></button>
+   <button class="navlink" data-go="communities"><span class="nav-ico">◎</span> Communities </button>
+   <button class="navlink" data-go="venture"><span class="nav-ico">↗</span> Startup capital </button>
   </nav>
-  <div class="side-bottom"><div class="pills"><span class="pulse-dot"></span> RESEARCH PREVIEW <span class="secure">NO LIVE TRADING</span></div><p>Wall Street has teams.<br><strong>Everyone else has COMMON.</strong></p><a href="../live/" class="secondary-action">Open real member app <span>↗</span></a></div>
+  <div class="side-bottom"><div class="pills"><span class="pulse-dot"></span> RESEARCH PREVIEW <span class="secure">NO LIVE TRADING</span></div><a href="../live/" class="secondary-action">Open real member app <span>↗</span></a></div>
  </aside>
  <div class="workspace">
   <header class="topbar">
@@ -41,12 +46,12 @@
   <footer class="footer"><div><strong>COMMON</strong> · Independent research. Collective intelligence.</div><div>Source labels and dates are shown with the data. Calculators are educational, not trade recommendations.</div></footer>
  </div>
  <aside class="right-rail" aria-label="Research guidance">
-  <div class="rail-intro"><span class="rail-caption">YOUR INTELLIGENCE LAYER</span><h3>Understanding<br>the <em>why</em> matters.</h3><p>An expert guide for reading the numbers—not a black-box investment signal.</p></div>
+  <div class="rail-intro"><h3>Research guidance</h3></div>
   <div class="coach-box" id="coach-box"></div>
   <div class="rail-links"><span class="eyebrow">PRIMARY SOURCES</span><a href="https://fiscaldata.treasury.gov/" target="_blank" rel="noopener noreferrer">U.S. Treasury Fiscal Data <span>↗</span></a><a href="https://www.sec.gov/edgar/search/" target="_blank" rel="noopener noreferrer">SEC EDGAR <span>↗</span></a><a href="https://www.investor.gov/" target="_blank" rel="noopener noreferrer">Investor.gov <span>↗</span></a></div>
   <div class="rail-note"><strong>Transparent by design.</strong><p>If a dataset, account, or integration isn't connected, COMMON shows that honestly. Never invented quotes or results.</p></div>
  </aside>
 </div>
-<div class="cmd-backdrop hidden" id="command-dialog" aria-hidden="true"><div class="cmd-dialog" role="dialog" aria-modal="true" aria-label="Jump to a tool"><div class="cmd-search"><span>⌕</span><input id="command-input" type="search" placeholder="Go to research tool or company…" autocomplete="off"><button id="command-close" aria-label="Close command search">ESC</button></div><div class="cmd-results" id="command-results"></div><div class="cmd-foot">Navigate using ↑ ↓ and Enter · No account needed for public research</div></div></div>
+<div class="cmd-backdrop hidden" id="command-dialog" aria-hidden="true"><div class="cmd-dialog" role="dialog" aria-modal="true" aria-label="Jump to a tool"><div class="cmd-search"><span>⌕</span><input id="command-input" type="search" aria-label="Search market tools" placeholder="Go to research tool or company…" autocomplete="off"><button id="command-close" aria-label="Close command search">ESC</button></div><div class="cmd-results" id="command-results"></div><div class="cmd-foot">Navigate using ↑ ↓ and Enter · No account needed for public research</div></div></div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 </body></html>

@@ -7,7 +7,7 @@
   root.COMMON_RESEARCH_ENGINE = api;
 }(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   'use strict';
-  const VERSION = 'common-lab-v1';
+  const VERSION = 'common-lab-v1.1';
   const DAYS = 252;
   const finite = x => Number.isFinite(x) ? x : null;
   const mean = a => a.length ? a.reduce((s,x)=>s+x,0)/a.length : 0;
@@ -41,7 +41,8 @@
     if(rows.length<31)throw Error('At least 30 daily observations with a header are required.');
     const headers=rows.shift().map(x=>x.trim().toLowerCase().replace(/[\s_-]+/g,''));
     const dateIndex=headers.findIndex(x=>['date','timestamp','datetime','time'].includes(x));
-    const priceIndex=headers.findIndex(x=>['close','closingprice','adjustedclose','adjclose'].includes(x));
+    const adjustedIndex=headers.findIndex(x=>['adjustedclose','adjclose'].includes(x));
+    const priceIndex=adjustedIndex>=0?adjustedIndex:headers.findIndex(x=>['close','closingprice'].includes(x));
     if(dateIndex<0||priceIndex<0)throw Error('CSV needs Date and Close columns (adjusted close is accepted).');
     if(dateIndex===priceIndex)throw Error('Date and Close must be separate columns.');
     const oIndex=headers.indexOf('open'),hIndex=headers.indexOf('high'),lIndex=headers.indexOf('low'),vIndex=headers.indexOf('volume');
@@ -78,7 +79,7 @@
     return {bars:data,diagnostics:{
       rows:data.length,first:data[0].date,last:data[data.length-1].date,
       sortedInput:wasSorted,largeGaps:gaps.slice(0,15),totalLargeGaps:gaps.length,
-      hasAdjustedClose:['adjustedclose','adjclose'].includes(headers[priceIndex]),
+      hasAdjustedClose:adjustedIndex>=0,
       warning:'Daily adjusted close is preferred for stocks; raw close omits splits/dividends. Corporate actions and survivorship bias may distort results.'
     }};
   }
@@ -91,11 +92,17 @@
   function stats(daily,riskFreeAnnual=0){
     if(!daily.length)return {totalReturn:null,annualReturn:null,annualVolatility:null,sharpe:null,maxDrawdown:null,finalEquity:1,observations:0};
     let equity=1,peak=1,minDrawdown=0;const curve=[1];
-    for(const r of daily){equity*=Math.max(0,1+r);peak=Math.max(peak,equity);minDrawdown=Math.min(minDrawdown,peak>0?equity/peak-1:0);curve.push(equity);}
-    const vol=std(daily)*Math.sqrt(DAYS);
+    for(const r of daily){
+      if(!Number.isFinite(r))throw Error('Return is outside the supported numeric range.');
+      equity*=Math.max(0,1+r);
+      if(!Number.isFinite(equity))throw Error('Compounded return is outside the supported numeric range.');
+      peak=Math.max(peak,equity);minDrawdown=Math.min(minDrawdown,peak>0?equity/peak-1:0);curve.push(equity);
+    }
+    const deviation=std(daily),vol=deviation*Math.sqrt(DAYS);
+    if(!Number.isFinite(vol))throw Error('Return volatility is outside the supported numeric range.');
     const excess=mean(daily)-(Math.pow(1+riskFreeAnnual,1/DAYS)-1);
     return {totalReturn:finite(equity-1),annualReturn:finite(equity>0?Math.pow(equity,DAYS/daily.length)-1:-1),
-      annualVolatility:finite(vol),sharpe:finite(std(daily)>0?excess/std(daily)*Math.sqrt(DAYS):NaN),
+      annualVolatility:finite(vol),sharpe:finite(deviation>0?excess/deviation*Math.sqrt(DAYS):NaN),
       maxDrawdown:finite(minDrawdown),finalEquity:finite(equity),observations:daily.length,curve};
   }
   function validateSettings(settings,n){
@@ -146,13 +153,21 @@
   function bootstrap(returns,{paths=300,seed=42,block=5}={}){
     if(!Array.isArray(returns)||returns.length<15)throw Error('Need at least 15 holdout returns for bootstrap analysis.');
     if(!Number.isInteger(paths)||paths<50||paths>1000)throw Error('Use 50–1000 simulations.');
-    const rng=mulberry32(seed>>>0),out=[];
+    if(!Number.isInteger(block)||block<1||block>returns.length)throw Error('Invalid bootstrap block size.');
+    if(!Number.isInteger(seed)||seed<0||seed>0xffffffff)throw Error('Use a 32-bit unsigned bootstrap seed.');
+    if(paths*returns.length>20_000_000)throw Error('Use fewer observations or simulation paths.');
+    if(returns.some(r=>!Number.isFinite(r)))throw Error('Bootstrap returns must be finite.');
+    const rng=mulberry32(seed),out=[];
     for(let p=0;p<paths;p++){
-      const sample=[];while(sample.length<returns.length){
+      let equity=1,count=0;
+      while(count<returns.length){
         const idx=Math.floor(rng()*returns.length);
-        for(let k=0;k<block&&sample.length<returns.length;k++)sample.push(returns[(idx+k)%returns.length]);
+        for(let k=0;k<block&&count<returns.length;k++,count++){
+          equity*=Math.max(0,1+returns[(idx+k)%returns.length]);
+          if(!Number.isFinite(equity))throw Error('Bootstrap return is outside the supported numeric range.');
+        }
       }
-      out.push(stats(sample).totalReturn);
+      out.push(equity-1);
     }
     out.sort((a,b)=>a-b);
     const percentile=q=>out[Math.floor((out.length-1)*q)];
