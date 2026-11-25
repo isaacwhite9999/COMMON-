@@ -122,6 +122,9 @@ begin
      'member','71000000-0000-4000-8000-000000000001')->'items') <> 0 then
     raise exception 'Blocked member appears on viewer timeline';
   end if;
+  if not public.dm_block_exists('71000002-0000-4000-8000-000000000002','71000000-0000-4000-8000-000000000001') then
+    raise exception 'Participant block check failed';
+  end if;
 end;
 $$;
 reset role;
@@ -131,6 +134,9 @@ do $$
 begin
   if jsonb_array_length(public.discussion_feed_v1('circle','72000000-0000-4000-8000-000000000002')->'items') <> 0 then
     raise exception 'Unrelated member can read private circle';
+  end if;
+  if public.dm_block_exists('71000002-0000-4000-8000-000000000002','71000000-0000-4000-8000-000000000001') then
+    raise exception 'Private block relationship visible to unrelated member';
   end if;
 end;
 $$;

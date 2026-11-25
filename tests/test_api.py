@@ -304,3 +304,31 @@ def test_proposal_list_uses_constant_queries(client):
     assert len(result.json()["items"]) == 100
     # Session and user lookup, the joined proposal read, and two batched vote reads.
     assert len(statements) == 5
+
+
+def test_interrupted_request_body_cannot_reach_mutation_handler():
+    from anyio import run
+
+    from backend.operations import APIOperations
+
+    async def exercise():
+        events = iter([
+            {"type": "http.request", "body": b'{"choice":', "more_body": True},
+            {"type": "http.disconnect"},
+        ])
+
+        async def receive():
+            return next(events)
+
+        async def send(_message):
+            pytest.fail("The disconnected client should receive no response")
+
+        async def mutate(*_args):
+            pytest.fail("The incomplete body reached the mutation boundary")
+
+        await APIOperations(mutate)({
+            "type": "http", "method": "POST", "path": "/api/proposals/fixture/vote",
+            "scheme": "http", "headers": [], "server": ("localhost", 80),
+        }, receive, send)
+
+    run(exercise)

@@ -7,6 +7,7 @@ on:
       - 'supabase/migrations/**'
       - 'supabase/schema-drafts/**'
       - 'tests/pg_*.sql'
+      - 'tests/recovery-drill.py'
       - '.github/workflows/test-community-db.yml'
   pull_request:
 
@@ -60,3 +61,20 @@ jobs:
         run: |
           psql -X -v ON_ERROR_STOP=1 -f supabase/schema-drafts/external-journal.sql
           psql -X -v ON_ERROR_STOP=1 -f tests/pg_external_journal_smoke.sql
+
+  recovery-drill:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install PostgreSQL 16 server binaries if needed
+        run: |
+          if ! test -x /usr/lib/postgresql/16/bin/initdb; then
+            sudo apt-get update
+            sudo apt-get install -y postgresql-16
+          fi
+      - run: pip install 'psycopg[binary]==3.3.9'
+      - run: python tests/recovery-drill.py --postgres-bin /usr/lib/postgresql/16/bin

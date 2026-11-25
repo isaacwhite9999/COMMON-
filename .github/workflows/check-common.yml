@@ -32,6 +32,7 @@ jobs:
           node --check docs/terminal/terminal.js
           node --check docs/terminal/analytics.js
           node tests/finance-terminal.test.cjs
+          node tests/quant-assurance.test.cjs
           node --check docs/config.js
           node --check docs/demo-api.js
           node --check docs/app.js
