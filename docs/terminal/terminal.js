@@ -39,10 +39,15 @@ const guide={
 const apiBase='https://api.fiscaldata.treasury.gov/services/api/fiscal_service';
 const urlDebt=apiBase+'/v2/accounting/od/debt_to_penny?fields=record_date,tot_pub_debt_out_amt&sort=-record_date&page%5Bsize%5D=120';
 const urlRates=apiBase+'/v2/accounting/od/avg_interest_rates?fields=record_date,security_desc,avg_interest_rate_amt&filter=security_desc:eq:Treasury%20Bills&sort=-record_date&page%5Bsize%5D=72';
+const fiscalSeries={
+ debt:{url:urlDebt,key:'tot_pub_debt_out_amt',title:'Public debt outstanding',units:'USD',limit:120},
+ rates:{url:urlRates,key:'avg_interest_rate_amt',title:'Average Treasury bill interest rate',units:'percent, with change in percentage points',limit:72}
+};
+const fiscalStorageKey='common.treasury.observations.v1';
 const finance=window.COMMON_FINANCE;
 const engine=window.COMMON_RESEARCH_ENGINE;
 const state={
- route:'overview',expert:false,macro:{loading:true,debt:[],rates:[],error:null,loadedAt:null},range:60,
+ route:'overview',expert:document.documentElement.dataset.commonGuidance==='advanced',macro:{loading:true,debt:[],rates:[],error:null,history:{},storageUnavailable:false},range:60,
  bs:{spot:100,strike:100,days:90,ivPct:25,ratePct:4,divPct:0},bsType:'call',bsResult:null,
  dcf:{fcf:5,growthPct:6,waccPct:9,terminalPct:2.5,netDebt:8,shares:2},dcfResult:null,
  bond:{face:1000,couponPct:4,yieldPct:4.5,years:10,frequency:2},bondResult:null,
@@ -133,7 +138,7 @@ function dashboard(){
   'TREASURY · SERIES OBSERVATIONS',srcFoot('Debt to the Penny'))+
  surface('Average interest rate on Treasury bills',lineChart(rate.slice(-60).map(x=>x.value),rate.slice(-60).map(x=>x.date),'Avg interest rate on outstanding bills','%'),
   'TREASURY · NOT YIELD CURVE',srcFoot('Average Interest Rates'))+'</div>'+
- (state.macro.error?'<div class="warning-strip" style="margin-top:15px">The official Treasury feed could not be reached in your browser. Models remain available; no fallback data has been fabricated. '+e(state.macro.error)+'</div>':'')+
+ (state.macro.error?'<div class="warning-strip" style="margin-top:15px">One or more Treasury series could not be refreshed. '+e(state.macro.error)+'</div>':'')+
  '<div class="section-head"><h2>Research workbench</h2><span class="eyebrow">WORKING CALCULATIONS · DATA-SOURCED ANALYSIS</span></div>'+
  '<div class="grid grid-2">'+
  surface('Valuation & capital markets',[
@@ -148,11 +153,41 @@ function dashboard(){
 function featureRow(icon,title,detail,target){
  return '<button class="feature-link" data-go="'+target+'"><span class="icon-box">'+icon+'</span><span class="detail"><strong>'+title+'</strong><small>'+detail+'</small></span><span class="arrow">↗</span></button>';
 }
+function fiscalRevisionPanels(){
+ const series=Object.entries(fiscalSeries).map(([key,source])=>{
+  const {previous,latest,checkedAt}=state.macro.history[key]||{};
+  const update=latest?'<p class="data-note">Last successful check <time datetime="'+e(checkedAt)+'">'+e(checkedAt)+'</time></p>':'';
+  const provenance=latest?'<details class="data-note"><summary>Source and fingerprints</summary>'+
+    '<p><a href="'+e(source.url)+'" target="_blank" rel="noopener noreferrer">Treasury Fiscal Data query</a></p>'+
+    (previous?'<p>Earlier SHA-256 <code class="source-fingerprint">'+e(previous.sha256||'Unavailable')+'</code></p>':'')+
+    '<p>Later SHA-256 <code class="source-fingerprint">'+e(latest.sha256||'Unavailable')+'</code></p></details>':'';
+  if(!previous||!latest)return '<section><h3>'+e(source.title)+'</h3>'+update+
+    '<p class="data-note">'+(latest?'Waiting for a second distinct observation window. Refresh later to compare.':
+      state.macro.loading?'Waiting for Treasury observations.':'No successful observations have been saved.')+'</p>'+provenance+'</section>';
+  const difference=finance.compareFiscalRows(previous.rows,latest.rows);
+  const summary='Matching dates '+difference.overlap+' · Revised values '+difference.changed.length+' · '+
+    'Dates entering '+difference.entering+' · Dates leaving '+difference.leaving;
+  const rows=difference.changed.map(row=>'<tr><th scope="row">'+e(row.date)+'</th><td>'+e(row.before)+
+    '</td><td>'+e(row.amount)+'</td><td>'+e(row.delta)+'</td></tr>').join('');
+  const timestamps='<p class="data-note">Earlier retrieval <time datetime="'+e(previous.capturedAt)+'">'+e(previous.capturedAt)+
+    '</time> · Later retrieval <time datetime="'+e(latest.capturedAt)+'">'+e(latest.capturedAt)+'</time></p>';
+  const table=rows?'<div class="table-scroll" tabindex="0" role="region" aria-label="'+e(source.title)+' comparison table">'+
+    '<table class="table"><caption class="data-note">Values in '+e(source.units)+'</caption>'+
+    '<thead><tr><th scope="col">Record date</th><th scope="col">Earlier</th><th scope="col">Later</th><th scope="col">Change</th></tr></thead><tbody>'+
+    rows+'</tbody></table></div>':'<p class="data-note">'+(difference.overlap?'No values changed on matching record dates.':
+      'The windows have no matching record dates.')+'</p>';
+  return '<section><h3>'+e(source.title)+'</h3>'+update+timestamps+'<p class="data-note">'+e(summary)+'</p>'+table+provenance+'</section>';
+ }).join('');
+ return surface('Treasury revision comparison','<div class="surface-inner"><p class="data-note">Compare the last two distinct successful retrievals saved in this browser. Observation dates describe the Treasury record. Retrieval times describe when this browser saw it. Entering or leaving dates reflect the returned window.</p>'+
+  '<p class="data-note">These observations cannot reconstruct a Treasury publication vintage before this browser captured it.</p>'+
+  (state.macro.storageUnavailable?'<p class="data-note" role="status">Browser storage is unavailable. Comparisons last until this page closes.</p>':'')+
+  '<div class="grid grid-2" style="margin-top:14px">'+series+'</div></div>');
+}
 function macro(){
  const debt=state.macro.debt,rate=state.macro.rates,d=debt.at(-1),r=rate.at(-1);
  return head('MACRO & RATES','Sovereign funding & <em>duration.</em>',
   'Monitor original U.S. Treasury observations, then model how fixed-rate bond prices respond to changes in yield. Do not confuse average rates on outstanding debt with tradable market yields.',
-  btn('Refresh source','refresh-macro','btn-muted'))+inlineGuide()+
+  (state.macro.loading?'<button type="button" class="btn btn-muted" disabled>Checking sources…</button>':btn('Refresh source','refresh-macro','btn-muted')))+inlineGuide()+
  '<div class="grid grid-3">'+
  stat('PUBLIC DEBT',d?trillions(d.value):null,d?'Official record '+d.date:'Source unavailable',true)+
  stat('AVG INTEREST · T-BILLS',r?fmt(r.value,3)+'%':null,r?'Official record '+r.date:'Source unavailable')+
@@ -162,7 +197,8 @@ function macro(){
  'REPORTED DOLLARS · TRILLIONS',srcFoot('Fiscal Data / Debt to the Penny'))+
  surface('Historical average rates on bills',lineChart(rate.map(x=>x.value),rate.map(x=>x.date),'Average outstanding Treasury bill rate','%'),
  'REPORTED RATE · NOT YTM',srcFoot('Fiscal Data / Average Interest Rates'))+'</div>'+
- (state.macro.error?'<div class="warning-strip" style="margin:16px 0">'+e(state.macro.error)+'</div>':'')+
+ (state.macro.error?'<div class="warning-strip" role="status" style="margin:16px 0">'+e(state.macro.error)+'</div>':'')+
+ fiscalRevisionPanels()+
  '<div class="section-head"><h2>Fixed income risk workbench</h2><span class="eyebrow">BOND MATHEMATICS · SCENARIO INPUTS</span></div>'+
  '<div class="grid grid-2">'+
  surface('Model a fixed-coupon bond','<div class="surface-inner"><div class="warning-strip">Illustrative inputs only. They are not live Treasury prices, yields or tradable quotes.</div>'+
@@ -390,33 +426,84 @@ function notice(message){
 function errorMessage(err){
  notice(err?.message||'Unable to calculate. Check the inputs and retry.');
 }
-async function loadFiscal(){
- state.macro.loading=true;state.macro.error=null;
- const fetchJson=async url=>{
+function fiscalSourceRows(key,rows,field){
+ const source=fiscalSeries[key];
+ return finance.fiscalRows(rows,field,source.limit,{nonnegative:key==='debt'});
+}
+function applyFiscalHistory(key,history){
+ state.macro.history[key]=history;
+ state.macro[key]=history.latest.rows.map(row=>({date:row.date,value:Number(row.amount)}));
+}
+async function restoreFiscalHistory(){
+ try{
+  const stored=JSON.parse(localStorage.getItem(fiscalStorageKey)||'{}');
+  for(const [key,source] of Object.entries(fiscalSeries)){
+   const item=stored?.[key];
+   if(!item||item.url!==source.url||!Number.isFinite(Date.parse(item.checkedAt)))continue;
+   const restore=async snapshot=>{
+    if(!snapshot||!Number.isFinite(Date.parse(snapshot.capturedAt))||
+       (snapshot.sha256!==null&&!/^[a-f0-9]{64}$/.test(snapshot.sha256)))throw Error('Invalid saved Treasury snapshot');
+    const rows=fiscalSourceRows(key,snapshot.rows,'amount');
+    const digest=await fiscalFingerprint(source,rows);
+    if(digest&&snapshot.sha256&&digest!==snapshot.sha256)throw Error('Treasury snapshot fingerprint differs.');
+    return {capturedAt:snapshot.capturedAt,sha256:digest,rows};
+   };
+   try{
+    const latest=await restore(item.latest),previous=item.previous?await restore(item.previous):null;
+    if(previous&&Date.parse(previous.capturedAt)>Date.parse(latest.capturedAt))continue;
+    applyFiscalHistory(key,{url:source.url,checkedAt:item.checkedAt,previous,latest});
+   }catch{/* A malformed record cannot replace official observations. */}
+  }
+ }catch{state.macro.storageUnavailable=true;}
+}
+function fiscalFingerprint(source,rows){
+ return globalThis.crypto?.subtle?fileDigest(JSON.stringify({url:source.url,rows})):Promise.resolve(null);
+}
+let fiscalRequest=null;
+function loadFiscal(){
+ if(fiscalRequest)return fiscalRequest;
+ state.macro.loading=true;
+ state.macro.error=null;
+ if(['overview','macro'].includes(state.route))show(state.route,false);
+ fiscalRequest=refreshFiscal().finally(()=>{
+  fiscalRequest=null;
+  state.macro.loading=false;
+  if(['overview','macro'].includes(state.route))show(state.route,false);
+ });
+ return fiscalRequest;
+}
+async function refreshFiscal(){
+ const fetchSeries=async (key,source)=>{
   const abort=new AbortController(),timer=setTimeout(()=>abort.abort(),13000);
   try{
-   const r=await fetch(url,{headers:{Accept:'application/json'},signal:abort.signal});
-   if(!r.ok)throw Error('HTTP '+r.status);
-   const j=await r.json();if(!Array.isArray(j?.data))throw Error('Unexpected official data response');
-   return j.data;
-  }finally{clearTimeout(timer)}
+   const response=await fetch(source.url,{headers:{Accept:'application/json'},cache:'no-store',signal:abort.signal});
+   if(!response.ok)throw Error('Treasury responded with HTTP '+response.status+'.');
+   const data=await response.json();
+   if(key==='rates'&&Array.isArray(data?.data)&&data.data.some(row=>row?.security_desc!=='Treasury Bills'))
+     throw Error('Treasury returned a different security series.');
+   const rows=fiscalSourceRows(key,data?.data,source.key);
+   const checkedAt=new Date().toISOString();
+   const last=state.macro.history[key];
+   if(last&&JSON.stringify(last.latest.rows)===JSON.stringify(rows)){
+    applyFiscalHistory(key,{...last,checkedAt});
+   }else{
+    const sha256=await fiscalFingerprint(source,rows);
+    applyFiscalHistory(key,{url:source.url,checkedAt,previous:last?.latest||null,latest:{capturedAt:checkedAt,rows,sha256}});
+   }
+  }finally{clearTimeout(timer);}
  };
- const tasks=await Promise.allSettled([fetchJson(urlDebt),fetchJson(urlRates)]);
- for(let i=0;i<tasks.length;i++){
-  const k=i===0?'debt':'rates',key=i===0?'tot_pub_debt_out_amt':'avg_interest_rate_amt';
-  if(tasks[i].status==='fulfilled'){
-   const entries=tasks[i].value.map(x=>({date:x.record_date,value:Number(x[key])}))
-     .filter(x=>/^\d{4}-\d{2}-\d{2}$/.test(x.date)&&Number.isFinite(x.value)&&x.value>=0)
-     .sort((a,b)=>a.date.localeCompare(b.date));
-   state.macro[k]=entries;
-   if(!entries.length)state.macro.error='No valid '+k+' observations were returned by Treasury.';
-  }else{
-   state.macro[k]=[];
-   state.macro.error='Official '+k+' dataset could not be retrieved. Check network access or the Treasury API.';
-  }
+ const sources=Object.entries(fiscalSeries);
+ const results=await Promise.allSettled(sources.map(([key,source])=>fetchSeries(key,source)));
+ state.macro.error=results.map((result,index)=>{
+  if(result.status==='fulfilled')return '';
+  const [key,source]=sources[index];
+  return source.title+' could not be refreshed.'+
+   (state.macro.history[key]?' Showing the last successful retrieval.':' No saved observations are available.');
+ }).filter(Boolean).join(' ');
+ if(results.some(result=>result.status==='fulfilled')){
+  try{localStorage.setItem(fiscalStorageKey,JSON.stringify(state.macro.history));state.macro.storageUnavailable=false;}
+  catch{state.macro.storageUnavailable=true;}
  }
- state.macro.loading=false;state.macro.loadedAt=new Date().toISOString();
- if(['overview','macro'].includes(state.route))show(state.route,false);
 }
 function readForm(form){return Object.fromEntries(new FormData(form).entries());}
 function optionFields(form){const x=readForm(form);return Object.fromEntries(Object.entries(x).map(([k,v])=>[k,Number(v)]));}
@@ -520,7 +607,7 @@ try{
  state.bondResult=finance.bondRisk(state.bond);
  state.ventureResult=finance.capTable(state.venture);
  show('overview',false);
- loadFiscal().catch(err=>{state.macro.error=String(err);show(state.route,false);});
+ restoreFiscalHistory().then(loadFiscal).catch(err=>{state.macro.error=String(err);show(state.route,false);});
 }catch(err){
  root.innerHTML='<section class="surface surface-inner"><h2>Research tools unavailable</h2><p class="data-note">'+e(err.message)+'</p></section>';
  console.error(err);

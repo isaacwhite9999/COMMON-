@@ -9,7 +9,9 @@ const browser=await chromium.launch({headless:true});
 const stub=String.raw`
 (() => {
  const userId='11111111-1111-4111-8111-111111111111';
- const data={research_workspaces:[],research_experiments:[],research_learning_progress:[]};
+ const data={research_workspaces:[],research_experiments:[],
+  research_learning_progress:JSON.parse(sessionStorage.getItem('test-learning-progress')||'[]')};
+ window.failExerciseSave=false;
  let index=0;
  function make(table){
   let op='read',value=null,filters=[],max=Infinity,one=false;
@@ -32,8 +34,13 @@ const stub=String.raw`
        updated_at:new Date().toISOString(),created_at:new Date().toISOString()};
       rows.push(fresh);result=fresh;
     }else if(op==='upsert'){
+      if(table==='research_learning_progress'&&value.lesson_key.startsWith('exercise-')&&window.failExerciseSave) {
+       window.failExerciseSave=false;
+       return Promise.resolve({data:null,error:{message:'Test connection failure'}}).then(resolve,reject);
+      }
       const i=rows.findIndex(r=>r.user_id===value.user_id&&r.lesson_key===value.lesson_key);
       if(i<0)rows.push(value);else rows[i]={...rows[i],...value};result=value;
+      if(table==='research_learning_progress')sessionStorage.setItem('test-learning-progress',JSON.stringify(rows));
     }else if(op==='update'){
       rows=rows.map(r=>allowed(r)?{...r,...value,updated_at:new Date().toISOString()}:r);
       data[table]=rows;result=rows.filter(allowed);
@@ -59,6 +66,10 @@ try {
  const page=await browser.newPage({viewport:{width:1365,height:900}});
  const jsErrors=[];
  page.on('pageerror',err=>jsErrors.push(err.message));
+ await page.route('**/config.js',route=>route.fulfill({
+  contentType:'text/javascript',
+  body:'window.COMMON_CONFIG = {communityBackendReady:true,supabaseUrl:"https://example.invalid",supabaseAnonKey:"test-key"};'
+ }));
  await page.route('**/supabase.min.js',route=>route.fulfill({status:200,contentType:'text/javascript',body:stub}));
  await page.goto(new URL('lab/',base).href,{waitUntil:'domcontentloaded'});
  await page.getByRole('heading',{name:'Think rigorously. Invest independently.'}).waitFor({timeout:25000});
@@ -68,12 +79,14 @@ try {
  await page.locator('#create-form button[type=submit]').click();
  await page.getByRole('heading',{name:'Workspace notes'}).waitFor();
  await page.getByRole('button',{name:/Data desk/}).first().click();
+ await page.getByRole('region',{name:'Key terms'}).getByText('Adjusted close',{exact:true}).waitFor();
  const date=(i)=>new Date(Date.UTC(2023,0,1+i)).toISOString().slice(0,10);
  const lines=Array.from({length:180},(_,i)=>date(i)+','+(100+i*.2+Math.sin(i/8)*2).toFixed(4));
  await page.locator('#price-file').setInputFiles({name:'observed-prices.csv',mimeType:'text/csv',buffer:Buffer.from('Date,Close\n'+lines.join('\n'))});
  await page.getByRole('heading',{name:'Import diagnostics'}).waitFor({timeout:15000});
  assert.match(await page.locator('#lab-root').innerText(),/180/);
  await page.getByRole('button',{name:/Strategy lab/}).click();
+ await page.getByRole('region',{name:'Key terms'}).getByText('Lookahead bias',{exact:true}).waitFor();
  await page.locator('#run-form button[type=submit]').click();
  await page.getByRole('heading',{name:'Computed result'}).waitFor();
  await page.getByRole('button',{name:'Inspect validation'}).click();
@@ -82,16 +95,74 @@ try {
  await page.getByRole('button',{name:'Save this experiment'}).click();
  await page.getByText('Experiment saved as a private').waitFor();
  await page.getByText('observed-prices.csv').waitFor();
+
+ // SOCIAL-197: definitions in context, alias search, empty recovery, and lesson links.
+ const keyTerms=page.getByRole('region',{name:'Key terms'});
+ const drawdown=keyTerms.locator('summary').filter({hasText:'Maximum drawdown'});
+ await drawdown.focus();
+ await drawdown.press('Enter');
+ await keyTerms.getByText('The largest percentage decline',{exact:false}).waitFor();
+ await keyTerms.getByRole('button',{name:'Browse financial glossary'}).click();
+ const glossaryTitle=page.getByRole('heading',{name:'Financial glossary'});
+ await glossaryTitle.waitFor();
+ assert.equal(await glossaryTitle.evaluate(node=>node===document.activeElement),true);
+ const glossarySearch=page.getByRole('searchbox',{name:'Search terms or abbreviations'});
+ await glossarySearch.fill('out-of-sample');
+ await page.locator('#glossary-count').getByText('1 term found',{exact:true}).waitFor();
+ await page.locator('#glossary-results').getByText('Chronological holdout',{exact:true}).waitFor();
+ await glossarySearch.fill('<img src=x>');
+ await page.getByText('No terms found.',{exact:false}).waitFor();
+ assert.equal(await page.locator('#glossary-results img').count(),0);
+ await glossarySearch.fill('BPS');
+ await page.getByRole('button',{name:'Open related lesson for Basis point'}).click();
+ await page.getByRole('heading',{name:'Include trading costs'}).waitFor();
  await page.getByRole('button',{name:/Instructor/}).first().click();
  await page.getByRole('heading',{name:'Research instructor'}).waitFor();
  await page.getByRole('button',{name:/Avoid lookahead bias/}).click();
  await page.getByText(/Signals from bar/).waitFor();
+ await page.getByRole('button',{name:'Mark lesson complete'}).click();
+ await page.getByRole('button',{name:'Mark incomplete'}).waitFor();
+
+ // SOCIAL-195: enforce a selection, score both outcomes, and retry a failed save.
+ const exercise=page.locator('#exercise-form');
+ const feedback=exercise.getByRole('status');
+ await exercise.getByRole('button',{name:'Check answer'}).click();
+ assert.equal(await feedback.textContent(),'');
+ await exercise.getByRole('radio',{name:'Monday close to Tuesday close'}).check();
+ await exercise.getByRole('button',{name:'Check answer'}).click();
+ await feedback.getByText('Score: 0 / 1.',{exact:false}).waitFor();
+ assert.ok(await exercise.getByRole('radio',{name:'Monday close to Tuesday close'}).isChecked());
+ await page.evaluate(()=>window.failExerciseSave=true);
+ await exercise.getByRole('radio',{name:'Tuesday close to Wednesday close'}).check();
+ await exercise.getByRole('button',{name:'Check answer'}).click();
+ await feedback.getByText('Progress could not be saved.',{exact:false}).waitFor();
+ await exercise.getByRole('button',{name:'Check answer'}).click();
+ await feedback.getByText('Exercise completion saved.',{exact:false}).waitFor();
+ assert.match(await feedback.textContent(),/Score: 1 \/ 1.*Tuesday-to-Wednesday/);
+ await page.getByRole('button',{name:/Include trading costs/}).click();
+ assert.equal(await feedback.textContent(),'');
+ await exercise.getByRole('radio',{name:'0.70%',exact:true}).check();
+ await exercise.getByRole('button',{name:'Check answer'}).click();
+ await feedback.getByText('Exercise completion saved.',{exact:false}).waitFor();
+ assert.match(await feedback.textContent(),/Score: 1 \/ 1.*0\.70%/);
  assert.deepEqual(jsErrors,[],'JavaScript exceptions in Research Studio: '+jsErrors.join('; '));
  await page.setViewportSize({width:390,height:844});
  await page.reload({waitUntil:'domcontentloaded'});
  await page.getByRole('heading',{name:'Think rigorously. Invest independently.'}).waitFor();
- const w=await page.evaluate(()=>document.documentElement.scrollWidth);
- assert.ok(w<=394,'Mobile horizontal overflow '+w+'px');
+ const lessons=page.locator('.lab-stat').filter({hasText:'Lessons completed'});
+ assert.equal(await lessons.locator('strong').textContent(),'1 / 8');
+ await page.getByRole('button',{name:/Instructor/}).first().click();
+ await page.getByRole('button',{name:/Avoid lookahead bias/}).click();
+ assert.equal(await feedback.textContent(),'Exercise completion saved.');
+ await page.getByRole('button',{name:'Browse financial glossary'}).click();
+ await glossaryTitle.waitFor();
+ for(const width of [390,768]){
+  await page.setViewportSize({width,height:844});
+  const w=await page.evaluate(()=>document.documentElement.scrollWidth);
+  assert.ok(w<=width,'Glossary width '+w+'px exceeds '+width+'px viewport');
+ }
+ await page.getByRole('button',{name:'Back to instructor'}).click();
+ await page.getByRole('heading',{name:'Avoid lookahead bias'}).waitFor();
  assert.deepEqual(jsErrors,[],'Research Studio mobile JavaScript errors');
- console.log('PASS research browser flow: projects, real CSV import, backtest, Monte Carlo, save, instructor, mobile');
+ console.log('PASS research browser flow: projects, real CSV import, backtest, Monte Carlo, save, instructor, scored exercises, contextual glossary, mobile');
 } finally {await browser.close();}
