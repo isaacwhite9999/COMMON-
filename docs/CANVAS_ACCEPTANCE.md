@@ -4,7 +4,7 @@ These IDs extend the existing 450 granular requirements. The existing checklists
 
 | ID | Requirement | Status | Evidence or remaining work |
 | --- | --- | --- | --- |
-| CANVAS-001 | Generic structured CSV input and workspace dataset selection | Implemented, partly verified | CSV and mobile upload checked. The catalog uses the existing browser IndexedDB adapter. Verify catalog selection separately. |
+| CANVAS-001 | Generic structured CSV input and workspace dataset selection | Verified | Chromium covers CSV upload and selecting a dataset persisted by the existing workspace library. |
 | CANVAS-002 | Authorized market, financial, economic, portfolio and research adapters | Partial | The public Treasury bill rate adapter supplies source URL, receipt time and record date coverage. Broader adapters and permission/entitlement checks remain open. |
 | CANVAS-003 | Manual field mapping and extensible versioned declarative chart specifications | Verified | Engine rejects unsupported fields. Manual mapping and compact specs render through a shared compiler. |
 | CANVAS-004 | Line, scatter, histogram, box, violin, waterfall and candlestick charts | Partial | Allowlisted Plotly adapters exist. Chromium exercises line and histogram. OHLC invariants have deterministic fixtures. Other adapters need browser evidence. |
@@ -20,7 +20,7 @@ These IDs extend the existing 450 granular requirements. The existing checklists
 | CANVAS-014 | Order-book reconstruction, liquidity, footprint, volume profile and CVD | Open | Requires eligible granular events with sequence and completeness checks. |
 | CANVAS-015 | Trade and quote analysis, replay, streaming calculations and alerts | Open | Build bounded subscriptions, replay windows, deterministic reducers and alerts. |
 | CANVAS-016 | Point-in-time fundamentals, earnings, SEC, insider, ownership and corporate actions | Open | Integrate publication timestamps, restatements, identity and entitlements. Existing independent terminal features remain available. |
-| CANVAS-017 | Historical information cutoff and event time machine | Partial | Explicit ISO UTC availability filter rejects invalid timestamps and excludes later observations. Real historical event adapters, session playback and effective-vintage resolution remain open. |
+| CANVAS-017 | Historical information cutoff and event time machine | Partial | Explicit ISO UTC availability filter rejects invalid timestamps and excludes later observations. Chromium verifies the rendered cutoff result and hides the unfiltered preview. Real historical event adapters, session playback and effective-vintage resolution remain open. |
 | CANVAS-018 | Independent research adversary | Partial | A future-value perturbation fixture verifies cutoff invariance. Survivorship, leakage beyond available timestamps, multiple testing, significance, costs, reproducibility and contradictory-evidence workflow remain open. |
 | CANVAS-019 | Versioned pipelines, monitoring and authorized schedules | Open | Add durable rerun state, approved data triggers, drift detection, budgets and notifications. |
 | CANVAS-020 | Multi-asset and corporate scenario laboratory | Open | Add hypothetical inputs, constrained calculations and independently tested outputs. |

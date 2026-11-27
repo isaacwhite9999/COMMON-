@@ -156,6 +156,7 @@
     active = { spec: checked, digest: metadata.digest,
       ...(metadata.provenance ? { provenance: metadata.provenance } : {}) };
     showSpec(checked);
+    get('sample').hidden = Boolean(checked.availability);
     report('Rendered ' + checked.chart + ' using ' + count + ' source rows.' +
       (checked.availability ? ' Excluded ' + excluded + ' rows after the declared UTC cutoff.' : ''));
   }

@@ -61,6 +61,30 @@ try {
   await page.getByRole('button', { name: 'Load public Treasury bill rates' }).click();
   await page.getByRole('link', { name: 'Official series' }).waitFor();
   assert.match(await page.locator('#source').textContent(), /historical monthly observations/);
+  const historic = 'Date,Close,Published\n2025-01-01,3,2025-01-01T15:00:00Z\n2025-01-02,4,2025-01-02T15:00:00Z';
+  await upload(historic);
+  await page.getByText('Programmatic specification', { exact: true }).click();
+  await page.getByLabel('Specification JSON').fill(JSON.stringify({
+    version: 1, chart: 'line', title: 'As-of view', x: 'Date', y: 'Close',
+    availability: { field: 'Published', asOf: '2025-01-01T15:00:00Z' }
+  }));
+  await page.getByRole('button', { name: 'Render specification' }).click();
+  await page.getByRole('status').filter({ hasText: 'Excluded 1 rows' }).waitFor();
+  assert.deepEqual(await page.locator('#figure').evaluate(el => el.data[0].y), [3]);
+  assert.equal(await page.locator('#sample').isHidden(), true);
+  await page.goto(new URL('workspace/#datasets', base).href);
+  const days = Array.from({ length: 180 }, (_, index) =>
+    new Date(Date.UTC(2024, 0, index + 1)).toISOString().slice(0, 10) + ',' + (100 + index));
+  await page.getByLabel('CSV source').setInputFiles({ name: 'library-test.csv',
+    mimeType: 'text/csv', buffer: Buffer.from('Date,Close\n' + days.join('\n')) });
+  await page.getByRole('button', { name: 'Import and validate' }).click();
+  await page.getByRole('heading', { name: 'Observation summary' }).waitFor();
+  await page.goto(new URL('workspace/canvas/', base).href);
+  await page.getByRole('option', { name: 'library-test.csv' }).waitFor({ state: 'attached' });
+  await page.getByLabel('Workspace dataset').selectOption({ label: 'library-test.csv' });
+  await page.getByRole('button', { name: 'Load dataset', exact: true }).click();
+  await page.getByRole('status').filter({ hasText: 'Map the fields' }).waitFor();
+  assert.match(await page.locator('#source').textContent(), /library-test.csv · 180 rows/);
   const overflows = await page.evaluate(() => document.documentElement.scrollWidth > innerWidth);
   assert.equal(overflows, false);
   console.log('Canvas mobile routing, pinned Plotly, manual/text chart, persistence, duplicate, export and digest checks passed.');
