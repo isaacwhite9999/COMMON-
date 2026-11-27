@@ -6,6 +6,7 @@
 const root=document.getElementById('lab-root');
 const engine=window.COMMON_RESEARCH_ENGINE;
 const exercises=window.CommonResearchExercises;
+const glossary=window.CommonResearchGlossary;
 const requestedSymbol=new URLSearchParams(location.search).get('symbol')||'';
 let projectSymbol=/^[A-Z][A-Z0-9.-]{0,11}$/.test(requestedSymbol)?requestedSymbol:'';
 const $=s=>document.querySelector(s);
@@ -36,7 +37,7 @@ const lessons=[
 ];
 let client=null,session=null,closeAssistant=null;
 const state={view:'overview',projects:[],runs:[],progress:[],selected:null,bars:null,diagnostics:null,sourceSha:null,sourceLabel:'',
-  lastRun:null,sim:null,busy:false,error:'',notice:'',expert:document.documentElement.dataset.commonGuidance==='advanced',lesson:'hypothesis',working:false,uploading:false};
+  lastRun:null,sim:null,busy:false,error:'',notice:'',expert:document.documentElement.dataset.commonGuidance==='advanced',lesson:'hypothesis',glossaryQuery:'',working:false,uploading:false};
 function info(msg){state.notice=msg;state.error='';render();}
 function fail(err){console.error(err);state.error=err?.message||String(err);state.notice='';render();}
 function safe(fn){return async ev=>{ev?.preventDefault?.();if(state.busy)return;state.busy=true;try{await fn(ev);}catch(e){fail(e);}finally{state.busy=false;}};}
@@ -53,7 +54,7 @@ function sidebar(){
  const nav=[['overview','Overview','▦'],['workspaces','Projects','◫'],['data','Data desk','▤'],['strategy','Strategy lab','⌁'],['validate','Validation','◉'],['catalog','Data & tools','⊞'],['guide','Instructor','◇']];
  return '<aside class="lab-sidebar"><div class="lab-brand"><span class="lab-mark">c</span><span>common<span class="lab-brand-dot">.</span></span></div>'+
  '<div class="lab-brand-caption">RESEARCH STUDIO <span>v1</span></div><nav class="lab-nav" aria-label="Research tools">'+
- nav.map(n=>'<button class="'+(state.view===n[0]?'active':'')+'" data-nav="'+n[0]+'"><span aria-hidden="true">'+n[2]+'</span>'+n[1]+'</button>').join('')+
+ nav.map(n=>'<button class="'+(state.view===n[0]||(state.view==='glossary'&&n[0]==='guide')?'active':'')+'" data-nav="'+n[0]+'"><span aria-hidden="true">'+n[2]+'</span>'+n[1]+'</button>').join('')+
  '</nav><div class="lab-side-bottom"><p>Advanced research should be understandable to everyone.</p><a href="../live/">← Return to social network</a></div></aside>';
 }
 function coach(section){
@@ -277,6 +278,39 @@ async function submitExercise(form){
   button.disabled=false;
  }
 }
+function glossaryTerms(matches){
+ return matches.length?'<dl>'+matches.map(term=>'<div><dt>'+esc(term.name)+'</dt><dd>'+esc(term.definition)+
+ ' '+action('Open related lesson','glossary-lesson',true,
+ 'data-lesson-key="'+esc(term.lesson)+'" aria-label="Open related lesson for '+esc(term.name)+'"')+'</dd></div>').join('')+'</dl>'
+ :'<p>No terms found. Try a term such as drawdown, basis points, or out of sample.</p>';
+}
+function glossaryCount(count){
+ return count+' '+(count===1?'term':'terms')+' found';
+}
+function glossaryView(){
+ const matches=glossary.search(state.glossaryQuery);
+ return hdr('Financial glossary','Definitions for quantitative research, testing, and risk.')+
+ '<section class="lab-card lab-glossary"><label class="lab-label" for="glossary-search">Search terms or abbreviations</label>'+
+ '<input class="lab-input" id="glossary-search" type="search" maxlength="100" value="'+esc(state.glossaryQuery)+'">'+
+ '<p role="status" id="glossary-count">'+glossaryCount(matches.length)+'</p>'+
+ '<div id="glossary-results">'+glossaryTerms(matches)+'</div>'+
+ action('Back to instructor','close-glossary',true)+'</section>';
+}
+function contextualDefinitions(view){
+ const names=glossary?.byView[view];
+ if(!names)return '';
+ const terms=glossary.search('').filter(term=>names.includes(term.name));
+ return '<section class="lab-card lab-glossary" aria-labelledby="context-definitions"><h2 id="context-definitions">Key terms</h2>'+
+ terms.map(term=>'<details><summary>'+esc(term.name)+'</summary><p>'+esc(term.definition)+'</p></details>').join('')+
+ action('Browse financial glossary','open-glossary',true)+'</section>';
+}
+function moveToLearning(view){
+ state.view=view;
+ render();
+ const title=root.querySelector('.lab-section-head h1');
+ title?.setAttribute('tabindex','-1');
+ title?.focus();
+}
 function instructor(){
  const l=lessons.find(x=>x[0]===state.lesson)||lessons[0],complete=state.progress.some(x=>x.lesson_key===l[0]&&x.completed);
  return hdr('Research instructor','Beginner language when you need it; graduate-level detail when you want it.')+
@@ -287,12 +321,13 @@ function instructor(){
  '<h3>Beginner explanation</h3><p>'+esc(l[2])+'</p>'+
  '<h3>Advanced methodology</h3><p>'+esc(l[3])+'</p>'+
  '<div class="lab-row">'+action(complete?'Mark incomplete':'Mark lesson complete','toggle-lesson',false,'data-id="'+l[0]+'"')+
- action('Open relevant screen','lesson-to-screen',true)+'</div>'+renderExercise(l[0])+'</div></div>';
+ action('Open relevant screen','lesson-to-screen',true)+(glossary?action('Browse financial glossary','open-glossary',true):'')+'</div>'+renderExercise(l[0])+'</div></div>';
 }
 function layout(){
  root.innerHTML=sidebar()+'<div class="lab-main">'+breadcrumbs()+'<main>'+alerts()+
  (state.view==='overview'?overview():state.view==='workspaces'?workspaces():state.view==='data'?dataDesk():
- state.view==='strategy'?strategy():state.view==='validate'?validation():state.view==='catalog'?catalog():instructor())+
+ state.view==='strategy'?strategy():state.view==='validate'?validation():state.view==='catalog'?catalog():state.view==='glossary'?glossaryView():instructor())+
+ contextualDefinitions(state.view)+
  '</main>'+coach(state.view)+'<footer class="lab-footer">COMMON Research Studio · Educational research only · No brokerage, trading, custody or investment recommendation · Client results are not independently audited</footer></div>';
 }
 function authScreen(){
@@ -439,6 +474,16 @@ async function dispatch(action,element){
   },{onConflict:'user_id,lesson_key'}));
   await refresh();return;
  }
+ if(action==='open-glossary'){moveToLearning('glossary');return;}
+ if(action==='close-glossary'){moveToLearning('guide');return;}
+ if(action==='glossary-lesson'){
+  const lesson=element.dataset.lessonKey;
+  if(lessons.some(([key])=>key===lesson)){
+   state.lesson=lesson;
+   moveToLearning('guide');
+  }
+  return;
+ }
  if(action==='lesson-to-screen'){
   const map={hypothesis:'workspaces',provenance:'data',lookahead:'strategy',holdout:'validate',
    costs:'strategy',sharpe:'validate',drawdown:'validate',bootstrap:'validate'};
@@ -452,6 +497,13 @@ document.addEventListener('click',ev=>{
  if(lesson){state.lesson=lesson.dataset.lesson;render();return;}
  const btn=ev.target.closest('[data-action]');
  if(btn){safe(e=>dispatch(btn.dataset.action,btn))(ev);}
+});
+document.addEventListener('input',ev=>{
+ if(ev.target.id!=='glossary-search')return;
+ state.glossaryQuery=ev.target.value;
+ const matches=glossary.search(state.glossaryQuery);
+ $('#glossary-count').textContent=glossaryCount(matches.length);
+ $('#glossary-results').innerHTML=glossaryTerms(matches);
 });
 document.addEventListener('change',ev=>{
  if(ev.target.id==='active-project'){
@@ -479,7 +531,7 @@ async function init(){
   if(session?.user?.id!==next?.user?.id){
    closeAssistant?.();closeAssistant=null;
    Object.assign(state,{projects:[],runs:[],progress:[],selected:null,bars:null,diagnostics:null,
-    sourceSha:null,sourceLabel:'',lastRun:null,sim:null,error:'',notice:'',view:projectSymbol?'workspaces':'overview'});
+    sourceSha:null,sourceLabel:'',lastRun:null,sim:null,error:'',notice:'',glossaryQuery:'',view:projectSymbol?'workspaces':'overview'});
   }
   session=next;
   if(!next)render();
