@@ -66,7 +66,20 @@ function riskDesk(sub,tab){const runs=s.riskRuns||[],r=runs.find(x=>x.id===sub),
 const current=['overview','correlation','exposure','downside','method'].includes(tab)?tab:'overview';let c='';if(current==='overview')c=section('Historical risk profile','<div class="report-kpis">'+[['Annual volatility',pct(r.annualVolatility)],['Sharpe',Number.isFinite(r.sharpe)?r.sharpe.toFixed(2):'—'],['Net modeled return',pct(r.netReturn)],['Maximum drawdown',pct(r.maxDrawdown)]].map(([k,v])=>'<div><span class="eyebrow">'+k+'</span><strong>'+v+'</strong></div>').join('')+'</div>'+empty(r.observations+' aligned return intervals · '+r.dates[0]+' to '+r.dates.at(-1))+empty(r.warning));
 if(current==='correlation')c=section('Historical correlation matrix',table(['Asset',...r.assets.map(x=>x.label)],r.correlation.map((row,i)=>[esc(r.assets[i].label),...row.map(x=>x===null?'—':'<span class="corr-cell" style="background:rgba('+(x>=0?'95,151,118,':'189,103,98,')+Math.min(.65,Math.abs(x)*.65)+')">'+x.toFixed(2)+'</span>')]))+empty('Pearson correlations of aligned simple returns. Correlation is not causation or a stable future relationship.'));
 if(current==='exposure')c=section('Target allocation and variance contributions',table(['Asset','Weight','Annual volatility','Share of portfolio variance'],r.assets.map(x=>[esc(x.label),pct(x.weight),pct(x.annualVol),pct(x.riskContribution)]))+empty('Variance contributions may be negative for diversifying assets. They sum to 100% if portfolio variance is positive.'));
-if(current==='downside')c=section('Historical downside estimates',table(['Metric','Fraction','Hypothetical USD'],[['Daily historical VaR (95%)',pct(r.var95),money(r.var95*r.capital)],['Daily expected shortfall (95%)',pct(r.es95),money(r.es95*r.capital)]])+empty('These are historical gross-return estimates, not maximum losses. Expected shortfall averages the selected worst 5% of observations.'));
+if(current==='downside'){
+ const model=r.parametricVaR;
+ const rows=[
+  ['Daily historical VaR (95%)',pct(r.var95),money(r.var95*r.capital)],
+  ['Daily expected shortfall (95%)',pct(r.es95),money(r.es95*r.capital)]
+ ];
+ if(model)rows.push(['Daily Gaussian VaR (95%)',pct(model.lossFraction),money(model.lossFraction*r.capital)]);
+ c=section('Portfolio downside estimates',table(['Metric','Fraction','Hypothetical USD'],rows)+
+  empty('Historical VaR and expected shortfall use the worst 5% of observed gross portfolio returns. Losses can exceed all of these estimates.'));
+ c+=section('Gaussian model assumptions',model?
+  table(['Model input','Value'],[['Mean daily gross return',pct(model.dailyMean)],['Daily sample volatility',pct(model.dailyVolatility)]])+
+  empty('Gaussian VaR assumes gross portfolio returns follow a normal distribution. The estimate uses the lower 5% quantile for one observed return interval. It can understate losses in fat-tailed markets and can exceed the invested capital mathematically. Both VaR methods exclude execution costs.'):
+  empty('This saved report predates Gaussian VaR. Run a new risk analysis to compare both methods.'));
+}
 if(current==='method')c=section('Sources and assumptions',table(['Dataset label','SHA-256'],r.assets.map(x=>[esc(x.label),esc(x.id)]))+empty(r.warning)+b('export-risk:'+r.id,'Export analysis')+' '+b('delete-risk:'+r.id,'Delete report'));
 return head('Portfolio risk report','Historical simulation / '+r.assets.length+' assets')+a('risk','← Risk laboratory')+tabs(base,[['overview','Overview'],['correlation','Correlation'],['exposure','Risk contribution'],['downside','Downside risk'],['method','Data & methodology']],current)+c+b('share-risk:'+r.id,'Prepare risk summary for sharing');}
 function datasetDesk(sub,tab){const item=datasets.find(x=>x.id===sub),base='datasets/'+sub;if(dataError)return head('Dataset library','Local research evidence.')+section('Storage unavailable',empty(dataError)+b('reload-datasets','Retry'));
