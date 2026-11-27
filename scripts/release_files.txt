@@ -7,6 +7,7 @@ demo-api.js
 design-v3.css
 design-v3.js
 index.html
+lab/exercises.js
 lab/index.html
 lab/lab.css
 lab/lab.js
@@ -34,6 +35,7 @@ workspace/files.js
 workspace/index.html
 workspace/model.js
 workspace/notebook.js
+workspace/project-bundle.js
 workspace/python-runtime.js
 workspace/quant-worker.js
 workspace/quant.js
