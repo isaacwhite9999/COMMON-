@@ -14,7 +14,7 @@ Baseline: development branch `common/unified-workspace` at d5b4e100a600f0b9565cd
 
 ## Status and known blockers
 
-The [independent acceptance audit](INDEPENDENT_ACCEPTANCE_AUDIT.md) cross-references current source, disposable tests, and blockers by requirement ID.
+The [independent acceptance audit](INDEPENDENT_ACCEPTANCE_AUDIT.md) cross-references implementation candidate evidence, disposable tests, and remaining blockers by requirement ID. The grouped requirements below remain open where they combine several granular features.
 
 - Workstream 01 foundation evidence and remaining coverage are tracked in [Foundation contracts](FOUNDATION_CONTRACTS.md). Existing product-level acceptance remains subject to review.
 
@@ -37,17 +37,17 @@ The [independent acceptance audit](INDEPENDENT_ACCEPTANCE_AUDIT.md) cross-refere
 
 ### Q02 — Research IDE (workstream 03)
 
-- [ ] Q02.01 **Partial / implemented in branch** — Browser-local research project CRUD, notes and export; existing authenticated research studio is separate
+- [ ] Q02.01 **Partial / implemented in branch** — Browser-local project lifecycle, filters, notes and full JSON export. The authenticated Studio has separate account projects.
 - [ ] Q02.02 **Partial / implemented in branch** — Text file explorer, relative paths, revision history and restore; basic source editor with line numbers, find, go-to-line and indentation; verify editor browser regression
 - [ ] Q02.03 **Remaining** — Professional syntax highlighting, language services, autocomplete, linting and diagnostics
 - [ ] Q02.04 **Remaining** — AI inline edits, diff review, tabs, nested folders, cross-file search, terminal, resizable panels and keyboard shortcuts
-- [ ] Q02.05 **Remaining** — Project templates, duplication, complete import/export, Git integration, sharing, persistent storage and collaborative editing
+- [ ] Q02.05 **Partial / implemented in branch** — Browser-local templates, project duplication and versioned source bundles. Complete project import, Git, sharing and collaborative editing remain open.
 
 ### Q03 — Compute and notebooks (workstream 03)
 
 - [ ] Q03.01 **Partial / implemented in branch** — Fixed-function notebook cells: notes, data profile, return distribution, drawdown, SMA backtest, ordered cells, provenance, export and persistence
 - [ ] Q03.02 **Partial / implemented in branch** — Experimental browser Python: pinned Pyodide, opt-in source, worker/opaque iframe, package selection (numpy/pandas/scipy/statsmodels), output cap, cancel and history; actual isolation/runtime tests need to pass
-- [ ] Q03.03 **Remaining** — Executable Python notebook cells, persistent kernels, project data access, artifact storage and package management
+- [ ] Q03.03 **Partial / implemented in branch** — Executable Python notebook cells with per-run review, cancel and local output persistence are verified. Persistent kernels, project data access and hosted artifacts remain open.
 - [ ] Q03.04 **Remaining** — Scikit-learn/PyTorch where appropriate, pinned environment manifests, secret handling and resource monitoring
 - [ ] Q03.05 **Remaining** — Separate isolated cloud compute, CPU/memory/time limits, network deny by default, queued jobs, parallelism, suspension and recovery
 

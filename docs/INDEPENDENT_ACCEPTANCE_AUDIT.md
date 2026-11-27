@@ -2,7 +2,7 @@
 
 Original audit baseline `aa0f89a` (design branch including integration), plus the messaging and Python control corrections in this audit. This is a source and disposable-test audit. Hosted identity, staging integrations, actual provider credentials, assistive technology, and live money were outside the verification environment.
 
-**Candidate granular totals** 69 verified, 3 unverified, 168 partial, 189 missing, 0 broken, 21 external gate.
+**Candidate granular totals** 73 verified, 3 unverified, 168 partial, 185 missing, 0 broken, 21 external gate.
 
 Verified = fully implemented and verified within the stated feature scope. Unverified = implemented but unverified. Partial = partially implemented. Missing = no matching working path found in the inspected domain. Broken = an existing path demonstrably fails. External gate = blocked by an external dependency or regulatory requirement. A prerequisite or numerical engine alone does not establish feature acceptance.
 
@@ -36,6 +36,7 @@ The integration branch `codex/common-implementation-next` starts at `4208e37`. G
 
 - **I1** [Workspace project library](workspace/app.js), [portable source bundle](workspace/project-bundle.js), [bundle tests](../tests/project-bundle.test.cjs), [Chromium project lifecycle](../tests/project-portability.test.mjs)
 - **C1** [Notebook model](workspace/notebook.js), [real Pyodide Chromium suite](../tests/workspace-python-browser.test.mjs)
+- **S1** [Follow and feed SQL](../supabase/migrations/20261127071535_member_following.sql), [disposable authorization tests](../tests/pg_member_following_smoke.sql), [discussion Chromium checks](../tests/discussion-feed-browser.test.mjs)
 - **F1** [Discussion publisher](live-community.js), [draft Chromium suite](../tests/publishing-draft-browser.test.mjs)
 - **L1** [Scored exercise catalog](lab/exercises.js), [Studio Chromium suite](../tests/lab-browser.test.mjs), [exercise persistence and authorization](../tests/pg_research_smoke.sql)
 - **OPS1** [Launch readiness](LAUNCH_READINESS.md), [artifact validation](../tests/test_release_candidate.py), [disposable recovery drill](../tests/recovery-drill.py)
@@ -282,14 +283,14 @@ The integration branch `codex/common-implementation-next` starts at `4208e37`. G
 | SOCIAL-016 | Session and device management | Missing | S | Basic member account and profile; no matching identity or account controls |
 | SOCIAL-017 | Account deletion | Missing | S | Basic member account and profile; no matching identity or account controls |
 | SOCIAL-018 | Personal data export | Missing | S | Basic member account and profile; no matching identity or account controls |
-| SOCIAL-019 | Follow and unfollow | Missing | S | Shared-circle directory and block rules; no matching relationship or discovery graph |
+| SOCIAL-019 | Follow and unfollow | Verified | S1 | A member can follow and unfollow an eligible account. Blocks, restricted account status and circle visibility are enforced in PostgreSQL. |
 | SOCIAL-020 | Friend requests | Missing | S | Shared-circle directory and block rules; no matching relationship or discovery graph |
 | SOCIAL-021 | Accept and decline requests | Missing | S | Shared-circle directory and block rules; no matching relationship or discovery graph |
 | SOCIAL-022 | Mutual connections | Missing | S | Shared-circle directory and block rules; no matching relationship or discovery graph |
 | SOCIAL-023 | Suggested connections | Missing | S | Shared-circle directory and block rules; no matching relationship or discovery graph |
 | SOCIAL-024 | Interest discovery | Missing | S | Shared-circle directory and block rules; no matching relationship or discovery graph |
-| SOCIAL-025 | Follower lists | Missing | S | Shared-circle directory and block rules; no matching relationship or discovery graph |
-| SOCIAL-026 | Following lists | Missing | S | Shared-circle directory and block rules; no matching relationship or discovery graph |
+| SOCIAL-025 | Follower lists | Verified | S1 | A member can browse their visible followers with a cursor. Third-party relationship browsing remains out of scope for these private lists. |
+| SOCIAL-026 | Following lists | Verified | S1 | A member can browse and unfollow visible accounts they follow, with cursor paging and block revalidation. |
 | SOCIAL-027 | Profile visibility | Partial | S | Current fixed-role directory, mandate or audit behavior covers a subset of the requirement. |
 | SOCIAL-028 | Block users | Verified | F | Feed, visibility, replies and block behavior exercised with browser fixtures and PostgreSQL policies. |
 | SOCIAL-029 | Mute users | Missing | S | Shared-circle directory and block rules; no matching relationship or discovery graph |
@@ -297,7 +298,7 @@ The integration branch `codex/common-implementation-next` starts at `4208e37`. G
 | SOCIAL-031 | Consent-based contact discovery | Missing | S | Shared-circle directory and block rules; no matching relationship or discovery graph |
 | SOCIAL-032 | Custom connection lists | Missing | S | Shared-circle directory and block rules; no matching relationship or discovery graph |
 | SOCIAL-033 | Chronological feed | Verified | F | Feed, visibility, replies and block behavior exercised with browser fixtures and PostgreSQL policies. |
-| SOCIAL-034 | Following feed | Missing | F | Circle discussion, likes, local bookmarks and summary handoff; no matching publishing workflow |
+| SOCIAL-034 | Following feed | Verified | S1 | Chronological paginated Following discussion feed uses the existing visibility boundary for general and private posts. |
 | SOCIAL-035 | Discovery feed | Verified | F | Feed, visibility, replies and block behavior exercised with browser fixtures and PostgreSQL policies. |
 | SOCIAL-036 | Text posts | Verified | F | Feed, visibility, replies and block behavior exercised with browser fixtures and PostgreSQL policies. |
 | SOCIAL-037 | Media posts | Missing | F | Circle discussion, likes, local bookmarks and summary handoff; no matching publishing workflow |
@@ -586,7 +587,7 @@ These are separate grouped requirements from the granular counts above. An item 
 
 | Surface | Audit finding | Disposition |
 | --- | --- | --- |
-| Workspace projects and Studio | The same member cannot seamlessly reopen a browser-local project in Studio. Studio owns private account projects; local workspace projects and files live in browser storage. | QUANT-055/057 and SOCIAL-101/102 remain open. Reviewed summaries are the implemented handoff. |
+| Workspace projects and Studio | Studio owns private account projects. The workspace stores projects in the browser and can import portable sources, while shared project identity across departments remains open. | QUANT-055/057 and SOCIAL-101/102 remain open. Reviewed summaries connect the workspace to discussion workflows. |
 | Research assistant and compute | The assistant can receive explicitly selected text. It has no project tool binding or connection to the SQL job queue; browser Python runs separately. | QUANT-002/004/018/067 remain open. No provider secret or delegated execution added. |
 | Market and ownership routes | Several issuer, technical, and ownership paths lead to public filing sources or modeled calculators. A link is useful source navigation. A normalized issuer, market data or filing subject view is separate. | QUANT-085–106 and QUANT-195–213 identify the applicable gaps. |
 | Local and member publishing | Reviewed summaries can reach a private discussion and nonbinding poll. Source artifacts, versioned articles, shared notebooks and contributor review are absent. | SOCIAL-037–054 and SOCIAL-100–115 record partial and missing steps. |
