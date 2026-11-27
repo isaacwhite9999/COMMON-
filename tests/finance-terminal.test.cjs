@@ -36,3 +36,35 @@ const higherYtm=f.bondRisk({face:1000,couponPct:5,yieldPct:7,years:10,frequency:
 assert.ok(higherYtm.price<bond.price);
 assert.throws(()=>f.bondRisk({face:1000,couponPct:5,yieldPct:5,years:10,frequency:3}),/Frequency/);
 console.log('PASS: options parity and Greeks, DCF valuations and WACC sensitivity, equity dilution, coupon bond pricing, duration and DV01');
+
+const dated = (date, amount) => ({ record_date: date, amount });
+const normalise = entries => f.fiscalRows(entries, 'amount', 120);
+const earlierFiscalWindow = normalise([
+  dated('2024-01-03', '34000000000000.09'),
+  dated('2024-01-01', '33999999999999.99'),
+  dated('2024-01-02', '000.2000'),
+]);
+const laterFiscalWindow = normalise([
+  dated('2024-01-03', '34000000000000.10'),
+  dated('2024-01-02', '0.2'),
+  dated('2024-01-04', '34000000000001.00'),
+]);
+assert.deepEqual(f.compareFiscalRows(earlierFiscalWindow, laterFiscalWindow), {
+  changed: [{ date: '2024-01-03', amount: '34000000000000.1', before: '34000000000000.09', delta: '+0.01' }],
+  entering: 1,
+  leaving: 1,
+  overlap: 2,
+});
+assert.deepEqual(f.compareFiscalRows(
+  normalise([dated('2024-02-29','-0.01')]),
+  normalise([dated('2024-02-29','-0.02')]),
+).changed[0].delta, '-0.01');
+assert.equal(f.compareFiscalRows(earlierFiscalWindow, laterFiscalWindow.slice(-1)).overlap, 0);
+for (const invalid of [
+  [], [dated('2023-02-29','1')], [dated('2024-01-01',null)],
+  [dated('2024-01-01','1e6')], [dated('2024-01-01','1'),dated('2024-01-01','2')],
+]) {
+  assert.throws(() => normalise(invalid), /Treasury returned/);
+}
+assert.throws(() => f.fiscalRows([dated('2024-01-01','-1')], 'amount', 120, {nonnegative:true}), /invalid observation/);
+console.log('PASS: exact Treasury source comparisons, date validation and rolling windows');
