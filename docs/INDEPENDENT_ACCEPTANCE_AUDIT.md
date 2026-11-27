@@ -1,10 +1,16 @@
 # Independent acceptance audit
 
-Candidate baseline `aa0f89a` (design branch including integration), plus the messaging and Python control corrections in this audit. This is a source and disposable-test audit. Hosted identity, staging integrations, actual provider credentials, assistive technology, and live money were outside the verification environment.
+Original audit baseline `aa0f89a` (design branch including integration), plus the messaging and Python control corrections in this audit. This is a source and disposable-test audit. Hosted identity, staging integrations, actual provider credentials, assistive technology, and live money were outside the verification environment.
 
-**Granular totals** 62 verified, 4 unverified, 169 partial, 194 missing, 0 broken, 21 external gate.
+**Candidate granular totals** 69 verified, 3 unverified, 168 partial, 189 missing, 0 broken, 21 external gate.
 
 Verified = fully implemented and verified within the stated feature scope. Unverified = implemented but unverified. Partial = partially implemented. Missing = no matching working path found in the inspected domain. Broken = an existing path demonstrably fails. External gate = blocked by an external dependency or regulatory requirement. A prerequisite or numerical engine alone does not establish feature acceptance.
+
+## Implementation candidate
+
+The integration branch `codex/common-implementation-next` starts at `4208e37`. Git ancestry confirmed that this commit contains the tips of PRs #1–10 as listed when work began. The candidate adds focused feature commits without replaying that history. The granular tables below retain the original audit's classifications outside the work validated here. Product-level acceptance still includes multi-department and hosted gates.
+
+**Verification boundary.** Chromium exercised local workspace persistence and actual Pyodide. Member-facing browser tests used controlled service fixtures. PostgreSQL permissions and invariants were tested independently on disposable databases. No hosted migration, live provider call, actual financial operation or production deployment was performed.
 
 ## Evidence sources
 
@@ -27,6 +33,12 @@ Verified = fully implemented and verified within the stated feature scope. Unver
 - **LEARN** [lab.js](lab/lab.js), [live-community.js](live-community.js), [lab-browser.test.mjs](../tests/lab-browser.test.mjs), [pg_research_smoke.sql](../tests/pg_research_smoke.sql)
 - **UX** [shell.js](shared/shell.js), [departments.css](shared/departments.css), [report-controls.js](workspace/report-controls.js), [responsive-design.test.mjs](../tests/responsive-design.test.mjs), [PAGE_AND_UX_SPEC.md](PAGE_AND_UX_SPEC.md)
 - **OPS** [database.py](../backend/database.py), [operations.py](../backend/operations.py), [workflows](../.github/workflows), [load_api.py](../scripts/load_api.py), [test_api_postgres.py](../tests/test_api_postgres.py)
+
+- **I1** [Workspace project library](workspace/app.js), [portable source bundle](workspace/project-bundle.js), [bundle tests](../tests/project-bundle.test.cjs), [Chromium project lifecycle](../tests/project-portability.test.mjs)
+- **C1** [Notebook model](workspace/notebook.js), [real Pyodide Chromium suite](../tests/workspace-python-browser.test.mjs)
+- **F1** [Discussion publisher](live-community.js), [draft Chromium suite](../tests/publishing-draft-browser.test.mjs)
+- **L1** [Scored exercise catalog](lab/exercises.js), [Studio Chromium suite](../tests/lab-browser.test.mjs), [exercise persistence and authorization](../tests/pg_research_smoke.sql)
+- **OPS1** [Launch readiness](LAUNCH_READINESS.md), [artifact validation](../tests/test_release_candidate.py), [disposable recovery drill](../tests/recovery-drill.py)
 
 ## Individual requirements
 
@@ -69,8 +81,8 @@ Verified = fully implemented and verified within the stated feature scope. Unver
 | QUANT-033 | Citations and uncertainty | Partial | A | Prompt-based drafting/review or local notes/history exist; scoped orchestration and verification are absent. |
 | QUANT-034 | Bounded retries and failure recovery | Partial | C | Local execution, inspection, consent, cancel or queue primitives exist; assistant has no corresponding execution integration. |
 | QUANT-035 | Project creation | Verified | I | Local project/file operations and revisions implemented; model/editor and workspace browser passed. |
-| QUANT-036 | Project list and search | Partial | I | Existing local route/list, path-based file view, output, width or shortcuts cover only part of the named requirement. |
-| QUANT-037 | Rename archive restore delete projects | Partial | I | Existing local route/list, path-based file view, output, width or shortcuts cover only part of the named requirement. |
+| QUANT-036 | Project list and search | Verified | I1 | Workspace library filters by name and notes and distinguishes active and archived projects. |
+| QUANT-037 | Rename archive restore delete projects | Verified | I1 | Workspace rename and delete, plus non-destructive archive and restore across reload, passed Chromium. |
 | QUANT-038 | File creation and editing | Verified | I | Local project/file operations and revisions implemented; model/editor and workspace browser passed. |
 | QUANT-039 | Nested folders | Partial | I | Existing local route/list, path-based file view, output, width or shortcuts cover only part of the named requirement. |
 | QUANT-040 | File move rename delete | Verified | I | Local project/file operations and revisions implemented; model/editor and workspace browser passed. |
@@ -86,15 +98,15 @@ Verified = fully implemented and verified within the stated feature scope. Unver
 | QUANT-050 | File revision history and restore | Verified | I | Local project/file operations and revisions implemented; model/editor and workspace browser passed. |
 | QUANT-051 | Git integration | Missing | I | Local text workspace and separate private Studio; no matching IDE/project workflow |
 | QUANT-052 | Collaborative editing | Missing | I | Local text workspace and separate private Studio; no matching IDE/project workflow |
-| QUANT-053 | Project templates | Missing | I | Local text workspace and separate private Studio; no matching IDE/project workflow |
-| QUANT-054 | Project duplication | Missing | I | Local text workspace and separate private Studio; no matching IDE/project workflow |
-| QUANT-055 | Project import | Missing | I | Local text workspace and separate private Studio; no matching IDE/project workflow |
-| QUANT-056 | Project export | Unverified | I | JSON export handler exists; download and round-trip interoperability were not independently verified. |
+| QUANT-053 | Project templates | Verified | I1 | Blank, strategy evaluation and portfolio risk templates initialize a local research project. |
+| QUANT-054 | Project duplication | Verified | I1 | An independent local project copy preserves research data with its own project ID. |
+| QUANT-055 | Project import | Partial | I1 | Project source bundle imports notes and bounded file revision history. Full project reports, data, notebooks and account-project imports remain open. |
+| QUANT-056 | Project export | Verified | I1 | Chromium downloads the full local project JSON and the versioned portable sources bundle. |
 | QUANT-057 | Project sharing and permission management | Partial | H | Share reviewed evidence to a circle; project permissions and collaboration absent. |
 | QUANT-058 | Keyboard shortcuts | Partial | I | Existing local route/list, path-based file view, output, width or shortcuts cover only part of the named requirement. |
 | QUANT-059 | Autosave and unsaved changes protection | Missing | I | Local text workspace and separate private Studio; no matching IDE/project workflow |
 | QUANT-060 | Browser Python runtime | Verified | C | Pinned Python runtime in a fresh worker iframe; actual Chromium run/cancel/probe passed. |
-| QUANT-061 | Executable Python notebook cells | Missing | C | Browser sandbox and internal queue; no matching notebook/remote worker workflow |
+| QUANT-061 | Executable Python notebook cells | Verified | C1 | Reviewed Python notebook cells execute in the browser sandbox. Output persists across reload, and edits, failures, cancellation and export are covered. |
 | QUANT-062 | Markdown notebook cells | Partial | C | Fixed notebook or bounded browser/SQL primitive exists; full project/runtime orchestration and isolation are absent. |
 | QUANT-063 | Kernel lifecycle and restart | Partial | C | Fixed notebook or bounded browser/SQL primitive exists; full project/runtime orchestration and isolation are absent. |
 | QUANT-064 | Scientific package management | Partial | C | Fixed notebook or bounded browser/SQL primitive exists; full project/runtime orchestration and isolation are absent. |
@@ -304,7 +316,7 @@ Verified = fully implemented and verified within the stated feature scope. Unver
 | SOCIAL-050 | Hashtags and ticker tags | Missing | F | Circle discussion, likes, local bookmarks and summary handoff; no matching publishing workflow |
 | SOCIAL-051 | Post editing | Partial | F | Single-level discussion replies or author update policy present; full reply threading or edit UI absent. |
 | SOCIAL-052 | Revision history | Missing | F | Circle discussion, likes, local bookmarks and summary handoff; no matching publishing workflow |
-| SOCIAL-053 | Drafts | Partial | F | Existing feed, opinions, summaries, likes or local drafts cover a subset; richer/persistent publication contract absent. |
+| SOCIAL-053 | Drafts | Partial | F1 | One discussion draft per account on the device persists through reload and failed publication, with explicit discard. Cross-device, multi-draft and other publishing surfaces remain open. |
 | SOCIAL-054 | Scheduled publishing | Missing | F | Circle discussion, likes, local bookmarks and summary handoff; no matching publishing workflow |
 | SOCIAL-055 | Post visibility | Verified | F | Feed, visibility, replies and block behavior exercised with browser fixtures and PostgreSQL policies. |
 | SOCIAL-056 | Recommendation controls | Missing | F | Circle discussion, likes, local bookmarks and summary handoff; no matching publishing workflow |
@@ -446,7 +458,7 @@ Verified = fully implemented and verified within the stated feature scope. Unver
 | SOCIAL-192 | Learning progress | Verified | LEARN | Browser completion action passed with a fixture. Disposable SQL verifies persistence and account isolation. |
 | SOCIAL-193 | AI tutor | Missing | LEARN | Circle browsing and Studio lessons; no matching discovery or education workflow |
 | SOCIAL-194 | Risk education | Partial | LEARN | Contextual content and calculators exist; dedicated curriculum/glossary or diligence pipeline incomplete. |
-| SOCIAL-195 | Interactive exercises | Partial | LEARN | Contextual content and calculators exist; dedicated curriculum/glossary or diligence pipeline incomplete. |
+| SOCIAL-195 | Interactive exercises | Verified | L1 | Eight scored exercises include explanations and separate private completion. Browser reload, idempotency and cross-account policies were verified. |
 | SOCIAL-196 | Mentorship workflows | Missing | LEARN | Circle browsing and Studio lessons; no matching discovery or education workflow |
 | SOCIAL-197 | Financial glossary and contextual definitions | Partial | LEARN | Contextual content and calculators exist; dedicated curriculum/glossary or diligence pipeline incomplete. |
 | SOCIAL-198 | Venture discovery and research | Partial | LEARN | Contextual content and calculators exist; dedicated curriculum/glossary or diligence pipeline incomplete. |
@@ -484,8 +496,8 @@ Verified = fully implemented and verified within the stated feature scope. Unver
 | PLATFORM-026 | Cost controls | Partial | OPS | Bounded implementation and test evidence exist; full product and hosted operational assurance remain open. |
 | PLATFORM-027 | Observability and monitoring | Partial | OPS | Bounded implementation and test evidence exist; full product and hosted operational assurance remain open. |
 | PLATFORM-028 | Secrets management | Partial | OPS | Bounded implementation and test evidence exist; full product and hosted operational assurance remain open. |
-| PLATFORM-029 | Backups and recovery | Missing | OPS | Current API, database and validation tooling; no matching operational mechanism |
-| PLATFORM-030 | Staging and production separation | Partial | OPS | Bounded implementation and test evidence exist; full product and hosted operational assurance remain open. |
+| PLATFORM-029 | Backups and recovery | Partial | OPS1 | Disposable PostgreSQL crash recovery and cold-backup restore passed. Hosted backup cadence, independently tested restore and point-in-time recovery remain open. |
+| PLATFORM-030 | Staging and production separation | Partial | OPS1 | Isolated public candidate has a generated disabled configuration. A connected hosted staging environment and provider fixture are open. |
 | PLATFORM-031 | CI/CD | Verified | OPS | Migration chain, PR workflows and unit/integration regression verified for the candidate. |
 | PLATFORM-032 | Unit and integration tests | Verified | OPS | Migration chain, PR workflows and unit/integration regression verified for the candidate. |
 | PLATFORM-033 | Browser and mobile tests | Verified | UX | Chromium viewport matrix and workflow regression passed at 1440/820/390/320 CSS pixels. |
@@ -493,7 +505,7 @@ Verified = fully implemented and verified within the stated feature scope. Unver
 | PLATFORM-035 | Security and adversarial authorization tests | Partial | OPS | Bounded implementation and test evidence exist; full product and hosted operational assurance remain open. |
 | PLATFORM-036 | Visual and accessibility tests | Partial | OPS | Bounded implementation and test evidence exist; full product and hosted operational assurance remain open. |
 | PLATFORM-037 | Load testing with measured capacity | Partial | OPS | Bounded implementation and test evidence exist; full product and hosted operational assurance remain open. |
-| PLATFORM-038 | Controlled rollout and rollback | Partial | OPS | Bounded implementation and test evidence exist; full product and hosted operational assurance remain open. |
+| PLATFORM-038 | Controlled rollout and rollback | Partial | OPS1 | Manual exact-commit and digest promotion and source-revert rollback path implemented for public research. Hosted reviewer and bypass settings block promotion. A hosted rollback rehearsal and member deployment remain open. |
 ## Product backlog cross-check
 
 These are separate grouped requirements from the granular counts above. An item remains partial when any material part is missing, even where one child requirement passed. Route and interaction criteria were checked against [PAGE_AND_UX_SPEC.md](PAGE_AND_UX_SPEC.md). Its logical future routes do not create implementation evidence.
