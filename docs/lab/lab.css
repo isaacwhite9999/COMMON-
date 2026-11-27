@@ -147,3 +147,12 @@ body{background:var(--lab-bg);color:var(--lab-dark);font-family:'DM Sans',system
 .lab-assistant-dialog::backdrop { background: rgb(10 20 35 / 64%); }
 .lab-assistant-dialog [hidden] { display: none; }
 .lab-assistant-dialog pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+
+.lab-glossary details { border-top: 1px solid var(--lab-edge); padding: .65rem 0; }
+.lab-glossary summary { cursor: pointer; font-weight: 650; }
+.lab-glossary details p { margin: .45rem 0 0; }
+.lab-glossary dl { display: grid; gap: .9rem; margin: 0 0 1rem; }
+.lab-glossary dt { font-weight: 700; }
+.lab-glossary dd { margin: .25rem 0 0; line-height: 1.6; }
+.lab-glossary dd .lab-button { display: block; margin: .35rem 0 0; }
+.lab-glossary > .lab-button { margin-top: .85rem; }
