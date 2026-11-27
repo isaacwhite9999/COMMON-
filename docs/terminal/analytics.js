@@ -118,5 +118,46 @@
      convexity:convex/price,cashflows,
      caveat:'Fixed-rate bullet bond, flat yield and reinvestment assumptions. Excludes accrued interest, credit spread, optionality, floating rates and taxes.'};
  }
- return {cdf,blackScholes,dcf,capTable,bondRisk,VERSION:'common-finance-v1.1'};
+ function fiscalRows(source,key,limit,{nonnegative=false}={}){
+   if(!Array.isArray(source)||source.length<1||source.length>limit)
+     throw Error('Treasury returned an empty or oversized observation window.');
+   const seen=new Set();
+   return source.map(row=>{
+     const date=row?.record_date??row?.date,raw=row?.[key];
+     const instant=typeof date==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(date)?Date.parse(date):NaN;
+     if(!Number.isFinite(instant)||new Date(instant).toISOString().slice(0,10)!==date||seen.has(date))
+       throw Error('Treasury returned an invalid or duplicate record date.');
+     seen.add(date);
+     const match=typeof raw==='string'&&/^(-?)(\d{1,18})(?:\.(\d{1,8}))?$/.exec(raw);
+     if(!match||nonnegative&&match[1]==='-')throw Error('Treasury returned an invalid observation value.');
+     const whole=BigInt(match[2]).toString(),fraction=(match[3]||'').replace(/0+$/,'');
+     const amount=(match[1]&&(whole!=='0'||fraction)?'-':'')+whole+(fraction?'.'+fraction:'');
+     return {date,amount};
+   }).sort((a,b)=>a.date.localeCompare(b.date));
+ }
+ function fiscalDelta(before,after){
+   const scale=Math.max(before.split('.')[1]?.length??0,after.split('.')[1]?.length??0);
+   const integer=value=>{
+     const [whole,fraction='']=value.split('.');
+     return BigInt(whole+fraction.padEnd(scale,'0'));
+   };
+   const difference=integer(after)-integer(before);
+   const magnitude=(difference<0n?-difference:difference).toString().padStart(scale+1,'0');
+   const fraction=scale?magnitude.slice(-scale).replace(/0+$/,''):'';
+   return (difference<0n?'-':difference>0n?'+':'')+
+     (scale?magnitude.slice(0,-scale):magnitude)+(fraction?'.'+fraction:'');
+ }
+ function compareFiscalRows(previous,latest){
+   const earlier=new Map(previous.map(row=>[row.date,row.amount]));
+   const changed=[];
+   let entering=0,overlap=0;
+   for(const row of latest){
+     if(!earlier.has(row.date)){entering++;continue;}
+     overlap++;
+     const before=earlier.get(row.date);
+     if(before!==row.amount)changed.push({...row,before,delta:fiscalDelta(before,row.amount)});
+   }
+   return {changed:changed.reverse(),entering,leaving:previous.length-overlap,overlap};
+ }
+ return {cdf,blackScholes,dcf,capTable,bondRisk,fiscalRows,compareFiscalRows,VERSION:'common-finance-v1.1'};
 });
