@@ -132,8 +132,8 @@ const renderCell=(c,i)=>{
 };
 return '<div class="notebook-layout"><div>'+section('Research notebook',empty('Save research notes, analyze a dataset, or run a Python cell in a fresh browser environment.')+a('datasets','Manage evidence datasets')+b('export-notebook:'+p.id,'Export notebook'))+cells.map(renderCell).join('')+(!cells.length?section('Empty notebook',empty('Add a research note, dataset analysis or Python cell to begin.')):'')+'</div><aside>'+editor+'</aside></div>';}
 function fileDesk(p,detail){const files=F.list(p),base='research/'+p.id+'/files',file=files.find(x=>x.id===detail);
-const explorer='<aside class="file-explorer"><div class="row between"><strong>Explorer</strong>'+b('new-file:'+p.id,'New file')+'</div><div class="eyebrow">PROJECT / '+files.length+' FILES</div>'+files.slice().sort((a,b)=>a.path.localeCompare(b.path)).map(f=>a(base+'/'+f.id,f.path,'file-row '+(f.id===detail?'active':''))).join('')+(files.length?'':empty('Create your first text file.'))+'</aside>';
-const editor=file?'<div class="editor-pane"><div class="row between"><strong>'+esc(file.path)+'</strong><span class="muted">Text only · not executable</span></div>'+form('edit-file:'+p.id+':'+file.id,field('path','Relative path',file.path)+'<label for="file-source">Source editor</label><textarea id="file-source" class="source-editor" name="content" maxlength="40000" spellcheck="false">'+esc(file.content)+'</textarea>','Save revision')+'<div class="row">'+b('export-file:'+p.id+':'+file.id,'Download source')+b('delete-file:'+p.id+':'+file.id,'Delete file')+'</div>'+section('Revision history',file.revisions.length?table(['Modified','Path',''],file.revisions.map((r,i)=>[day(r.at),esc(r.path),b('restore-file:'+p.id+':'+file.id+'/'+i,'Restore')])):empty('No previous versions.'))+'</div>':'<div class="editor-pane"><h2>Project source files</h2><p class="muted">Maintain research notes, Python source, configuration JSON and small CSV samples. Paths and revisions are saved locally. Python is edited as text, never executed in the browser.</p>'+b('new-file:'+p.id,'Create source file','primary')+'</div>';
+const explorer='<aside class="file-explorer"><div class="row between"><strong>Explorer</strong>'+b('new-file:'+p.id,'New file')+'</div>'+b('search-project-files:'+p.id,'Find and replace in project')+'<div class="eyebrow">PROJECT / '+files.length+' FILES</div>'+files.slice().sort((a,b)=>a.path.localeCompare(b.path)).map(f=>a(base+'/'+f.id,f.path,'file-row '+(f.id===detail?'active':''))).join('')+(files.length?'':empty('Create your first text file.'))+'</aside>';
+const editor=file?'<div class="editor-pane"><div class="row between"><strong>'+esc(file.path)+'</strong><span class="muted">Text only · not executable</span></div>'+form('edit-file:'+p.id+':'+file.id,field('path','Relative path',file.path)+'<label for="file-source">Source editor</label><textarea id="file-source" class="source-editor" name="content" maxlength="40000" spellcheck="false">'+esc(file.content)+'</textarea>','Save revision')+'<div class="row">'+b('export-file:'+p.id+':'+file.id,'Download source')+b('delete-file:'+p.id+':'+file.id,'Delete file')+'</div>'+section('Revision history',file.revisions.length?table(['Modified','Path',''],file.revisions.map((r,i)=>[day(r.at),esc(r.path),b('restore-file:'+p.id+':'+file.id+'/'+i,'Restore')])):empty('No previous versions.'))+'</div>':'<div class="editor-pane"><h2>Project source files</h2><p class="muted">Maintain research notes, Python source, configuration JSON and small CSV samples. Paths and revisions are saved locally. Opening or editing source does not run it.</p>'+b('new-file:'+p.id,'Create source file','primary')+'</div>';
 return '<div class="ide-layout">'+explorer+editor+'</div>';}
 function validationDesk(p,detail,reportTab){const runs=p.validations||[],base='research/'+p.id+'/validation',run=runs.find(x=>x.id===detail);
 if(!run)return section('Walk-forward parameter research',empty('Train on earlier data, select the best training Sharpe, and evaluate on the next unseen block. Only complete non-overlapping test folds are included.')+form('validate:'+p.id,''+datasetInput('Validation dataset CSV')+'<div class="grid">'+field('fast','Fast SMA periods (comma-separated)','5,10,20')+field('slow','Slow SMA periods (comma-separated)','30,50,100')+field('train','Training observations',252,'number')+field('test','Test observations',63,'number')+field('fee','Execution cost (bps)',s.settings.fee,'number')+'</div>','Run walk-forward analysis')+'<p id="quant-progress" role="status" class="muted"></p>'+b('cancel-quant:'+p.id,'Cancel active analysis'))+section('Validation history',runs.length?table(['Dataset','Folds','OOS return','Benchmark',''],runs.slice().reverse().map(r=>[esc(r.dataset.name),r.folds.length,pct(r.metrics.totalReturn),pct(r.benchmark.totalReturn),a(base+'/'+r.id,'Open report')])):empty('No validation runs. Upload your historical CSV to begin.'));
@@ -153,6 +153,68 @@ if(t==='integrations')c=table(['Service','Availability'],[['Member identity','Ex
 if(t==='data')c=empty('Saved to this browser only. Not synchronized with member accounts.')+b('export-all','Export workspace')+b('reset-all','Delete local workspace');
 return head('Settings','Configure workspace appearance, analytical defaults and local storage.')+'<div class="settings"><nav aria-label="Settings categories">'+[['appearance','Appearance'],['research','Research defaults'],['integrations','Integrations'],['data','Data & privacy']].map(([k,x])=>a('settings/'+k,x,'nav '+(k===t?'active':''))).join('')+'</nav>'+section(t[0].toUpperCase()+t.slice(1),c)+'</div>';}
 function show(title,content){dialog.classList.remove('wide-report');dialog.innerHTML='<div class="row between"><h2>'+esc(title)+'</h2>'+b('close','Close')+'</div><br>'+content;if(!dialog.open)dialog.showModal();CommonEditor.enhance(dialog);}
+function searchProjectFiles(project) {
+ const editor=app.querySelector('form[data-form^="edit-file:"]');
+ if(editor){
+  const selected=F.list(project).find(file=>file.id===editor.dataset.form.split(':').at(-1));
+  if(selected&&(editor.elements.path.value!==selected.path||
+   editor.elements.content.value!==selected.content.replace(/\r\n?/g,'\n'))){
+   throw Error('Save the current source revision before searching the project.');
+  }
+ }
+ const readWorkspace = () => {
+  const snapshot = M.load(localStorage.getItem(key));
+  const current = snapshot.projects.find(item => item.id === project.id);
+  if (!current) throw Error('This project is no longer available.');
+  return {snapshot,current};
+ };
+ show('Find and replace in project',empty('Searches saved source files in this project. Matching is case-sensitive. Each changed file keeps its previous revision.')+
+  '<form data-file-search><label>Find text<input type="search" name="query" maxlength="240" required></label>'+
+  '<label class="file-search-check"><input type="checkbox" name="replace"> Prepare replacements</label><label>Replace with<input name="replacement" maxlength="240" placeholder="Leave empty to remove matches" disabled></label>'+
+  '<button class="primary" type="submit">Search saved files</button></form>'+
+  '<div data-file-search-results></div><p role="status" data-file-search-status></p>');
+ const form = dialog.querySelector('[data-file-search]');
+ const results = dialog.querySelector('[data-file-search-results]');
+ const status = dialog.querySelector('[data-file-search-status]');
+ form.querySelector('[name=query]').focus();
+ form.addEventListener('input',()=>{
+  form.elements.replacement.disabled=!form.elements.replace.checked;
+  results.replaceChildren();
+  status.textContent='';
+ });
+ form.addEventListener('submit',event=>{
+  event.preventDefault();
+  results.replaceChildren();
+  try {
+   const {query,replacement,replace}=Object.fromEntries(new FormData(form));
+   const editing=Boolean(replace)&&query!==replacement;
+   const matches=F.search(readWorkspace().current,query);
+   const total=matches.reduce((count,match)=>count+match.count,0);
+   status.textContent=total?total+' matches in '+matches.length+(matches.length===1?' file.':' files.'):'No matching saved source files.';
+   if(!matches.length)return;
+   const base='research/'+project.id+'/files/';
+   results.innerHTML='<form data-file-replacement><fieldset><legend>Files with matches</legend>'+matches.map(({file,count,before,after})=>
+    '<div class="panel"><p>'+a(base+file.id,file.path)+' · '+count+(count===1?' match':' matches')+'</p><p>First match <code class="file-search-preview">'+esc(before)+'<mark>'+esc(query)+'</mark>'+esc(after)+'</code></p>'+
+    (!editing?'':'<p>Preview <code class="file-search-preview">'+esc(before)+(replacement?'<mark>'+esc(replacement)+'</mark>':'')+esc(after)+'</code></p>')+
+    (editing?'<label class="file-search-check"><input type="checkbox" name="selected" value="'+esc(file.id)+'"> Include '+esc(file.path)+'</label>':'')+'</div>').join('')+'</fieldset>'+
+    (editing?'<button type="submit" class="primary">Replace in selected files</button>':'')+'</form>';
+   const replaceForm=results.querySelector('form');
+   replaceForm.addEventListener('submit',event=>{
+    event.preventDefault();
+    if(!editing)return;
+    try {
+     if(blocked)throw Error('Stored data could not be read. Export or reset it first.');
+     const chosen=new Set(new FormData(replaceForm).getAll('selected'));
+     const {snapshot,current}=readWorkspace();
+     const updated={...F.replaceReviewed(current,matches,chosen,query,replacement),updated:new Date().toISOString()};
+     save({...snapshot,projects:snapshot.projects.map(item=>item.id===current.id?updated:item)});
+     dialog.close();
+     toast('Updated '+chosen.size+(chosen.size===1?' source file.':' source files.'));
+    } catch(err) { status.textContent=err.message; }
+   });
+  } catch(err) { status.textContent=err.message; }
+ });
+}
 function reviewShare(draft){
  show('Review research before sharing',empty('Only the text below is transferred. Raw data and source files stay here.')+
  form('handoff','<label>Discussion title<input name="title" required minlength="8" maxlength="160" value="'+esc(draft.title)+'"></label>'+
@@ -204,6 +266,7 @@ case 'run-cell':{if(!p)throw Error('Project not found.');const cell=N.list(p).fi
 case 'move-cell':{const [cid,delta]=String(i).split('/');update(id,p=>N.move(p,cid,Number(delta)));break;}
 case 'delete-cell':if(confirm('Delete cell and output?')){update(id,p=>N.remove(p,i));location.hash='research/'+id+'/notebook';}break;
 case 'export-notebook':if(p)exportData('common-research-notebook.json',{project:p.name,version:N.VERSION,cells:N.list(p)});break;
+case 'search-project-files':if(p)searchProjectFiles(p);break;
 case 'new-file':show('Create project file',form('new-file:'+id,field('path','Relative path','research/notes.md')+'<label for="new-file-source">Source editor</label><textarea id="new-file-source" class="source-editor" name="content" maxlength="40000" spellcheck="false"></textarea>','Create file'));break;
 case 'export-file':{const f=F.list(p).find(x=>x.id===i);if(!f)throw Error('File not found.');const url=URL.createObjectURL(new Blob([f.content],{type:'text/plain;charset=utf-8'})),el=document.createElement('a');el.href=url;el.download=f.path.split('/').pop();el.click();setTimeout(()=>URL.revokeObjectURL(url),500);break;}
 case 'delete-file':if(confirm('Delete this file and its revisions?')){update(id,p=>F.remove(p,i));location.hash='research/'+id+'/files';}break;
