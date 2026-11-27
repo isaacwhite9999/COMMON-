@@ -1,37 +1,89 @@
-name: Publish COMMON educational showcase
+name: Promote COMMON public research candidate
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'docs/**'
-      - '.github/workflows/publish-showcase.yml'
   workflow_dispatch:
+    inputs:
+      reviewed_commit:
+        description: Full SHA of the reviewed current main commit
+        required: true
+        type: string
+      candidate_sha256:
+        description: Reviewed SHA-256 from the candidate workflow for this commit
+        required: true
+        type: string
+      acknowledgement:
+        description: Authorize promotion of the public research profile
+        required: true
+        default: Decline
+        type: choice
+        options:
+          - Decline
+          - Promote public research candidate
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
   group: common-pages
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
-  publish:
+  verify:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      COMMON_PROMOTION_ACKNOWLEDGEMENT: ${{ inputs.acknowledgement }}
+      COMMON_REVIEWED_COMMIT: ${{ inputs.reviewed_commit }}
+      COMMON_CANDIDATE_SHA256: ${{ inputs.candidate_sha256 }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Rebuild and verify the reviewed candidate
+        run: |
+          python scripts/release_candidate.py authorize --commit "$COMMON_REVIEWED_COMMIT" --sha256 "$COMMON_CANDIDATE_SHA256"
+          python scripts/release_candidate.py build --commit "$COMMON_REVIEWED_COMMIT" --expected-sha256 "$COMMON_CANDIDATE_SHA256" --output "${RUNNER_TEMP}/common-candidate"
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: ${{ runner.temp }}/common-candidate/site
+
+  publish:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
+    env:
+      COMMON_PROMOTION_ACKNOWLEDGEMENT: ${{ inputs.acknowledgement }}
+      COMMON_REVIEWED_COMMIT: ${{ inputs.reviewed_commit }}
+      COMMON_CANDIDATE_SHA256: ${{ inputs.candidate_sha256 }}
+      COMMON_PUBLIC_RESEARCH_PROMOTION_ENABLED: ${{ vars.COMMON_PUBLIC_RESEARCH_PROMOTION_ENABLED }}
     steps:
-      - name: Check out source
-        uses: actions/checkout@v4
-      - name: Configure GitHub Pages
-        uses: actions/configure-pages@v5
-      - name: Upload docs as standalone preview
-        uses: actions/upload-pages-artifact@v3
+      - uses: actions/checkout@v4
         with:
-          path: ./docs
-      - name: Publish GitHub Pages
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Require approval and reject stale releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/environments/github-pages" > "${RUNNER_TEMP}/pages-environment.json"
+          gh api "repos/$GITHUB_REPOSITORY/environments/github-pages/deployment-branch-policies?per_page=2" > "${RUNNER_TEMP}/pages-branches.json"
+          python scripts/release_candidate.py authorize --deploy --commit "$COMMON_REVIEWED_COMMIT" --sha256 "$COMMON_CANDIDATE_SHA256" \
+            --environment-policy "${RUNNER_TEMP}/pages-environment.json" --branch-policies "${RUNNER_TEMP}/pages-branches.json"
+          latest="$(git ls-remote --exit-code origin refs/heads/main | cut -f1)"
+          test "$latest" = "$COMMON_REVIEWED_COMMIT"
+      - name: Publish the verified Pages artifact
         id: deployment
         uses: actions/deploy-pages@v4
