@@ -9,6 +9,8 @@ const otherProject = '85100001-0000-4000-8000-000000000002';
 const goal = 'Test a chronological momentum signal';
 const evidence = 'Use historical evidence with documented transaction costs.';
 const draft = '<model-text>Verify holdout assumptions before interpreting the test.</model-text>';
+const nextEvidence = 'Add slippage sensitivity in the chronological test plan.';
+const nextDraft = 'Measure holdout sensitivity to three explicit slippage scenarios.';
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
 const errors = [];
@@ -33,7 +35,8 @@ try {
           this.calls.push(body);
           if(this.deny)return {error:new Error('Fixture provider unavailable')};
           if(this.defer)await new Promise(resolve=>{this.release=resolve});
-          return {data:{text:${JSON.stringify(draft)},status:'partial'}};
+          const followUp=Boolean(body.previous_draft_id);
+          return {data:{text:followUp?${JSON.stringify(nextDraft)}:${JSON.stringify(draft)},status:'partial',step_number:followUp?2:1}};
         }
       };
       const read=()=>JSON.parse(sessionStorage.getItem('fixture-history')||'[]');
@@ -53,13 +56,16 @@ try {
             delete(){removing=true;return query},
             insert(value){
               if(table!=='research_assistant_drafts')throw Error('Unexpected write to '+table);
-              persist([...read(),{...value,id:crypto.randomUUID(),created_at:'2025-01-01T00:00:00Z'}]);
+              persist([...read(),{step_number:1,...value,id:crypto.randomUUID(),created_at:'2025-01-01T00:00:00Z'}]);
               return Promise.resolve({error:null});
             },
             then(resolve,reject){
               const all=table==='research_workspaces'?projects:table==='research_assistant_drafts'?read():[];
               const rows=all.filter(row=>filters.every(matches=>matches(row)));
-              if(removing)persist(all.filter(row=>!rows.includes(row)));
+              if(removing){
+                if(all.some(row=>rows.some(parent=>parent.id===row.parent_draft_id)))return Promise.resolve({error:{code:'23503'}}).then(resolve,reject);
+                persist(all.filter(row=>!rows.includes(row)));
+              }
               return Promise.resolve({data:rows}).then(resolve,reject);
             }
           };
@@ -81,7 +87,7 @@ try {
   await dialog.getByLabel('Research goal').fill(goal);
   await dialog.getByLabel('Evidence and constraints').fill(evidence);
   const submit = dialog.getByRole('button',{name:'Draft research plan'});
-  const consent = dialog.getByRole('checkbox');
+  const consent = dialog.getByLabel('Send this goal and evidence',{exact:false});
   await submit.click();
   assert.equal(await page.evaluate(()=>fixture.calls.length),0);
   await consent.check();
@@ -107,13 +113,42 @@ try {
     if(button!==document.activeElement)throw Error('Closing the dialog did not restore focus');
   });
 
+  await page.reload();
+  dialog = await open();
+  const root = dialog.locator('details').filter({has:page.locator('summary').filter({hasText:'Turn 1'})});
+  await root.locator('summary').click();
+  await root.getByRole('button',{name:'Continue from this draft'}).click();
+  await dialog.getByRole('heading',{name:'Continue with turn 2'}).waitFor();
+  assert.equal(await dialog.getByLabel('Research goal').inputValue(),goal);
+  assert.equal(await dialog.getByLabel('Evidence and constraints').inputValue(),'');
+  assert.equal(await dialog.locator('[data-context]').textContent(),draft);
+  await dialog.getByLabel('Evidence and constraints').fill(nextEvidence);
+  await dialog.getByLabel('Send this goal and evidence',{exact:false}).check();
+  await dialog.getByRole('button',{name:'Draft follow-up'}).click();
+  assert.equal(await page.evaluate(()=>fixture.calls.length),0);
+  await page.evaluate(()=>{fixture.deny=false;});
+  await dialog.getByLabel('Include this previous response excerpt',{exact:false}).check();
+  await dialog.getByRole('button',{name:'Draft follow-up'}).click();
+  await dialog.getByText(nextDraft,{exact:true}).waitFor();
+  const savedRoot = await page.evaluate(()=>JSON.parse(sessionStorage.getItem('fixture-history'))[0]);
+  assert.deepEqual(await page.evaluate(()=>fixture.calls.at(-1)), {
+    workspace_id:project, mode:'plan', goal, input:nextEvidence, consent:true,
+    previous_draft_id:savedRoot.id, previous_context_consent:true
+  });
+  await dialog.getByRole('button',{name:'Save to this project'}).click();
+  await dialog.locator('summary').filter({hasText:'Turn 2'}).waitFor();
+  const savedFollowUp = await page.evaluate(()=>JSON.parse(sessionStorage.getItem('fixture-history'))[1]);
+  assert.equal(savedFollowUp.parent_draft_id,savedRoot.id);
+  assert.equal(savedFollowUp.step_number,2);
+  await dialog.getByRole('button',{name:'Close',exact:true}).click();
+
   await page.getByText('Independent second project',{exact:true}).locator('xpath=../..').getByRole('button',{name:'Open',exact:true}).click();
   await page.getByRole('button',{name:'Project research assistant'}).click();
   dialog = page.getByRole('dialog');
   await dialog.getByText('No drafts saved in this project.').waitFor();
   await dialog.getByLabel('Research goal').fill(goal);
   await dialog.getByLabel('Evidence and constraints').fill(evidence);
-  await dialog.getByRole('checkbox').check();
+  await dialog.getByLabel('Send this goal and evidence',{exact:false}).check();
   await page.evaluate(()=>{fixture.defer=true;});
   await dialog.getByRole('button',{name:'Draft research plan'}).click();
   await page.waitForFunction(()=>typeof fixture.release==='function');
@@ -125,13 +160,25 @@ try {
   dialog = await open();
   await dialog.getByText('The model provider is disabled. Saved project drafts remain available.').waitFor();
   assert.equal(await dialog.getByRole('button',{name:'Draft research plan'}).count(),0);
-  await dialog.locator('summary').filter({hasText:goal}).click();
-  await dialog.getByText(draft,{exact:true}).waitFor();
-  page.once('dialog', confirm=>confirm.accept());
-  await dialog.getByRole('button',{name:'Delete saved draft'}).click();
+  const initialTurn = dialog.locator('details').filter({has:page.locator('summary').filter({hasText:'Turn 1'})});
+  const followUpTurn = dialog.locator('details').filter({has:page.locator('summary').filter({hasText:'Turn 2'})});
+  await initialTurn.locator('summary').click();
+  await initialTurn.getByText(draft,{exact:true}).waitFor();
+  await followUpTurn.locator('summary').click();
+  await followUpTurn.getByText(nextDraft,{exact:true}).waitFor();
+  const deleteTurn = async turn => {
+    page.once('dialog', confirm=>confirm.accept());
+    await turn.getByRole('button',{name:'Delete saved draft'}).click();
+  };
+  await deleteTurn(initialTurn);
+  await dialog.getByText('Delete the follow-up turns before deleting this draft.').waitFor();
+  await deleteTurn(followUpTurn);
+  await followUpTurn.waitFor({state:'detached'});
+  await initialTurn.locator('summary').click();
+  await deleteTurn(initialTurn);
   await dialog.getByText('No drafts saved in this project.').waitFor();
   assert.deepEqual(errors,[]);
-  console.log('PASS mobile project research workflow, opt-in, provider failure, private save, isolation, sign-out and disabled-provider history');
+  console.log('PASS mobile project research workflow, opt-in, provider failure, private save, resumed follow-up, isolation, sign-out and disabled-provider history');
 } finally {
   await browser.close();
 }
