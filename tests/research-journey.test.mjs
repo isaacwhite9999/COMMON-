@@ -32,19 +32,28 @@ try {
         from(table){
           const predicates=[];let single=false;
           const query={insert(value){
-            if(!['proposals','community_messages'].includes(table))throw Error('Unexpected write to '+table);
-            tables[table].push({...value,id:'84300000-0000-4000-8000-000000000001',status:'open',deleted_at:null});
+            if(!['proposals','community_messages','direct_messages'].includes(table))throw Error('Unexpected write to '+table);
+            tables[table].push({...value,id:'84300000-0000-4000-8000-000000000001',status:'open',deleted_at:null,created_at:'2024-01-01T00:00:01Z'});
             return Promise.resolve({data:null});
           },select(){return query},eq(key,value){predicates.push(row=>row[key]===value);return query},
             is(key,value){predicates.push(row=>row[key]===value);return query},in(key,values){predicates.push(row=>values.includes(row[key]));return query},
             order(){return query},limit(){return query},single(){single=true;return query},
             then(resolve,reject){
               if(table==='direct_messages'&&journey.failDM)return Promise.resolve({error:{message:'Fixture read failure'}}).then(resolve,reject);
-              const rows=(tables[table]||[]).filter(row=>predicates.every(predicate=>predicate(row)));
+              const rows=(tables[table]||[]).filter(row=>
+                (table!=='direct_messages'||!row.deleted_at)&&predicates.every(predicate=>predicate(row)));
               return Promise.resolve({data:single?rows[0]:rows}).then(resolve,reject)}};
           return query;
         },
         async rpc(name,args){
+          if(name==='delete_chat_message_v1'){
+            const table=args.message_kind==='direct'?'direct_messages':'community_messages';
+            const row=tables[table].find(item=>item.id===args.message_id&&!item.deleted_at&&
+              (item.sender_id===uid||item.author_id===uid));
+            if(journey.failDelete)return {error:{message:'Fixture delete failed'}};
+            if(row)row.deleted_at='2024-01-01T00:00:02Z';
+            return {data:Boolean(row)};
+          }
           if(name==='discussion_feed_v1')return {data:{items:posted&&args.scope_id===circle?[posted]:[],next:null}};
           if(name!=='publish_research_draft_v1')throw Error('Unexpected RPC '+name);
           window.journey.calls.push(args);
@@ -116,7 +125,17 @@ try {
   await page.getByRole('button',{name:'Group chat'}).click();
   await page.getByPlaceholder('Message your group').fill('Please review the historical sample assumptions.');
   await page.getByRole('button',{name:'Send',exact:true}).click();
-  await page.getByText('Please review the historical sample assumptions.').waitFor();
+  const groupMessage=page.getByText('Please review the historical sample assumptions.');
+  await groupMessage.waitFor();
+  await page.getByLabel('Group message').fill('Unsent discussion follow-up');
+  page.once('dialog', dialog=>dialog.dismiss());
+  await page.getByRole('button',{name:'Delete message',exact:true}).click();
+  await groupMessage.waitFor();
+  page.once('dialog', dialog=>dialog.accept());
+  await page.getByRole('button',{name:'Delete message',exact:true}).click();
+  await page.getByText('Message deleted.',{exact:true}).waitFor();
+  await groupMessage.waitFor({state:'hidden'});
+  assert.equal(await page.getByLabel('Group message').inputValue(),'Unsent discussion follow-up');
   await page.getByRole('button',{name:'Capital & treasury'}).click();
   await page.getByRole('button',{name:'External journal'}).click();
   await page.getByRole('heading',{name:'External journal not activated'}).waitFor();
@@ -131,11 +150,29 @@ try {
   await page.getByRole('button',{name:'Refresh conversation'}).click();
   await page.getByText('New private reply').waitFor();
   assert.equal(await page.getByLabel('Private message').inputValue(),'Unsent research question');
+  assert.equal(await page.getByRole('button',{name:'Delete message',exact:true}).count(),0);
+  await page.getByRole('button',{name:'Send',exact:true}).click();
+  const outgoingMessage=page.locator('.chat-messages .bubble').filter({hasText:'Unsent research question'});
+  await outgoingMessage.waitFor();
+  await page.getByLabel('Private message').fill('Keep my second draft');
+  await page.evaluate(()=>{journey.failDelete=true;});
+  page.once('dialog', dialog=>dialog.accept());
+  await page.getByRole('button',{name:'Delete message',exact:true}).click();
+  await page.getByText('Could not delete the message. Try again.').waitFor();
+  await outgoingMessage.waitFor();
+  await page.evaluate(()=>{journey.failDelete=false;});
+  page.once('dialog', dialog=>dialog.accept());
+  await page.getByRole('button',{name:'Delete message',exact:true}).click();
+  await page.getByText('Message deleted.',{exact:true}).waitFor();
+  await outgoingMessage.waitFor({state:'hidden'});
+  assert.equal(await page.getByLabel('Private message').inputValue(),'Keep my second draft');
+  await page.getByRole('button',{name:'Refresh conversation'}).click();
+  await outgoingMessage.waitFor({state:'hidden'});
   await page.locator('.navbar').getByRole('button',{name:'Research',exact:true}).click();
   await page.getByRole('link',{name:'Research SPY'}).click();
   assert.equal(await page.getByLabel('Instrument (optional)').inputValue(),'SPY');
   assert.deepEqual(failures,[]);
-  console.log('PASS real backtest, signed-out reviewer, explicit private recipient, retry, publication, nonbinding poll and gated accounting');
+  console.log('PASS real backtest, signed-out reviewer, explicit private recipient, retry, publication, nonbinding poll, gated accounting and scoped chat deletion');
 } finally {
   await browser.close();
 }

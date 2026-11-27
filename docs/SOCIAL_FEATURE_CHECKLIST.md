@@ -107,7 +107,7 @@ Expanded from the prior product discussions and the grouped acceptance backlog. 
 - [ ] SOCIAL-089 — Validated attachments
 - [ ] SOCIAL-090 — Voice messages
 - [ ] SOCIAL-091 — Edit messages
-- [ ] SOCIAL-092 — Delete messages
+- [x] SOCIAL-092 — Delete messages
 - [ ] SOCIAL-093 — Archive conversations
 - [ ] SOCIAL-094 — Unread counts
 - [ ] SOCIAL-095 — Notification preferences
