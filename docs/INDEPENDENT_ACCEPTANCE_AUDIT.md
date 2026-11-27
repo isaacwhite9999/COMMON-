@@ -2,7 +2,7 @@
 
 Original audit baseline `aa0f89a` (design branch including integration), plus the messaging and Python control corrections in this audit. This is a source and disposable-test audit. Hosted identity, staging integrations, actual provider credentials, assistive technology, and live money were outside the verification environment.
 
-**Candidate granular totals** 77 verified, 3 unverified, 170 partial, 179 missing, 0 broken, 21 external gate.
+**Candidate granular totals** 78 verified, 3 unverified, 170 partial, 178 missing, 0 broken, 21 external gate.
 
 Verified = fully implemented and verified within the stated feature scope. Unverified = implemented but unverified. Partial = partially implemented. Missing = no matching working path found in the inspected domain. Broken = an existing path demonstrably fails. External gate = blocked by an external dependency or regulatory requirement. A prerequisite or numerical engine alone does not establish feature acceptance.
 
@@ -48,6 +48,7 @@ The candidate branch `codex/common-feature-integration` starts from PR #18 at `d
 - **C2** [Python runtime and pins](workspace/python-runtime.js), [real execution and export](../tests/workspace-python-browser.test.mjs)
 - **D2** [Treasury terminal](terminal/terminal.js), [independent decimal revision tests](../tests/finance-terminal.test.cjs), [Chromium comparison and fallback](../tests/terminal-browser.test.mjs)
 - **S2** [Member connection permissions](../supabase/migrations/20261127184624_member_connection_requests.sql), [role smoke tests](../tests/pg_member_connections_smoke.sql), [two-account Chromium flow](../tests/discussion-feed-browser.test.mjs)
+- **MSG2** [Message delete permissions](../supabase/migrations/20261127185206_delete_chat_messages.sql), [disposable authorization](../tests/pg_chat_deletion_smoke.sql), [circle and DM deletion browser journey](../tests/research-journey.test.mjs)
 - **L2** [Studio glossary](lab/glossary.js), [keyboard and contextual help Chromium tests](../tests/lab-browser.test.mjs)
 
 - **R2** [Portfolio risk model](workspace/risk.js), [known-answer fixtures](../tests/workspace-risk.test.cjs), [Chromium persistence and export](../tests/workspace-browser.test.mjs)
@@ -368,7 +369,7 @@ The candidate branch `codex/common-feature-integration` starts from PR #18 at `d
 | SOCIAL-089 | Validated attachments | Missing | MSG | Scoped group chat and opt-in one-to-one DMs; no matching communications workflow |
 | SOCIAL-090 | Voice messages | Missing | MSG | Scoped group chat and opt-in one-to-one DMs; no matching communications workflow |
 | SOCIAL-091 | Edit messages | Missing | MSG | Scoped group chat and opt-in one-to-one DMs; no matching communications workflow |
-| SOCIAL-092 | Delete messages | Missing | MSG | Scoped group chat and opt-in one-to-one DMs; no matching communications workflow |
+| SOCIAL-092 | Delete messages | Verified | MSG2 | Authors can delete direct messages they sent and their own circle messages. Current circle moderators can delete within their circle. Authorized deletions hide content from participant reads. Browser and role tests cover cancel, retry, draft retention and inaccessible tombstones. |
 | SOCIAL-093 | Archive conversations | Missing | MSG | Scoped group chat and opt-in one-to-one DMs; no matching communications workflow |
 | SOCIAL-094 | Unread counts | Missing | MSG | Scoped group chat and opt-in one-to-one DMs; no matching communications workflow |
 | SOCIAL-095 | Notification preferences | Missing | MSG | Scoped group chat and opt-in one-to-one DMs; no matching communications workflow |
