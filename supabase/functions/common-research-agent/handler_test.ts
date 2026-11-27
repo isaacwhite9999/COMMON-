@@ -34,3 +34,43 @@ Deno.test("bounded and interrupted bodies never reach quota or model",async()=>{
  const interrupted=await handleResearch(new Request("https://function.example",{method:"POST",headers,body:disconnected}),deps);
  assert(interrupted.status===400&&calls===4);
 });
+
+Deno.test("project planning requires owned workspace and sends only the consented fields", async () => {
+ const workspace = "a1000000-0000-4000-8000-000000000001";
+ const input = { workspace_id: workspace, mode: "plan", consent: true,
+  goal: "Compare a momentum rule with the stated benchmark.",
+  input: "Use a chronological holdout and model transaction costs." };
+ const calls: string[] = [];
+ let owns = false;
+ const deps = { env: (k: string) => vars[k], fetch: (async (address: RequestInfo | URL, init?: RequestInit) => {
+  const url = new URL(String(address));
+  calls.push(url.pathname);
+  if (url.pathname === "/auth/v1/user") return Response.json({ id: "pilot" });
+  if (url.pathname === "/rest/v1/research_workspaces") {
+   assert(url.searchParams.get("id") === "eq." + workspace);
+   assert(url.searchParams.get("owner_id") === "eq.pilot");
+   assert(new Headers(init?.headers).get("Authorization") === "Bearer test.jwt");
+   return Response.json(owns ? [{ id: workspace, research_notes: "Private unrelated notes." }] : []);
+  }
+  if (url.hostname === "redis.example") return Response.json({ result: 1 });
+  if (url.hostname === "api.openai.com") {
+   const body = JSON.parse(String(init?.body));
+   const fields = JSON.parse(body.input);
+   assert(fields.research_goal === input.goal && fields.supplied_evidence === input.input);
+   assert(Object.keys(fields).length === 2);
+   assert(!body.input.includes(workspace) && !body.input.includes("Private unrelated notes"));
+   return Response.json({ status: "incomplete", output: [{ type: "message", content: [{ type: "output_text", text: "Plan draft" }] }] });
+  }
+  throw Error("Unexpected upstream call");
+ }) as typeof fetch };
+ assert((await handleResearch(request({ ...input, workspace_id: "invalid" }), deps)).status === 400);
+ assert(calls.join(",") === "/auth/v1/user");
+ calls.length = 0;
+ assert((await handleResearch(request(input), deps)).status === 404);
+ assert(calls.join(",") === "/auth/v1/user,/rest/v1/research_workspaces");
+ calls.length = 0;
+ owns = true;
+ const result = await handleResearch(request(input), deps);
+ assert(result.status === 200 && (await result.json()).status === "partial");
+ assert(calls.join(",") === "/auth/v1/user,/rest/v1/research_workspaces,/,/v1/responses");
+});

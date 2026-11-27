@@ -137,3 +137,13 @@ body{background:var(--lab-bg);color:var(--lab-dark);font-family:'DM Sans',system
 .lab-exercise input { flex: 0 0 auto; }
 .lab-exercise .lab-exercise-feedback { margin: .75rem 0 0; }
 .lab-exercise-feedback:empty { margin: 0; }
+.lab-assistant-dialog {
+  width: min(44rem, calc(100% - 2rem));
+  max-height: calc(100% - 2rem);
+  overflow: auto;
+  margin: auto;
+}
+
+.lab-assistant-dialog::backdrop { background: rgb(10 20 35 / 64%); }
+.lab-assistant-dialog [hidden] { display: none; }
+.lab-assistant-dialog pre { white-space: pre-wrap; overflow-wrap: anywhere; }
