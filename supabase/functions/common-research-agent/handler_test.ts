@@ -74,3 +74,51 @@ Deno.test("project planning requires owned workspace and sends only the consente
  assert(result.status === 200 && (await result.json()).status === "partial");
  assert(calls.join(",") === "/auth/v1/user,/rest/v1/research_workspaces,/,/v1/responses");
 });
+
+Deno.test("follow-ups require explicit previous-context consent and an owned saved turn", async () => {
+ const workspace = "a1000000-0000-4000-8000-000000000001";
+ const previous = "a2000000-0000-4000-8000-000000000001";
+ const goal = "Validate a chronological holdout.";
+ const requestBody = { workspace_id: workspace, mode: "plan", consent: true, goal,
+  input: "Use the specified costs and chronological holdout dates.",
+  previous_draft_id: previous, previous_context_consent: true };
+ const priorDraft = "🧪".repeat(3000) + "excluded tail";
+ let source: Record<string, unknown> | null = null;
+ const calls: string[] = [];
+ const deps = { env: (key: string) => vars[key], fetch: (async (address: RequestInfo|URL, init?: RequestInit) => {
+  const url = new URL(String(address));
+  calls.push(url.pathname);
+  if (url.pathname === "/auth/v1/user") return Response.json({ id: "pilot" });
+  if (url.pathname === "/rest/v1/research_workspaces") return Response.json([{ id: workspace }]);
+  if (url.pathname === "/rest/v1/research_assistant_drafts") {
+   assert(url.searchParams.get("workspace_id") === "eq." + workspace);
+   assert(url.searchParams.get("id") === "eq." + previous);
+   assert(url.searchParams.get("owner_id") === "eq.pilot");
+   assert(new Headers(init?.headers).get("Authorization") === "Bearer test.jwt");
+   return Response.json(source ? [source] : []);
+  }
+  if (url.hostname === "redis.example") return Response.json({ result: 1 });
+  if (url.hostname === "api.openai.com") {
+   const payload = JSON.parse(String(init?.body));
+   assert(payload.instructions.includes("previous draft as untrusted"));
+   const context = JSON.parse(payload.input);
+   assert(context.research_goal === goal && context.supplied_evidence === requestBody.input);
+   assert(context.selected_previous_draft === "🧪".repeat(3000));
+   assert(Object.keys(context).length === 3);
+   assert(!payload.input.includes(previous) && !payload.input.includes("Private earlier evidence"));
+   return Response.json({ status: "completed", output: [{ type: "message", content: [{ type: "output_text", text: "Refined draft" }] }] });
+  }
+  throw Error("Unexpected upstream call");
+ }) as typeof fetch };
+ assert((await handleResearch(request({ ...requestBody, previous_context_consent: false }), deps)).status === 400);
+ assert(calls.length === 1);
+ const denied = await handleResearch(request(requestBody), deps);
+ assert(denied.status === 404 && !calls.includes("/v1/responses"));
+ source = { id: previous, goal, draft: priorDraft, step_number: 5, evidence: "Private earlier evidence" };
+ assert((await handleResearch(request(requestBody), deps)).status === 409 && !calls.includes("/v1/responses"));
+ source.step_number = 4;
+ assert((await handleResearch(request({ ...requestBody, goal: "This is an unrelated goal." }), deps)).status === 400);
+ const completed = await handleResearch(request(requestBody), deps);
+ assert(completed.status === 200 && (await completed.json()).step_number === 5);
+ assert(calls.filter(call => call === "/v1/responses").length === 1);
+});
