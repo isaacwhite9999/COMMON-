@@ -7,13 +7,9 @@ on:
       - 'supabase/migrations/**'
       - 'supabase/schema-drafts/**'
       - 'tests/pg_*.sql'
+      - 'tests/recovery-drill.py'
       - '.github/workflows/test-community-db.yml'
   pull_request:
-    paths:
-      - 'supabase/migrations/**'
-      - 'supabase/schema-drafts/**'
-      - 'tests/pg_*.sql'
-      - '.github/workflows/test-community-db.yml'
 
 jobs:
   database:
@@ -49,6 +45,8 @@ jobs:
             echo "Applying $sql"
             psql -X -v ON_ERROR_STOP=1 -f "$sql"
           done
+      - name: Verify followed member access, lists and timelines
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/pg_member_following_smoke.sql
       - name: Verify identity, membership and private group isolation
         run: psql -X -v ON_ERROR_STOP=1 -f tests/pg_rls_smoke.sql
       - name: Verify meme-coin fraud quarantine and review permissions
@@ -57,7 +55,28 @@ jobs:
         run: psql -X -v ON_ERROR_STOP=1 -f tests/pg_enforcement_smoke.sql
       - name: Verify private research workspaces and experiment RLS
         run: psql -X -v ON_ERROR_STOP=1 -f tests/pg_research_smoke.sql
+      - name: Verify discussion feed visibility, keyset pagination and query plans
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/pg_discussion_feed_smoke.sql
+      - name: Verify research handoff publication and revocation
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/pg_research_handoff_smoke.sql
       - name: Validate external recordkeeping schema draft in disposable database
         run: |
           psql -X -v ON_ERROR_STOP=1 -f supabase/schema-drafts/external-journal.sql
           psql -X -v ON_ERROR_STOP=1 -f tests/pg_external_journal_smoke.sql
+
+  recovery-drill:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install PostgreSQL 16 server binaries if needed
+        run: |
+          if ! test -x /usr/lib/postgresql/16/bin/initdb; then
+            sudo apt-get update
+            sudo apt-get install -y postgresql-16
+          fi
+      - run: pip install 'psycopg[binary]==3.3.9'
+      - run: python tests/recovery-drill.py --postgres-bin /usr/lib/postgresql/16/bin

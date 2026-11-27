@@ -30,8 +30,12 @@
    const T=days/365,rootT=sq(T),d1=(ln(S/K)+(r-q+sigma*sigma/2)*T)/(sigma*rootT),
      d2=d1-sigma*rootT;
    const discountR=exp(-r*T),discountQ=exp(-q*T);
-   const call=S*discountQ*cdf(d1)-K*discountR*cdf(d2);
-   const put=K*discountR*cdf(-d2)-S*discountQ*cdf(-d1);
+   const forwardValue=S*discountQ-K*discountR;
+   // Clamp the cheaper leg against approximation error, then recover the other
+   // leg by parity to retain discounted intrinsic value when tails are tiny.
+   const timeValue=forwardValue<=0?Math.max(0,S*discountQ*cdf(d1)-K*discountR*cdf(d2)):
+     Math.max(0,K*discountR*cdf(-d2)-S*discountQ*cdf(-d1));
+   const call=timeValue+Math.max(0,forwardValue),put=timeValue+Math.max(0,-forwardValue);
    const gamma=discountQ*phi(d1)/(S*sigma*rootT),vega=S*discountQ*phi(d1)*rootT/100;
    const thetaCommon=-S*phi(d1)*sigma*discountQ/(2*rootT);
    const thetaCall=(thetaCommon-r*K*discountR*cdf(d2)+q*S*discountQ*cdf(d1))/365;
@@ -74,7 +78,7 @@
      }
    }
    return {projections,pvFiveYears:pv,pvTerminal,enterpriseValue:enterprise,
-     equityValue:equity,intrinsicPerShare:perShare,terminalWeight:pvTerminal/enterprise,matrix,
+     equityValue:equity,intrinsicPerShare:perShare,terminalWeight:enterprise===0?null:pvTerminal/enterprise,matrix,
      warnings:['User-supplied assumptions; no financial statements are automatically retrieved.',
      'Discounted cash flow is sensitive to WACC, terminal growth and cyclicality.',
      'Use enterprise free cash flow with WACC and subtract net debt; do not substitute earnings or sales.']};
@@ -114,5 +118,5 @@
      convexity:convex/price,cashflows,
      caveat:'Fixed-rate bullet bond, flat yield and reinvestment assumptions. Excludes accrued interest, credit spread, optionality, floating rates and taxes.'};
  }
- return {cdf,blackScholes,dcf,capTable,bondRisk,VERSION:'common-finance-v1'};
+ return {cdf,blackScholes,dcf,capTable,bondRisk,VERSION:'common-finance-v1.1'};
 });

@@ -59,6 +59,10 @@ try {
  const page=await browser.newPage({viewport:{width:1365,height:900}});
  const jsErrors=[];
  page.on('pageerror',err=>jsErrors.push(err.message));
+ await page.route('**/config.js',route=>route.fulfill({
+  contentType:'text/javascript',
+  body:'window.COMMON_CONFIG = {communityBackendReady:true,supabaseUrl:"https://example.invalid",supabaseAnonKey:"test-key"};'
+ }));
  await page.route('**/supabase.min.js',route=>route.fulfill({status:200,contentType:'text/javascript',body:stub}));
  await page.goto(new URL('lab/',base).href,{waitUntil:'domcontentloaded'});
  await page.getByRole('heading',{name:'Think rigorously. Invest independently.'}).waitFor({timeout:25000});
@@ -86,6 +90,8 @@ try {
  await page.getByRole('heading',{name:'Research instructor'}).waitFor();
  await page.getByRole('button',{name:/Avoid lookahead bias/}).click();
  await page.getByText(/Signals from bar/).waitFor();
+ await page.getByRole('button',{name:'Mark lesson complete'}).click();
+ await page.getByRole('button',{name:'Mark incomplete'}).waitFor();
  assert.deepEqual(jsErrors,[],'JavaScript exceptions in Research Studio: '+jsErrors.join('; '));
  await page.setViewportSize({width:390,height:844});
  await page.reload({waitUntil:'domcontentloaded'});

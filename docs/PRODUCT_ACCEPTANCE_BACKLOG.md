@@ -14,6 +14,10 @@ Baseline: development branch `common/unified-workspace` at d5b4e100a600f0b9565cd
 
 ## Status and known blockers
 
+The [independent acceptance audit](INDEPENDENT_ACCEPTANCE_AUDIT.md) cross-references current source, disposable tests, and blockers by requirement ID.
+
+- Workstream 01 foundation evidence and remaining coverage are tracked in [Foundation contracts](FOUNDATION_CONTRACTS.md). Existing product-level acceptance remains subject to review.
+
 - Latest known frontend/API and disposable database checks passed at d5b4e10. Full workspace checks were still running for that head at inventory creation. Prior workspace runs failed. Inspect fresh job logs, particularly editor browser and Python runtime smoke tests, before claiming readiness.
 - AI provider and external journal flags remain disabled unless independently configured and verified; no paid activation authorized.
 - No actual pooled money, deposit, withdrawal, securities execution or legally binding vote is active. No production merge or deployment is authorized by this inventory.
@@ -49,6 +53,8 @@ Baseline: development branch `common/unified-workspace` at d5b4e100a600f0b9565cd
 
 ### Q04 — Market data and APIs (workstream 04)
 
+Q04.01 browser metadata, source isolation, and upgrade evidence are recorded in [Browser dataset catalog](DATASET_STORAGE.md).
+
 - [ ] Q04.01 **Partial / implemented in branch** — Historical CSV import, IndexedDB dataset library, provenance hashes, quality checks and reusable inputs; user-uploaded daily close data
 - [ ] Q04.02 **Partial / implemented in branch** — Existing SEC EDGAR/fundamentals and official economic-data integrations; audit availability and source correctness
 - [ ] Q04.03 **Remaining** — Equity, ETF, international, futures, options, FX, fixed income, trade/quote and depth provider adapters; entitlements
@@ -78,13 +84,13 @@ Baseline: development branch `common/unified-workspace` at d5b4e100a600f0b9565cd
 - [ ] S01.01 **Partial / implemented in branch** — Supabase authentication/profile, registration/recovery, display names/biographies, DM preference, member profiles, shared-group member directory and block/unblock
 - [ ] S01.02 **Partial / implemented in branch** — Public signup SMTP and Google provider setup not established; verify existing auth and permissions
 - [ ] S01.03 **Remaining** — Profile avatar/cover, experience, interests, philosophy, published research, optional verified credentials
-- [ ] S01.04 **Remaining** — Follow/unfollow, friend requests/accept/decline, mutuals, suggestions, followers/following, privacy, mute, custom lists and safe contact discovery
+- [ ] S01.04 **Partial / implemented in branch** — Follow/unfollow and account-scoped Followers and Following lists. Friend requests/accept/decline, mutuals, suggestions, granular privacy, mute, custom lists and safe contact discovery remain open.
 - [ ] S01.05 **Remaining** — Global member/research search, pagination, discovery/recommendations, MFA, devices/session management, privacy/export/deletion and recovery controls
 
 ### S02 — Social publishing and education (workstream 07)
 
 - [ ] S02.01 **Partial / implemented in branch** — Member/community research feed, public discovery, likes, replies, local bookmarks, shared research projects
-- [ ] S02.02 **Remaining** — Following feed, filters and ranking controls, real persistent bookmarks, mentions, hashtags/tickers, reposts/quotes, nested replies and editing/revisions
+- [ ] S02.02 **Partial / implemented in branch** — Chronological Following feed with cursor pagination. Filters and ranking controls, real persistent bookmarks, mentions, hashtags/tickers, reposts/quotes, nested replies and editing/revisions remain open.
 - [ ] S02.03 **Remaining** — Validated media/document attachments, research articles, interactive charts, model/run artifacts, drafts, scheduled publishing, visibility, citations and disclosures
 - [ ] S02.04 **Remaining** — Collaborative workspaces, shared files/notebooks, contributor permissions, assignments, peer review, evidence versioning, publication approval and reusable strategies
 - [ ] S02.05 **Partial / implemented in branch** — Existing financial education and lessons; audit learning progress
@@ -118,6 +124,10 @@ Baseline: development branch `common/unified-workspace` at d5b4e100a600f0b9565cd
 
 ### X01 — Unified product and release infrastructure (workstream 01/10)
 
+The [department integration evidence](DEPARTMENT_INTEGRATION.md) records the completed research-to-circle journey and remaining release requirements for X01.07.
+
+API operations evidence for X01.05 and X01.06 is recorded in [isolated API staging and performance results](API_OPERATIONS.md). Production member identity and full-workload capacity remain open.
+
 - [ ] X01.01 **Partial / implemented in branch** — Separate static research, terminal, studio and community entrypoints; FastAPI prototype and Supabase auth/community backend; draft PR, not unified deployment
 - [ ] X01.02 **Remaining** — Unified session, navigation, shared component system and responsive institutional UX; accessible dense data and beginner progressive disclosure
 - [ ] X01.03 **Remaining** — Deep nested settings: account/security/privacy, appearance/density, AI/model/memory/commands, data/entitlements, compute, portfolio, circles/governance, integrations/API, notifications, billing/usage
@@ -129,3 +139,7 @@ Baseline: development branch `common/unified-workspace` at d5b4e100a600f0b9565cd
 ## Definition of done for each ID
 
 Record the PR, exact files/routes, persistence and authorization, empty/loading/error/recovery states, desktop/mobile accessibility, unit/integration/security and numerical tests with actual results, limitations, and dependency/activation status. Check off only after review of working evidence. Never silently remove a requirement or replace it with placeholders; split into smaller acceptance IDs if useful. Preserve previous functionality. See AGENTS.md for engineering standards.
+
+### Durable queue evidence
+
+X01.05, X01.06, Q01.07 and Q03.05 have tested infrastructure coverage for durable job scheduling, scoped database roles, admission caps, concurrency and crash recovery. See [Durable PostgreSQL jobs](DURABLE_JOB_QUEUE.md) for interfaces, query-plan evidence and remaining handler, isolation and rollout gates.
