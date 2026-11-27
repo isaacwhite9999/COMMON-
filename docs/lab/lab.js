@@ -33,7 +33,7 @@ const lessons=[
  ['bootstrap','Read Monte Carlo cautiously','Resampling past returns helps visualize uncertainty. It cannot predict a crash.',
   'Seeded circular block bootstrap approximately preserves short serial dependence. Results are conditional on the observed sample and omit regime breaks, tail dependence and execution constraints.']
 ];
-let client=null,session=null;
+let client=null,session=null,closeAssistant=null;
 const state={view:'overview',projects:[],runs:[],progress:[],selected:null,bars:null,diagnostics:null,sourceSha:null,sourceLabel:'',
   lastRun:null,sim:null,busy:false,error:'',notice:'',expert:document.documentElement.dataset.commonGuidance==='advanced',lesson:'hypothesis',working:false,uploading:false};
 function info(msg){state.notice=msg;state.error='';render();}
@@ -104,7 +104,7 @@ function workspaces(){
  return hdr('Research projects','Each research question has a private, persistent workspace.')+
  '<div class="lab-card"><div class="lab-split"><h2>Your projects</h2>'+action('New research project','new-project')+'</div>'+
  (state.projects.length?'<div class="lab-item-list">'+state.projects.map(projectCard).join('')+'</div>':'<div class="lab-empty">Nothing saved yet. Create a project to begin.</div>')+'</div>'+
- (p?'<div class="lab-card"><h2>Workspace notes</h2><p>Describe a hypothesis and why it might fail. No trade is placed.</p>'+
+ (p?'<div class="lab-card"><div class="lab-split"><h2>Workspace notes</h2>'+action('Project research assistant','project-assistant',true)+'</div><p>Describe a hypothesis and why it might fail. No trade is placed.</p>'+
  '<form id="notes-form" class="lab-form"><label class="lab-label">Project title<input class="lab-input" name="title" minlength="3" maxlength="110" required value="'+esc(p.title)+'"></label>'+
  '<label class="lab-label">Falsifiable hypothesis<textarea class="lab-input" name="hypothesis" maxlength="5000" rows="4" placeholder="Example: Trend-following on this asset produces better out-of-sample risk-adjusted results than buy-and-hold after fees.">'+esc(p.hypothesis)+'</textarea></label>'+
  '<label class="lab-label">Observations and counterarguments<textarea class="lab-input" name="notes" maxlength="12000" rows="5">'+esc(p.research_notes)+'</textarea></label>'+
@@ -340,6 +340,16 @@ async function saveRun(){
  await loadRuns();info('Experiment saved as a private, immutable research run. It is not verified trading performance.');
 }
 async function dispatch(action,element){
+ if(action==='project-assistant'){
+  const project=current(),owner=session?.user?.id;
+  if(!project||!owner)return;
+  closeAssistant?.();
+  closeAssistant=CommonProjectAssistant.mount(client,{
+   project,owner,enabled:window.COMMON_CONFIG?.researchAgentEnabled===true,
+   currentOwner:()=>session?.user?.id
+  });
+  return;
+ }
  if(action==='share-run'){
   const r=state.lastRun,owner=session?.user?.id;
   if(!r||!owner)throw Error('Sign in and calculate a backtest before sharing.');
@@ -357,7 +367,7 @@ async function dispatch(action,element){
   await loadRuns();state.view='workspaces';render();return;
  }
  if(action==='delete-project'){
-  if(!state.selected||!confirm('Permanently delete this project and all saved experiments?'))return;
+  if(!state.selected||!confirm('Permanently delete this project, its experiments and its assistant drafts?'))return;
   await api(client.from('research_workspaces').delete().eq('id',state.selected).eq('owner_id',session.user.id));
   state.selected=null;state.lastRun=null;state.bars=null;await refresh();info('Project and its experiments deleted.');return;
  }
@@ -420,6 +430,7 @@ async function init(){
  if(projectSymbol)state.view='workspaces';
  client.auth.onAuthStateChange((event,next)=>{
   if(session?.user?.id!==next?.user?.id){
+   closeAssistant?.();closeAssistant=null;
    Object.assign(state,{projects:[],runs:[],progress:[],selected:null,bars:null,diagnostics:null,
     sourceSha:null,sourceLabel:'',lastRun:null,sim:null,error:'',notice:'',view:projectSymbol?'workspaces':'overview'});
   }

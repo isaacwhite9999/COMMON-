@@ -45,6 +45,8 @@ jobs:
             echo "Applying $sql"
             psql -X -v ON_ERROR_STOP=1 -f "$sql"
           done
+      - name: Verify project assistant draft retention and access
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/pg_project_assistant_smoke.sql
       - name: Verify identity, membership and private group isolation
         run: psql -X -v ON_ERROR_STOP=1 -f tests/pg_rls_smoke.sql
       - name: Verify meme-coin fraud quarantine and review permissions
