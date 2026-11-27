@@ -289,19 +289,29 @@ function groupBody(g){
  if(state.groupTab==='research')return '<div class="section-bar"><h3>Shared research library</h3>'+button('new-project','Create research project','primary')+'</div><p class="muted small circle-note">Member-authored research, not independently verified investment recommendations.</p>'+ (projects.filter(p=>p.community_id===g.id).map(p=>'<details class="surface circle-project"><summary><span><strong>'+e(p.title)+'</strong><small>'+e(p.stage)+' · '+e(person(p.author_id))+'</small></span><span class="pill">'+e(p.category)+'</span></summary><p class="post-body">'+e(p.thesis)+'</p><small class="muted">Created '+e(new Date(p.created_at).toLocaleDateString())+'</small></details>').join('')||'<div class="empty">No research projects have been published to this circle.</div>')+'<div class="surface circle-tools"><h3>Research tools</h3><p class="muted small">Run a model privately before sharing your assumptions and evidence.</p><a class="button" href="../workspace/#research">Open research workspace</a> <a class="button secondary" href="../terminal/">Market intelligence</a></div>';
  if(state.groupTab==='about')return '<div class="surface circle-tools"><h3>Coverage mandate</h3><p class="post-body">'+e(g.description)+'</p><dl class="circle-facts"><dt>Discipline</dt><dd>'+e(researchCategoryLabel(g.category))+'</dd><dt>Visibility</dt><dd>'+e(g.visibility)+'</dd><dt>Your role</dt><dd>'+e(memberships.find(m=>m.community_id===g.id)?.role||'Member')+'</dd><dt>Participation</dt><dd>Voluntary; no transfer of ownership or voting rights</dd></dl></div><div class="surface circle-tools"><h3>Trust and accountability</h3><p>Disclose financial interests and assumptions. Verify claims from primary sources. No guaranteed returns, coordinated price manipulation or requests for deposits.</p><a href="../OWNERSHIP_CHARTER.md">Read the ownership charter</a><button class="button secondary" data-tab="safety">Safety and appeals</button></div>';
 
- if(state.groupTab==='chat')return '<div class="surface" style="padding:20px"><h3>Group messages</h3><p class="small muted" style="margin:8px 0 15px">Visible only to group members; refreshes automatically.</p><div id="chat-window" class="chat-messages" style="min-height:240px">'+messages.filter(m=>m.community_id===g.id&&!isBlocked(m.author_id)).map(m=>'<div class="bubble '+(m.author_id===session.user.id?'mine':'')+'"><strong>'+e(person(m.author_id))+': </strong>'+e(m.body)+safetyLabel('community_message',m.id)+'</div>').join('')+'</div><form data-form="chat" class="chat-write"><input class="field" name="body" maxlength="2000" required aria-label="Group message" placeholder="Message your group"><button class="button" type="submit">Send</button></form></div>';
+ if(state.groupTab==='chat')return '<div class="surface" style="padding:20px"><h3 data-chat-focus tabindex="-1">Group messages</h3><div data-message-delete-status role="status"></div><p class="small muted" style="margin:8px 0 15px">Visible only to group members; refreshes automatically.</p><div id="chat-window" class="chat-messages" style="min-height:240px">'+messages.filter(m=>m.community_id===g.id&&!isBlocked(m.author_id)).map(m=>messageBubble(m,'circle',g.id)).join('')+'</div><form data-form="chat" class="chat-write"><input class="field" name="body" maxlength="2000" required aria-label="Group message" placeholder="Message your group"><button class="button" type="submit">Send</button></form></div>';
  if(state.groupTab==='decisions')return decisionPage(g);
  if(state.groupTab==='members')return '<div class="surface" style="padding:22px"><h3>Members</h3><p class="muted small">Member accounts; identity and financial holdings are not independently verified.</p><div class="stack" style="margin-top:15px">'+memberPoll.map(m=>'<div class="space"><div><button class="member-link" data-act="member-profile" data-id="'+m.user_id+'">'+e(person(m.user_id))+'</button> <span class="pill">'+e(m.role)+'</span></div>'+(m.user_id!==session.user.id?button('dm-user','Message','secondary','data-id="'+m.user_id+'"'):'')+'</div>').join('')+'</div></div>';
  if(state.groupTab==='invites')return '<div class="surface" style="padding:22px"><h3>Invite people</h3><p class="muted small" style="margin:10px 0 15px">Secure invitations expire and have limited uses. Community moderators control issuance.</p>'+(own(g.id)?button('make-invite','Create invitation link','primary'):'<p>Ask a moderator for an invitation.</p>')+(state.inviteToken?'<div class="preview-banner"><strong>Invite URL</strong><input class="field" id="invite-url" readonly value="'+e(location.origin+base+'#invite='+state.inviteToken)+'">'+button('copy-invite','Copy URL')+'</div>':'')+'</div>';
  return '<div class="space" style="margin:0 0 12px"><h3>Discussions</h3></div>'+
  discussionPageMarkup(discussionFeed,postCard,'<div class="empty">Be the first to share research here.</div>');
 }
+function messageBubble(message,kind,community){
+ const direct=kind==='direct';
+ const ownMessage=session.user.id===(direct?message.sender_id:message.author_id);
+ const mayDelete=ownMessage||(!direct&&own(community));
+ return '<div class="bubble '+(ownMessage?'mine':'')+'">'+
+  (direct?'':'<strong>'+e(person(message.author_id))+': </strong>')+
+  e(message.body)+safetyLabel(direct?'direct_message':'community_message',message.id)+
+  (mayDelete?'<div class="message-actions">'+button('delete-chat-message','Delete message','ghost',
+   'data-id="'+e(message.id)+'" data-choice="'+kind+'"')+'</div>':'')+'</div>';
+}
 function chat(){
  const peers=memberDirectory.filter(x=>x.id!==session.user.id&&x.allow_direct_messages&&!isBlocked(x.id));
  return head('Messages','Private conversations are opt-in and limited to members sharing a group.')+
  '<div class="surface" style="padding:22px">'+(profile?.allow_direct_messages?'<p class="small muted">Direct messaging is enabled on your profile.</p>':'<p class="small muted">Direct messages are off by default. Enable them under Profile to receive messages from fellow group members.</p>')+
  '<div class="section-bar"><h3>Members accepting messages</h3></div><div class="stack">'+peers.map(p=>'<div class="space connection-list-row"><div><button class="member-link" data-act="member-profile" data-id="'+p.id+'">'+e(p.display_name)+'</button> <span class="tiny muted">@'+e(p.handle)+'</span></div>'+button('dm-user','Open chat','secondary','data-id="'+p.id+'"')+'</div>').join('')+'</div>'+
- (selectedPeer?'<div class="section-bar"><h3>Conversation with '+e(person(selectedPeer))+'</h3>'+button('refresh-dm','Refresh conversation','secondary')+'</div><div data-dm-refresh-status role="status"></div><div class="chat-messages">'+dm.filter(m=>(m.sender_id===selectedPeer&&m.recipient_id===session.user.id)||(m.sender_id===session.user.id&&m.recipient_id===selectedPeer)).map(m=>'<div class="bubble '+(m.sender_id===session.user.id?'mine':'')+'">'+e(m.body)+safetyLabel('direct_message',m.id)+'</div>').join('')+'</div><form data-form="dm" class="chat-write"><input class="field" name="body" required maxlength="2000" aria-label="Private message" placeholder="Write a private message"><button class="button">Send</button></form>':'')+'</div>';
+ (selectedPeer?'<div class="section-bar"><h3 data-chat-focus tabindex="-1">Conversation with '+e(person(selectedPeer))+'</h3>'+button('refresh-dm','Refresh conversation','secondary')+'</div><div data-dm-refresh-status role="status"></div><div data-message-delete-status role="status"></div><div class="chat-messages">'+dm.filter(m=>(m.sender_id===selectedPeer&&m.recipient_id===session.user.id)||(m.sender_id===session.user.id&&m.recipient_id===selectedPeer)).map(m=>messageBubble(m,'direct')).join('')+'</div><form data-form="dm" class="chat-write"><input class="field" name="body" required maxlength="2000" aria-label="Private message" placeholder="Write a private message"><button class="button">Send</button></form>':'')+'</div>';
 }
 function ownership(){
  return head('Private markets & ownership','Develop documented investment theses for real assets, operating businesses, startup capital and shareholder stewardship.',button('new-project','Propose research project','primary'))+
@@ -699,6 +709,7 @@ async function init(){
    profileSection='identity';connectionSection='incoming';state.feed='mine';followProfile=followList=null;mobileMore=false;agentOutput=null;agentInput='';agentMode='review';agentDeskTab='analysis';
    agentDesk=CommonAgentDesk.initial();agentDeskOwner=null;agentLastRequest=null;
    groups=[];memberships=[];proposals=[];projects=[];watches=[];people={};messages=[];dm=[];memberPoll=[];
+   circleMessageRead++;directMessageRead++;
    moderationCases=[];moderationAppeals=[];accountRestrictions=[];selectedGroup=selectedPeer=null;
    state.inviteToken=null;state.comments=null;state.composer=state.groupCreate=state.projectCreate=state.proposalCreate=false;
    recovering=false;resetDiscussionFeed();
@@ -763,9 +774,34 @@ async function refresh(){
  if(selectedGroup&&joined(selectedGroup)&&state.groupTab==='chat')await loadMessages();
  resetDiscussionFeed();render();
 }
-async function loadMessages(){const cid=selectedGroup,uid=session?.user?.id;if(!cid||!uid||!joined(cid))return;const rows=await call(client.from('community_messages').select('*').eq('community_id',cid).is('deleted_at',null).order('created_at',{ascending:false}).limit(100));if(selectedGroup!==cid||session?.user?.id!==uid)return;messages=rows.reverse();const ids=[...new Set(messages.map(x=>x.author_id).filter(id=>!people[id]))];if(ids.length){const p=await call(client.from('profiles').select('id,display_name,handle,allow_direct_messages').in('id',ids));if(selectedGroup===cid&&session?.user?.id===uid)for(const x of p)people[x.id]=x;}}
+let circleMessageRead=0, directMessageRead=0;
+async function loadMessages(){
+ const cid=selectedGroup, uid=session?.user?.id;
+ if(!cid||!uid||!joined(cid))return;
+ const read=++circleMessageRead;
+ const stillOpen=()=>read===circleMessageRead&&selectedGroup===cid&&session?.user?.id===uid;
+ const rows=await call(client.from('community_messages').select('*').eq('community_id',cid)
+  .is('deleted_at',null).order('created_at',{ascending:false}).limit(100));
+ if(!stillOpen())return;
+ messages=rows.reverse();
+ const ids=[...new Set(messages.map(x=>x.author_id).filter(id=>!people[id]))];
+ if(ids.length){
+  const profiles=await call(client.from('profiles').select('id,display_name,handle,allow_direct_messages').in('id',ids));
+  if(stillOpen())for(const p of profiles)people[p.id]=p;
+ }
+}
 async function loadGroupMembers(){const cid=selectedGroup,uid=session?.user?.id;if(!cid||!uid||!joined(cid))return;const rows=await call(client.from('memberships').select('user_id,role').eq('community_id',cid).limit(150));if(selectedGroup!==cid||session?.user?.id!==uid)return;memberPoll=rows;const ids=rows.map(x=>x.user_id).filter(id=>!people[id]);if(ids.length){const p=await call(client.from('profiles').select('id,display_name,handle,allow_direct_messages').in('id',ids));if(selectedGroup===cid&&session?.user?.id===uid)for(const x of p)people[x.id]=x;}}
-async function loadDM(){const peer=selectedPeer,uid=session?.user?.id;if(!peer||!uid)return;const [incoming,outgoing]=await Promise.all([call(client.from('direct_messages').select('*').eq('sender_id',peer).eq('recipient_id',uid).order('created_at',{ascending:false}).limit(100)),call(client.from('direct_messages').select('*').eq('sender_id',uid).eq('recipient_id',peer).order('created_at',{ascending:false}).limit(100))]);if(selectedPeer===peer&&session?.user?.id===uid)dm=[...incoming,...outgoing].sort((a,b)=>a.created_at.localeCompare(b.created_at));}
+async function loadDM(){
+ const peer=selectedPeer, uid=session?.user?.id;
+ if(!peer||!uid)return;
+ const read=++directMessageRead;
+ const readDirection=(sender,recipient)=>call(client.from('direct_messages').select('*')
+  .eq('sender_id',sender).eq('recipient_id',recipient).order('created_at',{ascending:false}).limit(100));
+ const [incoming,outgoing]=await Promise.all([readDirection(peer,uid),readDirection(uid,peer)]);
+ if(read===directMessageRead&&selectedPeer===peer&&session?.user?.id===uid){
+  dm=[...incoming,...outgoing].sort((a,b)=>a.created_at.localeCompare(b.created_at));
+ }
+}
 async function acceptInvite(token){await call(client.rpc('accept_private_invite',{token}));pendingInvite=null;try{sessionStorage.removeItem('common.pendingInvite')}catch{}history.replaceState(null,'',base);await refresh();status('Joined the private community.');}
 async function dispatch(action,element){
  const id=element.dataset.id, choice=element.dataset.choice;
@@ -970,6 +1006,44 @@ async function dispatch(action,element){
  if(action==='reverse-external'){const g=groupById(selectedGroup),original=ledgerRows.find(x=>x.id===id);if(config.externalLedgerEnabled!==true||!g||g.visibility!=='private'||!own(g.id)||ledgerCircle!==g.id||!original||original.reverses_id)throw Error('Reversal unavailable');if(!confirm('Append a reversing entry? Original records remain unchanged.'))return;await call(client.from('circle_external_journal').insert({community_id:g.id,record_date:new Date().toISOString().slice(0,10),source_ref:'rev-'+crypto.randomUUID(),lines:CommonLedger.reverse(original.lines),reverses_id:id}));await loadLedger();render();return}
  if(action==='make-invite'){const token=await call(client.rpc('create_private_invite',{cid:selectedGroup,permitted_uses:10}));state.inviteToken=token;render();return}
  if(action==='copy-invite'){const input=document.getElementById('invite-url');if(input){await navigator.clipboard.writeText(input.value);status('Invitation link copied.')}return}
+ if(action==='delete-chat-message'){
+  const uid=session.user.id, direct=choice==='direct', peer=selectedPeer, circle=selectedGroup;
+  const stillOpen=()=>uid===session?.user?.id&&(direct?
+   view==='chat'&&selectedPeer===peer:view==='groups'&&selectedGroup===circle&&state.groupTab==='chat');
+  const visible=(direct?dm:messages).some(m=>m.id===id&&(direct?
+   m.sender_id===uid&&m.recipient_id===peer:m.community_id===circle&&(m.author_id===uid||own(circle))));
+  if(!stillOpen()||!visible||!confirm('Remove this message from the conversation for everyone?'))return;
+  let deleted;
+  try{
+   deleted=await call(client.rpc('delete_chat_message_v1',{message_kind:choice,message_id:id}));
+  }catch{
+   const message=stillOpen()&&root.querySelector('[data-message-delete-status]');
+   if(message)message.textContent='Could not delete the message. Try again.';
+   return;
+  }
+  if(!stillOpen())return;
+  if(!deleted){
+   const message=root.querySelector('[data-message-delete-status]');
+   if(message)message.textContent='This message may have already been deleted or you no longer have permission.';
+   return;
+  }
+  const inputSelector='[data-form="'+(direct?'dm':'chat')+'"] input[name="body"]';
+  const draft=root.querySelector(inputSelector)?.value;
+  if(direct){
+   directMessageRead++;
+   dm=dm.filter(m=>m.id!==id);
+  }else{
+   circleMessageRead++;
+   messages=messages.filter(m=>m.id!==id);
+  }
+  render();
+  const input=root.querySelector(inputSelector);
+  if(input&&draft!==undefined)input.value=draft;
+  const message=root.querySelector('[data-message-delete-status]');
+  if(message)message.textContent='Message deleted.';
+  root.querySelector('[data-chat-focus]')?.focus();
+  return;
+ }
  if(action==='refresh-dm'){
   const peer=selectedPeer,uid=session.user.id;
   const stillOpen=()=>view==='chat'&&selectedPeer===peer&&session?.user?.id===uid;

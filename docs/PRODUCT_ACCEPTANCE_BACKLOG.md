@@ -98,7 +98,7 @@ Q04.01 browser metadata, source isolation, and upgrade evidence are recorded in 
 
 ### S03 — Circles and messaging (workstream 08)
 
-- [ ] S03.01 **Partial / implemented in branch** — Public/private circles, membership/invites, research library, mandate/trust, member directory, group chat and mutual-member opt-in DMs; current polling rather than real-time
+- [ ] S03.01 **Partial / implemented in branch** — Public/private circles, membership/invites, research library, mandate/trust, member directory, group chat and mutual-member opt-in DMs, with attributed removal by the message author or an authorized circle moderator. Group chat polls and DMs refresh on demand.
 - [ ] S03.02 **Remaining** — Requests, custom roles and granular permissions, committees, subgroups, private/discussion/research/announcement channels, pinned resources
 - [ ] S03.03 **Remaining** — Member removal/suspension, ownership transfer, archive/restore, audit trail and circle branding
 - [ ] S03.04 **Remaining** — Real-time delivery, group DMs, unread counters, read receipts, replies, reactions, presence/typing, search, edit/delete, archives, attachments and notification settings
