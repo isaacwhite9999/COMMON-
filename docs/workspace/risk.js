@@ -1,5 +1,14 @@
 (function(root,factory){const api=factory();if(typeof module==='object'&&module.exports)module.exports=api;root.CommonRisk=api;})(globalThis,function(){'use strict';
-const VERSION='common-risk-v1.1',mean=a=>a.reduce((s,x)=>s+x,0)/a.length;
+const VERSION='common-risk-v1.2',mean=a=>a.reduce((s,x)=>s+x,0)/a.length;
+const NORMAL_95_QUANTILE=1.6448536269514722;
+
+function gaussianVaR95(returns){
+ const dailyMean=mean(returns);
+ const dailyVolatility=Math.sqrt(returns.reduce((sum,value)=>sum+(value-dailyMean)**2,0)/(returns.length-1));
+ const lossFraction=Math.max(0,NORMAL_95_QUANTILE*dailyVolatility-dailyMean);
+ if(!Number.isFinite(lossFraction))throw Error('Gaussian VaR is outside the supported numeric range.');
+ return {distribution:'gaussian',dailyMean,dailyVolatility,lossFraction,confidence:.95,horizonIntervals:1};
+}
 function analyze(assets,opts={}){if(!Array.isArray(assets)||assets.length<2||assets.length>8)throw Error('Choose two to eight distinct datasets.');if(new Set(assets.map(a=>a.id)).size!==assets.length)throw Error('Datasets must be distinct.');
 const weights=assets.map(a=>Number(a.weight));if(weights.some(w=>!Number.isFinite(w)||w<0||w>1)||Math.abs(weights.reduce((a,b)=>a+b,0)-1)>1e-8)throw Error('Long-only target weights must sum to 100%.');
 const fee=Number(opts.fee??10),capital=Number(opts.capital??100000),rf=Number(opts.rf??0);if(!Number.isFinite(fee)||fee<0||fee>1000||!Number.isFinite(capital)||capital<=0||capital>1e12||!Number.isFinite(rf)||rf<0||rf>.5)throw Error('Invalid cost, capital or risk-free assumptions.');
@@ -13,5 +22,5 @@ const p=dates.map((_,i)=>rows.reduce((s,r,j)=>s+weights[j]*r[i],0));const varian
 const contributions=weights.map((w,i)=>variance>0?w*cov[i].reduce((s,v,j)=>s+v*weights[j],0)/variance:null);
 const sorted=p.slice().sort((a,b)=>a-b),tail=sorted.slice(0,Math.max(1,Math.ceil(.05*sorted.length)));const var95=Math.max(0,-tail[tail.length-1]),es95=Math.max(0,-mean(tail));
 let equity=1-fee/10000,peak=1,drawdown=Math.min(0,equity-1),curve=[1],turnover=0;for(let t=0;t<dates.length;t++){const r=p[t];if(r<=-1)throw Error('Portfolio exhausted.');const drift=weights.map((w,i)=>w*(1+rows[i][t])/(1+r));const traded=drift.reduce((s,w,i)=>s+Math.abs(w-weights[i]),0);turnover+=traded;equity*=((1+r)*(1-traded*fee/10000));if(!Number.isFinite(equity))throw Error('Compounded equity is outside the supported numeric range.');peak=Math.max(peak,equity);drawdown=Math.min(drawdown,equity/peak-1);curve.push(equity);}
-return {version:VERSION,assets:assets.map((a,i)=>({id:a.id,label:a.label,weight:weights[i],annualVol:Math.sqrt(cov[i][i]*252),riskContribution:contributions[i]})),observations:dates.length,dates,correlation:corr,covariance:cov,annualVolatility:vol,grossAnnualMean:mean(p)*252,sharpe:vol>0?(mean(p)-((1+rf)**(1/252)-1))*252/vol:null,var95,es95,capital,fee,rf,turnover,netReturn:equity-1,maxDrawdown:drawdown,curve,warning:'Historical daily arithmetic risk estimates, not forecasts. Only identical dated return intervals are aligned; missing intervals are excluded, so compounded results omit them. Annualization assumes 252 observations per year. Historical VaR/ES use gross daily returns and a 5% empirical lower tail; losses can exceed both. Long-only target weights are reset after each included interval; proportional fees include initial allocation and subsequent gross traded notional. No liquidity, tax, market impact or verified corporate actions.'};}
+return {version:VERSION,assets:assets.map((a,i)=>({id:a.id,label:a.label,weight:weights[i],annualVol:Math.sqrt(cov[i][i]*252),riskContribution:contributions[i]})),observations:dates.length,dates,correlation:corr,covariance:cov,annualVolatility:vol,grossAnnualMean:mean(p)*252,sharpe:vol>0?(mean(p)-((1+rf)**(1/252)-1))*252/vol:null,var95,es95,parametricVaR:gaussianVaR95(p),capital,fee,rf,turnover,netReturn:equity-1,maxDrawdown:drawdown,curve,warning:'Historical daily arithmetic risk estimates, not forecasts. Only identical dated return intervals are aligned; missing intervals are excluded, so compounded results omit them. Annualization assumes 252 observations per year. Historical VaR/ES use gross daily returns and a 5% empirical lower tail; losses can exceed both. Long-only target weights are reset after each included interval; proportional fees include initial allocation and subsequent gross traded notional. No liquidity, tax, market impact or verified corporate actions.'};}
 return {analyze,VERSION};});
