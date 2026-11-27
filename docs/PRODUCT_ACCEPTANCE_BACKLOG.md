@@ -29,7 +29,7 @@ The [independent acceptance audit](INDEPENDENT_ACCEPTANCE_AUDIT.md) cross-refere
 
 - [ ] Q01.01 **Partial / implemented in branch** — Authenticated, opt-in research assistant; six modes (review/explain/plan/code/fundamentals/risk), bounded server quota and provider gate
 - [ ] Q01.02 **Partial / implemented in branch** — Local custom slash-command templates, explicitly selected research notes and saved analysis history
-- [ ] Q01.03 **Remaining** — Goal-based persistent project-scoped agent sessions, conversation history and context compaction
+- [ ] Q01.03 **Partial / implemented in branch** — Gated goal-based plans and private, reviewed project draft history. Multi-turn sessions and context compaction remain open.
 - [ ] Q01.04 **Remaining** — Plan/tool/execute/observe/validate state machine with bounded retries, debugging and code corrections
 - [ ] Q01.05 **Remaining** — Fundamental, technical, quant, portfolio, macro, SEC, risk, modeling, data retrieval and verification agents
 - [ ] Q01.06 **Remaining** — Multi-agent orchestration, streaming responses, tool traces, model selection and cost tracking

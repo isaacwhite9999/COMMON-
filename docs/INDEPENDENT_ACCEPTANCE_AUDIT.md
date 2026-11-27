@@ -2,7 +2,7 @@
 
 Original audit baseline `aa0f89a` (design branch including integration), plus the messaging and Python control corrections in this audit. This is a source and disposable-test audit. Hosted identity, staging integrations, actual provider credentials, assistive technology, and live money were outside the verification environment.
 
-**Candidate granular totals** 73 verified, 3 unverified, 168 partial, 185 missing, 0 broken, 21 external gate.
+**Candidate granular totals** 73 verified, 3 unverified, 170 partial, 183 missing, 0 broken, 21 external gate.
 
 Verified = fully implemented and verified within the stated feature scope. Unverified = implemented but unverified. Partial = partially implemented. Missing = no matching working path found in the inspected domain. Broken = an existing path demonstrably fails. External gate = blocked by an external dependency or regulatory requirement. A prerequisite or numerical engine alone does not establish feature acceptance.
 
@@ -34,6 +34,7 @@ The integration branch `codex/common-implementation-next` starts at `4208e37`. G
 - **UX** [shell.js](shared/shell.js), [departments.css](shared/departments.css), [report-controls.js](workspace/report-controls.js), [responsive-design.test.mjs](../tests/responsive-design.test.mjs), [PAGE_AND_UX_SPEC.md](PAGE_AND_UX_SPEC.md)
 - **OPS** [database.py](../backend/database.py), [operations.py](../backend/operations.py), [workflows](../.github/workflows), [load_api.py](../scripts/load_api.py), [test_api_postgres.py](../tests/test_api_postgres.py)
 
+- **A1** [Project assistant](lab/project-assistant.js), [provider contract and fixtures](../supabase/functions/common-research-agent/handler_test.ts), [Chromium assistant journey](../tests/project-assistant-browser.test.mjs), [disposable draft isolation](../tests/pg_project_assistant_smoke.sql)
 - **I1** [Workspace project library](workspace/app.js), [portable source bundle](workspace/project-bundle.js), [bundle tests](../tests/project-bundle.test.cjs), [Chromium project lifecycle](../tests/project-portability.test.mjs)
 - **C1** [Notebook model](workspace/notebook.js), [real Pyodide Chromium suite](../tests/workspace-python-browser.test.mjs)
 - **S1** [Follow and feed SQL](../supabase/migrations/20261127071535_member_following.sql), [disposable authorization tests](../tests/pg_member_following_smoke.sql), [discussion Chromium checks](../tests/discussion-feed-browser.test.mjs)
@@ -47,8 +48,8 @@ The integration branch `codex/common-implementation-next` starts at `4208e37`. G
 
 | ID | Requirement | Classification | Evidence | Assessment |
 | --- | --- | --- | --- | --- |
-| QUANT-001 | Goal-based research agent | Missing | A | One-shot assist and local desk; no matching agent/session/tool pipeline |
-| QUANT-002 | Persistent project-scoped sessions | Missing | A | One-shot assist and local desk; no matching agent/session/tool pipeline |
+| QUANT-001 | Goal-based research agent | Partial | A1 | Owned Studio projects can request a goal-driven plan with explicit evidence and consent. Autonomous steps, tool execution and recovery remain open. |
+| QUANT-002 | Persistent project-scoped sessions | Partial | A1 | Project-bound goals and member-reviewed drafts persist under RLS. Stateful multi-turn sessions and execution context remain open. |
 | QUANT-003 | Write strategy code | Partial | A | Prompt-based drafting/review or local notes/history exist; scoped orchestration and verification are absent. |
 | QUANT-004 | Run approved code | Partial | C | Local execution, inspection, consent, cancel or queue primitives exist; assistant has no corresponding execution integration. |
 | QUANT-005 | Inspect execution outputs | Partial | C | Local execution, inspection, consent, cancel or queue primitives exist; assistant has no corresponding execution integration. |
@@ -75,7 +76,7 @@ The integration branch `codex/common-implementation-next` starts at `4208e37`. G
 | QUANT-026 | Custom commands | Verified | A | Create and apply local command templates; validation and context unit suite passed. |
 | QUANT-027 | Project memory | Partial | A | Prompt-based drafting/review or local notes/history exist; scoped orchestration and verification are absent. |
 | QUANT-028 | Account memory with consent | Partial | A | Prompt-based drafting/review or local notes/history exist; scoped orchestration and verification are absent. |
-| QUANT-029 | Conversation history | Partial | A | Prompt-based drafting/review or local notes/history exist; scoped orchestration and verification are absent. |
+| QUANT-029 | Conversation history | Partial | A1 | Private project drafts retain submitted goals, selected evidence and reviewed responses, with cursor paging and deletion. Full conversational history and model context are open. |
 | QUANT-030 | Context compaction | Missing | A | One-shot assist and local desk; no matching agent/session/tool pipeline |
 | QUANT-031 | Model selection | Missing | A | One-shot assist and local desk; no matching agent/session/tool pipeline |
 | QUANT-032 | Token and cost usage accounting | Missing | A | One-shot assist and local desk; no matching agent/session/tool pipeline |
@@ -283,7 +284,7 @@ The integration branch `codex/common-implementation-next` starts at `4208e37`. G
 | SOCIAL-016 | Session and device management | Missing | S | Basic member account and profile; no matching identity or account controls |
 | SOCIAL-017 | Account deletion | Missing | S | Basic member account and profile; no matching identity or account controls |
 | SOCIAL-018 | Personal data export | Missing | S | Basic member account and profile; no matching identity or account controls |
-| SOCIAL-019 | Follow and unfollow | Verified | S1 | A member can follow and unfollow an eligible account. Blocks, restricted account status and circle visibility are enforced in PostgreSQL. |
+| SOCIAL-019 | Follow and unfollow | Verified | S1 | A member can follow and unfollow an eligible account. Blocks and circle visibility are enforced in PostgreSQL. |
 | SOCIAL-020 | Friend requests | Missing | S | Shared-circle directory and block rules; no matching relationship or discovery graph |
 | SOCIAL-021 | Accept and decline requests | Missing | S | Shared-circle directory and block rules; no matching relationship or discovery graph |
 | SOCIAL-022 | Mutual connections | Missing | S | Shared-circle directory and block rules; no matching relationship or discovery graph |
@@ -588,7 +589,7 @@ These are separate grouped requirements from the granular counts above. An item 
 | Surface | Audit finding | Disposition |
 | --- | --- | --- |
 | Workspace projects and Studio | Studio owns private account projects. The workspace stores projects in the browser and can import portable sources, while shared project identity across departments remains open. | QUANT-055/057 and SOCIAL-101/102 remain open. Reviewed summaries connect the workspace to discussion workflows. |
-| Research assistant and compute | The assistant can receive explicitly selected text. It has no project tool binding or connection to the SQL job queue; browser Python runs separately. | QUANT-002/004/018/067 remain open. No provider secret or delegated execution added. |
+| Research assistant and compute | The assistant can draft and save plans under a private Studio project using explicitly selected text. Project tools, autonomous execution and the worker bridge remain open. | QUANT-002/004/018/067 remain open. No provider secret or delegated execution added. |
 | Market and ownership routes | Several issuer, technical, and ownership paths lead to public filing sources or modeled calculators. A link is useful source navigation. A normalized issuer, market data or filing subject view is separate. | QUANT-085–106 and QUANT-195–213 identify the applicable gaps. |
 | Local and member publishing | Reviewed summaries can reach a private discussion and nonbinding poll. Source artifacts, versioned articles, shared notebooks and contributor review are absent. | SOCIAL-037–054 and SOCIAL-100–115 record partial and missing steps. |
 | Direct messaging | An open conversation had no way to fetch incoming messages in place. | Added scoped manual refresh with draft preservation and an accessible input name. Realtime, unread and attachment work remain open. |
