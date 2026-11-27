@@ -5,6 +5,7 @@
 'use strict';
 const root=document.getElementById('lab-root');
 const engine=window.COMMON_RESEARCH_ENGINE;
+const exercises=window.CommonResearchExercises;
 const requestedSymbol=new URLSearchParams(location.search).get('symbol')||'';
 let projectSymbol=/^[A-Z][A-Z0-9.-]{0,11}$/.test(requestedSymbol)?requestedSymbol:'';
 const $=s=>document.querySelector(s);
@@ -87,7 +88,7 @@ function overview(){
  return hdr('Think rigorously. Invest independently.','A real workspace for research, backtests and financial methods—not invented market data.')+
  '<div class="lab-grid3"><div class="lab-stat"><span>Your projects</span><strong>'+state.projects.length+'</strong><small>Private and persistent</small></div>'+
  '<div class="lab-stat"><span>Saved experiments</span><strong>'+state.runs.length+'</strong><small>Client-calculated, unaudited</small></div>'+
- '<div class="lab-stat"><span>Lessons completed</span><strong>'+state.progress.filter(x=>x.completed).length+' / '+lessons.length+'</strong><small>Learning history saved</small></div></div>'+
+ '<div class="lab-stat"><span>Lessons completed</span><strong>'+lessons.filter(([key])=>hasProgress(key)).length+' / '+lessons.length+'</strong><small>Learning history saved</small></div></div>'+
  '<div class="lab-card"><h2>Research protocol</h2><div class="lab-steps">'+
  [['01','Form a thesis','Write a question someone could disprove.','workspaces'],['02','Inspect data','Import an actual historical CSV and check quality.','data'],['03','Test a rule','Run a lagged, fee-aware backtest.','strategy'],['04','Challenge results','Check holdout performance and risk.','validate']]
  .map(x=>'<button class="lab-step" data-nav="'+x[3]+'"><span>'+x[0]+'</span><div><strong>'+x[1]+'</strong><small>'+x[2]+'</small></div><b>↗</b></button>').join('')+'</div></div>'+
@@ -230,6 +231,52 @@ function catalog(){
  '<a href="https://fred.stlouisfed.org/" target="_blank" rel="noopener noreferrer">FRED ↗</a>'+
  '<a href="https://www.investor.gov/" target="_blank" rel="noopener noreferrer">Investor.gov ↗</a></div></div>';
 }
+function hasProgress(key){
+ return state.progress.some(row=>row.lesson_key===key&&row.completed);
+}
+function renderExercise(lesson){
+ const exercise=exercises?.exercises[lesson];
+ if(!exercise)return '';
+ const passed=hasProgress(exercises.progressKey(lesson));
+ return '<section class="lab-exercise" aria-labelledby="exercise-title"><h3 id="exercise-title">Practice exercise</h3>'+
+ '<form id="exercise-form"><fieldset><legend>'+esc(exercise.question)+'</legend>'+
+ exercise.choices.map(([id,label])=>'<label><input type="radio" name="answer" value="'+esc(id)+'" required> '+esc(label)+'</label>').join('')+
+ '</fieldset><button class="lab-button secondary" type="submit">Check answer</button>'+
+ '<p class="lab-exercise-feedback" role="status" aria-atomic="true">'+(passed?'Exercise completion saved.':'')+'</p></form></section>';
+}
+async function submitExercise(form){
+ const lesson=state.lesson, owner=session?.user?.id;
+ if(!owner)return;
+ const result=exercises.grade(lesson,new FormData(form).get('answer'));
+ if(!result)return;
+ const feedback=form.querySelector('[role="status"]');
+ const key=exercises.progressKey(lesson);
+ if(!result.correct){
+  feedback.textContent='Score: 0 / 1. '+result.message+(hasProgress(key)?' Exercise completion is already saved.':'');
+  return;
+ }
+ const score='Score: 1 / 1. '+result.message;
+ if(hasProgress(key)){
+  feedback.textContent=score+' Exercise completion saved.';
+  return;
+ }
+ feedback.textContent=score+' Saving progress…';
+ const button=form.querySelector('button');
+ button.disabled=true;
+ try {
+  await api(client.from('research_learning_progress').upsert({
+   user_id:owner,lesson_key:key,completed:true,updated_at:new Date().toISOString()
+  },{onConflict:'user_id,lesson_key'}));
+  if(session?.user?.id!==owner)return;
+  state.progress=[...state.progress.filter(row=>row.lesson_key!==key),{lesson_key:key,completed:true}];
+  const visibleFeedback=document.querySelector('#exercise-form [role="status"]');
+  if(state.lesson===lesson&&visibleFeedback)visibleFeedback.textContent=score+' Exercise completion saved.';
+ } catch {
+  feedback.textContent=score+' Progress could not be saved. Check your connection and submit again.';
+ } finally {
+  button.disabled=false;
+ }
+}
 function instructor(){
  const l=lessons.find(x=>x[0]===state.lesson)||lessons[0],complete=state.progress.some(x=>x.lesson_key===l[0]&&x.completed);
  return hdr('Research instructor','Beginner language when you need it; graduate-level detail when you want it.')+
@@ -240,7 +287,7 @@ function instructor(){
  '<h3>Beginner explanation</h3><p>'+esc(l[2])+'</p>'+
  '<h3>Advanced methodology</h3><p>'+esc(l[3])+'</p>'+
  '<div class="lab-row">'+action(complete?'Mark incomplete':'Mark lesson complete','toggle-lesson',false,'data-id="'+l[0]+'"')+
- action('Open relevant screen','lesson-to-screen',true)+'</div></div></div>';
+ action('Open relevant screen','lesson-to-screen',true)+'</div>'+renderExercise(l[0])+'</div></div>';
 }
 function layout(){
  root.innerHTML=sidebar()+'<div class="lab-main">'+breadcrumbs()+'<main>'+alerts()+
@@ -408,7 +455,7 @@ document.addEventListener('change',ev=>{
 });
 document.addEventListener('submit',ev=>{
  const form=ev.target;
- const action=form.id==='create-form'?createProject:form.id==='notes-form'?saveNotes:form.id==='run-form'?runStrategy:null;
+ const action=form.id==='create-form'?createProject:form.id==='notes-form'?saveNotes:form.id==='run-form'?runStrategy:form.id==='exercise-form'?submitExercise:null;
  if(action)safe(()=>action(form))(ev);
 });
 async function init(){
