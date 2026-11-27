@@ -32,7 +32,7 @@ case 'markets':{let t=sub==='sources'?'sources':sub==='terminal'?'terminal':'wat
 case 'datasets':return datasetDesk(sub,id);
 case 'risk':return riskDesk(sub,id);
 case 'research':{const p=s.projects.find(x=>x.id===sub);if(!p)return head('Research projects','Develop a falsifiable hypothesis and preserve the evidence.')+
-section('Project library',form('project',field('name','Project name')+select('template','Starting template',[['blank','Blank'],['strategy','Strategy evaluation'],['risk','Portfolio risk']],'blank'),'Create project')+
+section('Project library',external('canvas/','Open COMMON Canvas')+form('project',field('name','Project name')+select('template','Starting template',[['blank','Blank'],['strategy','Strategy evaluation'],['risk','Portfolio risk']],'blank'),'Create project')+
 '<label>Search projects<input type="search" id="project-search" value="'+esc(projectSearch)+'"></label>'+
 select('project-status','Project status',[['active','Active'],['archived','Archived'],['all','All']],projectStatus)+
 '<div id="project-results">'+projectRows()+'</div>')+

@@ -143,3 +143,7 @@ Record the PR, exact files/routes, persistence and authorization, empty/loading/
 ### Durable queue evidence
 
 X01.05, X01.06, Q01.07 and Q03.05 have tested infrastructure coverage for durable job scheduling, scoped database roles, admission caps, concurrency and crash recovery. See [Durable PostgreSQL jobs](DURABLE_JOB_QUEUE.md) for interfaces, query-plan evidence and remaining handler, isolation and rollout gates.
+
+## COMMON Canvas expansion
+
+The [Canvas acceptance checklist](CANVAS_ACCEPTANCE.md) tracks the expansion individually alongside the existing 450 requirements. Canvas starts with bounded browser-local visualization and specification history. The checklist distinguishes that evidence from hosted, licensed, collaborative and scientific validation work still open.
