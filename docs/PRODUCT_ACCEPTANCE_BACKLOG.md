@@ -28,8 +28,8 @@ The [independent acceptance audit](INDEPENDENT_ACCEPTANCE_AUDIT.md) cross-refere
 ### Q01 — AI agents (workstream 02)
 
 - [ ] Q01.01 **Partial / implemented in branch** — Authenticated, opt-in research assistant; six modes (review/explain/plan/code/fundamentals/risk), bounded server quota and provider gate
-- [ ] Q01.02 **Partial / implemented in branch** — Local custom slash-command templates, explicitly selected research notes and saved analysis history
-- [ ] Q01.03 **Partial / implemented in branch** — Gated goal-based plans and private, reviewed project draft history. Multi-turn sessions and context compaction remain open.
+- [ ] Q01.02 **Partial / implemented in branch** — Device-local and private project-scoped assistant templates, explicitly selected research notes and saved analysis history
+- [ ] Q01.03 **Partial / implemented in branch** — Gated goal-based plans can resume from explicit, bounded private saved turns. Durable execution sessions, full conversational context and compaction remain open.
 - [ ] Q01.04 **Remaining** — Plan/tool/execute/observe/validate state machine with bounded retries, debugging and code corrections
 - [ ] Q01.05 **Remaining** — Fundamental, technical, quant, portfolio, macro, SEC, risk, modeling, data retrieval and verification agents
 - [ ] Q01.06 **Remaining** — Multi-agent orchestration, streaming responses, tool traces, model selection and cost tracking
@@ -72,7 +72,7 @@ Q04.01 browser metadata, source isolation, and upgrade evidence are recorded in 
 
 ### Q06 — Portfolio and fundamental intelligence (workstream 04/05)
 
-- [ ] Q06.01 **Partial / implemented in branch** — Multi-asset covariance/correlation, historical VaR/ES, risk contributions, historical drawdown and simulated rebalancing; local risk reports
+- [ ] Q06.01 **Partial / implemented in branch** — Multi-asset covariance/correlation, historical and Gaussian VaR, historical ES, risk contributions, historical drawdown and simulated rebalancing; local risk reports
 - [ ] Q06.02 **Partial / implemented in branch** — Existing terminal financial calculators, DCF and options payoff/Greeks; audit existing coverage
 - [ ] Q06.03 **Remaining** — Optimization (efficient frontier, risk parity), factor models, constrained allocation, rebalancing, benchmark attribution, stress scenarios, liquidity and concentration
 - [ ] Q06.04 **Remaining** — Options IV surfaces, term structures, exposure and strategy research
@@ -91,9 +91,9 @@ Q04.01 browser metadata, source isolation, and upgrade evidence are recorded in 
 
 - [ ] S02.01 **Partial / implemented in branch** — Member/community research feed, public discovery, likes, replies, local bookmarks, shared research projects
 - [ ] S02.02 **Partial / implemented in branch** — Chronological Following feed with cursor pagination. Filters and ranking controls, real persistent bookmarks, mentions, hashtags/tickers, reposts/quotes, nested replies and editing/revisions remain open.
-- [ ] S02.03 **Remaining** — Validated media/document attachments, research articles, interactive charts, model/run artifacts, drafts, scheduled publishing, visibility, citations and disclosures
+- [ ] S02.03 **Partial / implemented in branch** — One versioned discussion draft per account with explicit sync and conflict review. Multiple drafts, attachments, scheduled publishing and richer publication surfaces remain open.
 - [ ] S02.04 **Remaining** — Collaborative workspaces, shared files/notebooks, contributor permissions, assignments, peer review, evidence versioning, publication approval and reusable strategies
-- [ ] S02.05 **Partial / implemented in branch** — Existing financial education and lessons; audit learning progress
+- [ ] S02.05 **Partial / implemented in branch** — Financial lessons, scored exercises, private progress, and a contextual financial glossary within Studio. More educational surfaces remain open.
 - [ ] S02.06 **Remaining** — Interactive risk education, beginner onboarding, mentorship and accessible explanations
 
 ### S03 — Circles and messaging (workstream 08)
