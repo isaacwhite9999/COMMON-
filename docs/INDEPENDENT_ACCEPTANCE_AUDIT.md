@@ -2,13 +2,13 @@
 
 Original audit baseline `aa0f89a` (design branch including integration), plus the messaging and Python control corrections in this audit. This is a source and disposable-test audit. Hosted identity, staging integrations, actual provider credentials, assistive technology, and live money were outside the verification environment.
 
-**Candidate granular totals** 73 verified, 3 unverified, 170 partial, 183 missing, 0 broken, 21 external gate.
+**Candidate granular totals** 76 verified, 3 unverified, 171 partial, 179 missing, 0 broken, 21 external gate.
 
 Verified = fully implemented and verified within the stated feature scope. Unverified = implemented but unverified. Partial = partially implemented. Missing = no matching working path found in the inspected domain. Broken = an existing path demonstrably fails. External gate = blocked by an external dependency or regulatory requirement. A prerequisite or numerical engine alone does not establish feature acceptance.
 
 ## Implementation candidate
 
-The integration branch `codex/common-implementation-next` starts at `4208e37`. Git ancestry confirmed that this commit contains the tips of PRs #1–10 as listed when work began. The candidate adds focused feature commits without replaying that history. The granular tables below retain the original audit's classifications outside the work validated here. Product-level acceptance still includes multi-department and hosted gates.
+The candidate branch `codex/common-feature-integration` starts from PR #18 at `db34bb6`. Git ancestry confirmed that this baseline contains `main`, `common/unified-workspace` and every original PR head #1–18. New feature branches are integrated without replaying the preceding stack. The granular tables preserve existing classifications outside the requirements changed or newly verified here.
 
 **Verification boundary.** Chromium exercised local workspace persistence and actual Pyodide. Member-facing browser tests used controlled service fixtures. PostgreSQL permissions and invariants were tested independently on disposable databases. No hosted migration, live provider call, actual financial operation or production deployment was performed.
 
@@ -42,6 +42,13 @@ The integration branch `codex/common-implementation-next` starts at `4208e37`. G
 - **L1** [Scored exercise catalog](lab/exercises.js), [Studio Chromium suite](../tests/lab-browser.test.mjs), [exercise persistence and authorization](../tests/pg_research_smoke.sql)
 - **OPS1** [Launch readiness](LAUNCH_READINESS.md), [artifact validation](../tests/test_release_candidate.py), [disposable recovery drill](../tests/recovery-drill.py)
 
+- **A2** [Persistent assistant turns and authorization](../supabase/migrations/20261127184616_research_assistant_followups.sql), [mock provider tests](../supabase/functions/common-research-agent/handler_test.ts), [Chromium continuation](../tests/project-assistant-browser.test.mjs)
+- **I2** [Project search/replacement model](workspace/files.js), [unit checks](../tests/project-file-search.test.cjs), [mobile lifecycle and revision restore](../tests/project-file-search.test.mjs)
+- **C2** [Python runtime and pins](workspace/python-runtime.js), [real execution and export](../tests/workspace-python-browser.test.mjs)
+- **D2** [Treasury terminal](terminal/terminal.js), [independent decimal revision tests](../tests/finance-terminal.test.cjs), [Chromium comparison and fallback](../tests/terminal-browser.test.mjs)
+- **S2** [Member connection permissions](../supabase/migrations/20261127184624_member_connection_requests.sql), [role smoke tests](../tests/pg_member_connections_smoke.sql), [two-account Chromium flow](../tests/discussion-feed-browser.test.mjs)
+- **L2** [Studio glossary](lab/glossary.js), [keyboard and contextual help Chromium tests](../tests/lab-browser.test.mjs)
+
 ## Individual requirements
 
 ### Quant
@@ -49,7 +56,7 @@ The integration branch `codex/common-implementation-next` starts at `4208e37`. G
 | ID | Requirement | Classification | Evidence | Assessment |
 | --- | --- | --- | --- | --- |
 | QUANT-001 | Goal-based research agent | Partial | A1 | Owned Studio projects can request a goal-driven plan with explicit evidence and consent. Autonomous steps, tool execution and recovery remain open. |
-| QUANT-002 | Persistent project-scoped sessions | Partial | A1 | Project-bound goals and member-reviewed drafts persist under RLS. Stateful multi-turn sessions and execution context remain open. |
+| QUANT-002 | Persistent project-scoped sessions | Partial | A2 | Members can resume a saved private Studio plan with a separately consented prior-response excerpt and new evidence. The database enforces owner/project lineage and a five-turn branch limit. Running execution state and broader orchestration remain open. |
 | QUANT-003 | Write strategy code | Partial | A | Prompt-based drafting/review or local notes/history exist; scoped orchestration and verification are absent. |
 | QUANT-004 | Run approved code | Partial | C | Local execution, inspection, consent, cancel or queue primitives exist; assistant has no corresponding execution integration. |
 | QUANT-005 | Inspect execution outputs | Partial | C | Local execution, inspection, consent, cancel or queue primitives exist; assistant has no corresponding execution integration. |
@@ -76,7 +83,7 @@ The integration branch `codex/common-implementation-next` starts at `4208e37`. G
 | QUANT-026 | Custom commands | Verified | A | Create and apply local command templates; validation and context unit suite passed. |
 | QUANT-027 | Project memory | Partial | A | Prompt-based drafting/review or local notes/history exist; scoped orchestration and verification are absent. |
 | QUANT-028 | Account memory with consent | Partial | A | Prompt-based drafting/review or local notes/history exist; scoped orchestration and verification are absent. |
-| QUANT-029 | Conversation history | Partial | A1 | Private project drafts retain submitted goals, selected evidence and reviewed responses, with cursor paging and deletion. Full conversational history and model context are open. |
+| QUANT-029 | Conversation history | Partial | A2 | Private saved planning branches preserve evidence and reviewed responses, with visible turn numbers and reload continuity. Full conversation context and agent execution history remain open. |
 | QUANT-030 | Context compaction | Missing | A | One-shot assist and local desk; no matching agent/session/tool pipeline |
 | QUANT-031 | Model selection | Missing | A | One-shot assist and local desk; no matching agent/session/tool pipeline |
 | QUANT-032 | Token and cost usage accounting | Missing | A | One-shot assist and local desk; no matching agent/session/tool pipeline |
@@ -96,7 +103,7 @@ The integration branch `codex/common-implementation-next` starts at `4208e37`. G
 | QUANT-046 | Editor tabs and tab persistence | Missing | I | Local text workspace and separate private Studio; no matching IDE/project workflow |
 | QUANT-047 | Resizable panels | Partial | I | Existing local route/list, path-based file view, output, width or shortcuts cover only part of the named requirement. |
 | QUANT-048 | Terminal and output console | Partial | I | Existing local route/list, path-based file view, output, width or shortcuts cover only part of the named requirement. |
-| QUANT-049 | Cross-file search and replace | Missing | I | Local text workspace and separate private Studio; no matching IDE/project workflow |
+| QUANT-049 | Cross-file search and replace | Verified | I2 | Project-scoped literal search and reviewed per-file replacement preserve revisions and unsaved edits. Browser and unit tests cover scope, limits, stale previews, persistence and restoration. |
 | QUANT-050 | File revision history and restore | Verified | I | Local project/file operations and revisions implemented; model/editor and workspace browser passed. |
 | QUANT-051 | Git integration | Missing | I | Local text workspace and separate private Studio; no matching IDE/project workflow |
 | QUANT-052 | Collaborative editing | Missing | I | Local text workspace and separate private Studio; no matching IDE/project workflow |
@@ -116,7 +123,7 @@ The integration branch `codex/common-implementation-next` starts at `4208e37`. G
 | QUANT-066 | Statistical and ML packages where supported | Partial | C | Fixed notebook or bounded browser/SQL primitive exists; full project/runtime orchestration and isolation are absent. |
 | QUANT-067 | Isolated remote execution adapter | Missing | C | Browser sandbox and internal queue; no matching notebook/remote worker workflow |
 | QUANT-068 | Project runtime environments | Partial | C | Fixed notebook or bounded browser/SQL primitive exists; full project/runtime orchestration and isolation are absent. |
-| QUANT-069 | Environment and dependency manifests | Missing | C | Browser sandbox and internal queue; no matching notebook/remote worker workflow |
+| QUANT-069 | Environment and dependency manifests | Partial | C2 | Browser Python runs record pinned runtime and dependency manifests for prepared environments. Hosted environment manifests and runtime artifact verification remain open. |
 | QUANT-070 | Secrets scoped to approved providers | Partial | C | Fixed notebook or bounded browser/SQL primitive exists; full project/runtime orchestration and isolation are absent. |
 | QUANT-071 | CPU memory and time quotas | Partial | C | Fixed notebook or bounded browser/SQL primitive exists; full project/runtime orchestration and isolation are absent. |
 | QUANT-072 | Per-user concurrent job limits | Partial | C | Fixed notebook or bounded browser/SQL primitive exists; full project/runtime orchestration and isolation are absent. |
@@ -139,7 +146,7 @@ The integration branch `codex/common-implementation-next` starts at `4208e37`. G
 | QUANT-089 | Options data adapter | Missing | D | CSV and limited public-source adapters; no matching feed, reference-data or entitlement path |
 | QUANT-090 | Fixed income data adapter | Missing | D | CSV and limited public-source adapters; no matching feed, reference-data or entitlement path |
 | QUANT-091 | FX data adapter | Missing | D | CSV and limited public-source adapters; no matching feed, reference-data or entitlement path |
-| QUANT-092 | Economic series and FRED-compatible sources | Partial | D | Limited Treasury, CSV normalization, declared adjusted close, symbol registry or process cache; broader contract absent. |
+| QUANT-092 | Economic series and FRED-compatible sources | Partial | D2 | Treasury source observations show dated coverage and observed revisions. Wider institutional data source coverage remains open. |
 | QUANT-093 | Official SEC filing data | External gate | D | EDGAR adapter requires identified SEC contact and network/provider verification; tests cover disabled mode and fact selection. |
 | QUANT-094 | OHLCV normalization | Partial | D | Limited Treasury, CSV normalization, declared adjusted close, symbol registry or process cache; broader contract absent. |
 | QUANT-095 | Trade and quote data adapter | Missing | D | CSV and limited public-source adapters; no matching feed, reference-data or entitlement path |
@@ -151,9 +158,9 @@ The integration branch `codex/common-implementation-next` starts at `4208e37`. G
 | QUANT-101 | Symbol and instrument resolution | Partial | D | Limited Treasury, CSV normalization, declared adjusted close, symbol registry or process cache; broader contract absent. |
 | QUANT-102 | Exchange calendars and sessions | Missing | D | CSV and limited public-source adapters; no matching feed, reference-data or entitlement path |
 | QUANT-103 | Continuous futures and roll methodology | Missing | D | CSV and limited public-source adapters; no matching feed, reference-data or entitlement path |
-| QUANT-104 | Point-in-time data and revisions | Partial | D | Limited Treasury, CSV normalization, declared adjusted close, symbol registry or process cache; broader contract absent. |
+| QUANT-104 | Point-in-time data and revisions | Partial | D2 | Browser-local comparison detects exact Treasury numeric revisions for overlapping dates across two fetched windows. Historical source vintages and broader point-in-time datasets remain open. |
 | QUANT-105 | Data licensing entitlements | Missing | D | CSV and limited public-source adapters; no matching feed, reference-data or entitlement path |
-| QUANT-106 | Caching and deduplicated ingestion | Partial | D | Limited Treasury, CSV normalization, declared adjusted close, symbol registry or process cache; broader contract absent. |
+| QUANT-106 | Caching and deduplicated ingestion | Partial | D2 | Observed Treasury windows are fingerprinted and duplicate fetched windows do not replace the previous distinct window. Shared, durable provider ingestion remains open. |
 | QUANT-107 | SMA strategies | Verified | Q | Bounded daily research workflows; chronological, perturbation, numerical and browser tests passed. |
 | QUANT-108 | Buy and hold benchmark | Verified | Q | Bounded daily research workflows; chronological, perturbation, numerical and browser tests passed. |
 | QUANT-109 | Custom Python strategies | Partial | Q | Python sandbox or daily historical engine supplies a limited baseline; no complete workflow for the named scope. |
@@ -285,8 +292,8 @@ The integration branch `codex/common-implementation-next` starts at `4208e37`. G
 | SOCIAL-017 | Account deletion | Missing | S | Basic member account and profile; no matching identity or account controls |
 | SOCIAL-018 | Personal data export | Missing | S | Basic member account and profile; no matching identity or account controls |
 | SOCIAL-019 | Follow and unfollow | Verified | S1 | A member can follow and unfollow an eligible account. Blocks and circle visibility are enforced in PostgreSQL. |
-| SOCIAL-020 | Friend requests | Missing | S | Shared-circle directory and block rules; no matching relationship or discovery graph |
-| SOCIAL-021 | Accept and decline requests | Missing | S | Shared-circle directory and block rules; no matching relationship or discovery graph |
+| SOCIAL-020 | Friend requests | Verified | S2 | Two-account Chromium and disposable PostgreSQL tests cover private requests, pending states, withdrawals and block enforcement. |
+| SOCIAL-021 | Accept and decline requests | Verified | S2 | Recipient-only accept and decline enforce participant and block boundaries, with persisted state visible in Profile → Connections. |
 | SOCIAL-022 | Mutual connections | Missing | S | Shared-circle directory and block rules; no matching relationship or discovery graph |
 | SOCIAL-023 | Suggested connections | Missing | S | Shared-circle directory and block rules; no matching relationship or discovery graph |
 | SOCIAL-024 | Interest discovery | Missing | S | Shared-circle directory and block rules; no matching relationship or discovery graph |
@@ -462,7 +469,7 @@ The integration branch `codex/common-implementation-next` starts at `4208e37`. G
 | SOCIAL-194 | Risk education | Partial | LEARN | Contextual content and calculators exist; dedicated curriculum/glossary or diligence pipeline incomplete. |
 | SOCIAL-195 | Interactive exercises | Verified | L1 | Eight scored exercises include explanations and separate private completion. Browser reload, idempotency and cross-account policies were verified. |
 | SOCIAL-196 | Mentorship workflows | Missing | LEARN | Circle browsing and Studio lessons; no matching discovery or education workflow |
-| SOCIAL-197 | Financial glossary and contextual definitions | Partial | LEARN | Contextual content and calculators exist; dedicated curriculum/glossary or diligence pipeline incomplete. |
+| SOCIAL-197 | Financial glossary and contextual definitions | Partial | L2 | Fifteen searchable, contextual definitions in the Research Studio link to worked lessons. Cross-department contextual coverage remains open. |
 | SOCIAL-198 | Venture discovery and research | Partial | LEARN | Contextual content and calculators exist; dedicated curriculum/glossary or diligence pipeline incomplete. |
 | SOCIAL-199 | Housing and local-business ownership research | Partial | LEARN | Contextual content and calculators exist; dedicated curriculum/glossary or diligence pipeline incomplete. |
 
