@@ -520,7 +520,10 @@ function openPostDraft(uid){
   saveError='This draft could not be read from device storage.';
  }
  composerDraft={
-  owner:uid,savedRaw,saveError,publishError:'',publishing:false,
+  owner:uid,savedRaw,saveError,publishError:'',publishing:false,syncing:false,syncMessage:'',conflict:null,deviceConflict:false,
+  revision:Number.isSafeInteger(stored?.revision)&&stored.revision>=0?stored.revision:0,
+  dirty:stored?.dirty??Boolean(stored),
+  submission:typeof stored?.submission==='string'?stored.submission:null,
   group:typeof stored?.group==='string'?stored.group:(selectedGroup&&joined(selectedGroup)?selectedGroup:''),
   title:draftText(stored?.title,160),body:draftText(stored?.body,10000)
  };
@@ -528,14 +531,19 @@ function openPostDraft(uid){
 function savePostDraft(draft){
  if(draft?.owner!==session?.user?.id)return false;
  const key=postDraftKey(draft.owner);
- const content=JSON.stringify({group:draft.group,title:draft.title,body:draft.body});
+ const content=JSON.stringify({
+  group:draft.group,title:draft.title,body:draft.body,revision:draft.revision,
+  dirty:draft.dirty,submission:draft.submission
+ });
  try{
   if(localStorage.getItem(key)!==draft.savedRaw){
+   draft.deviceConflict=true;
    draft.saveError='This draft changed in another tab. Copy your edits before closing.';
    return false;
   }
   if(content!==draft.savedRaw)localStorage.setItem(key,content);
   draft.savedRaw=content;
+  draft.deviceConflict=false;
   draft.saveError='';
   return true;
  }catch{
@@ -553,18 +561,80 @@ function clearPostDraft(draft){
   return false;
  }
 }
+async function requestDiscussionDraft(name,args){
+ const controller=new AbortController();
+ const timer=setTimeout(()=>controller.abort(),8000);
+ try{
+  const query=client.rpc(name,args);
+  return await call(query.abortSignal?query.abortSignal(controller.signal):query);
+ }finally{
+  clearTimeout(timer);
+ }
+}
+function postDraftMessage(draft){
+ return draft.saveError||draft.syncMessage||(draft.savedRaw?'Draft saved on this device.':'');
+}
+function applyAccountDraft(draft,account){
+ Object.assign(draft,{
+  group:account.circle_id||'',title:account.title,body:account.body,revision:account.revision,
+  dirty:false,submission:null,conflict:null,syncMessage:'Account draft loaded.'
+ });
+ savePostDraft(draft);
+}
+async function readAccountDraft(draft){
+ try{
+  const account=await requestDiscussionDraft('read_discussion_draft_v1');
+  if(draft!==composerDraft||session?.user?.id!==draft.owner||account===null)return;
+  if(!Number.isSafeInteger(account.revision)||typeof account.title!=='string'||typeof account.body!=='string'){
+   throw Error('Invalid draft response');
+  }
+  if(draft.submission&&account.last_published_id===draft.submission){
+   applyAccountDraft(draft,account);
+   draft.syncMessage='Previous publication confirmed.';
+  }else if(!draft.submission&&draft.group===(account.circle_id||'')&&draft.title===account.title&&draft.body===account.body){
+   applyAccountDraft(draft,account);
+  }else if(account.revision!==draft.revision&&(draft.dirty||draft.submission)){
+   draft.conflict=account;
+   draft.syncMessage='This account draft changed on another device.';
+  }else if(!draft.dirty&&!draft.submission){
+   applyAccountDraft(draft,account);
+  }
+ }catch{
+  draft.syncMessage='Account draft unavailable. Device edits can still be saved.';
+ }
+}
+async function writeAccountDraft(draft){
+ try{
+  const saved=await requestDiscussionDraft('save_discussion_draft_v1',{
+   expected_revision:draft.revision,target_circle:draft.group||null,draft_title:draft.title,draft_body:draft.body
+  });
+  if(draft!==composerDraft||session?.user?.id!==draft.owner)return false;
+  if(!Number.isSafeInteger(saved.revision))throw Error('Invalid draft response');
+  draft.revision=saved.revision;draft.dirty=false;
+  draft.syncMessage='Draft saved to your account.';
+  savePostDraft(draft);
+  return true;
+ }catch(err){
+  if(err?.code==='40001')await readAccountDraft(draft);
+  else draft.syncMessage='Account sync failed. Your draft can be saved on this device.';
+  return false;
+ }
+}
 function postComposerFields(){
  const draft=composerDraft;
  const destinations=memberships.map(m=>'<option value="'+e(m.community_id)+'"'+
   (m.community_id===draft.group?' selected':'')+'>'+e(groupName(m.community_id))+'</option>').join('');
- return '<p class="muted small">One unpublished draft is saved for your account on this device.</p>'+
+ return '<p class="muted small">Save draft to resume it on another device. Edits are also saved in this browser.</p>'+
   '<label><span class="form-label">Community</span><select required class="field" name="group">'+
   '<option value="">Choose a community</option>'+destinations+'</select></label>'+
   (destinations?'':'<p>Join a circle before publishing. You can save the draft meanwhile.</p>')+
   '<label><span class="form-label">Title</span><input required minlength="8" maxlength="160" class="field" name="title" value="'+e(draft.title)+'"></label>'+
   '<label><span class="form-label">Your research or question</span><textarea required minlength="3" maxlength="10000" class="field" name="body">'+e(draft.body)+'</textarea></label>'+
-  '<p data-post-draft-status role="status">'+e(draft.saveError||(draft.savedRaw?'Draft saved on this device.':''))+'</p>'+
+  '<p data-post-draft-status role="status">'+e(postDraftMessage(draft))+'</p>'+
   (draft.publishError?'<p role="alert">'+e(draft.publishError)+'</p>':'')+
+  (draft.conflict?'<div class="preview-banner"><p>Choose which draft to keep before syncing or publishing.</p>'+
+   '<button type="button" class="button secondary" data-act="use-account-post-draft">Use account draft</button> '+
+   '<button type="button" class="button secondary" data-act="keep-device-post-draft">Keep this device’s draft</button></div>':'')+
   '<div class="row"><button type="button" class="button secondary" data-act="keep-post-draft">Save draft</button>'+
   '<button type="button" class="button secondary" data-act="discard-post-draft">Discard draft</button></div>';
 }
@@ -576,7 +646,7 @@ function dialog(){
  else if(state.projectCreate){title='Research a project';form='project';fields='<label><span class="form-label">Linked community</span><select name="community" class="field">'+memberships.map(m=>'<option value="'+m.community_id+'" '+(m.community_id===selectedGroup?'selected':'')+'>'+e(groupName(m.community_id))+'</option>').join('')+'</select></label><label><span class="form-label">Project title</span><input name="title" class="field" required minlength="8" maxlength="160"></label><label><span class="form-label">Rationale</span><textarea name="thesis" class="field" required minlength="30" maxlength="12000"></textarea></label><label><span class="form-label">Focus</span><select name="category" class="field"><option value="public_company">Public company</option><option value="housing">Housing</option><option value="local_business">Business</option><option value="community_land">Community land</option><option value="other">Other</option></select></label>';}
  else{title='Start a discussion poll';form='proposal';fields='<input type="hidden" name="community" value="'+e(selectedGroup)+'"><label><span class="form-label">Question</span><input class="field" name="title" required minlength="8" maxlength="160" value="'+e(pollDraft?.title||'')+'"></label><label><span class="form-label">What members should consider</span><textarea class="field" name="rationale" required minlength="30" maxlength="15000">'+e(pollDraft?.rationale||'')+'</textarea></label>';}
  return '<dialog class="modal common-member-dialog" aria-labelledby="member-dialog-title"><div class="space"><h2 id="member-dialog-title">'+title+'</h2><button type="button" class="icon-btn" aria-label="Close dialog" data-act="close-dialog">✕</button></div><p class="muted small" style="margin:10px 0 16px">This is a live community contribution, not a request to collect investment money.</p><form data-form="'+form+'" class="stack">'+fields+'<button type="submit" class="button full" '+
-  (form==='post'&&(!memberships.length||composerDraft.publishing)?'disabled':'')+'>'+
+  (form==='post'&&(!memberships.length||composerDraft.publishing||composerDraft.conflict)?'disabled':'')+'>'+
   (form==='post'&&composerDraft.publishing?'Publishing…':'Publish')+'</button></form></dialog>';
 }
 function recoveryPage(){
@@ -603,7 +673,7 @@ function render(){
  const modal=root.querySelector('.common-member-dialog');
  if(!modal)return;
  const form=modal.querySelector('form');
- if(form.dataset.form==='post'&&composerDraft.publishing){
+ if(form.dataset.form==='post'&&(composerDraft.publishing||composerDraft.syncing)){
   for(const control of form.elements)control.disabled=true;
  }
  if(values&&previousForm.dataset.form===form.dataset.form){
@@ -784,20 +854,64 @@ async function dispatch(action,element){
  if(action==='create-group'){state.groupCreate=true;render();return}
  if(action==='compose'){
   openPostDraft(session.user.id);
-  state.composer=true;render();return;
+  const draft=composerDraft;
+  await readAccountDraft(draft);
+  if(composerDraft===draft&&session?.user?.id===draft.owner){state.composer=true;render()}
+  return;
+ }
+ if(action==='use-account-post-draft'){
+  if(composerDraft.conflict){applyAccountDraft(composerDraft,composerDraft.conflict);render()}
+  return;
+ }
+ if(action==='keep-device-post-draft'){
+  if(composerDraft.conflict){
+   composerDraft.revision=composerDraft.conflict.revision;
+   composerDraft.conflict=null;composerDraft.dirty=true;composerDraft.submission=null;
+   composerDraft.syncMessage='Device draft kept. Save draft to sync it to your account.';
+   savePostDraft(composerDraft);render();
+  }
+  return;
  }
  if(action==='keep-post-draft'){
-  if(savePostDraft(composerDraft))closeMemberDialog();
-  else render();
+  const draft=composerDraft;
+  if(draft.conflict){render();return}
+  const savedOnDevice=savePostDraft(draft);
+  if(draft.deviceConflict){render();return}
+  draft.syncing=true;render();
+  const synced=(!draft.dirty&&draft.revision>0)||await writeAccountDraft(draft);
+  draft.syncing=false;
+  if(draft!==composerDraft)return;
+  if(synced||savedOnDevice&&!draft.conflict){
+   if(!synced)info='Draft saved on this device. Reopen it to retry account sync.';
+   closeMemberDialog();
+  }else render();
   return;
  }
  if(action==='discard-post-draft'){
-  if(!confirm('Discard this unpublished draft?'))return;
-  if(!clearPostDraft(composerDraft)){
-   composerDraft.saveError='This draft could not be removed from device storage.';
-   render();return;
+  const draft=composerDraft;
+  if(draft.conflict||draft.deviceConflict||!confirm('Discard this unpublished draft?'))return;
+  const empty={group:'',title:'',body:''};
+  draft.syncing=true;render();
+  // Leave local text intact if the account write fails; a later retry can finish.
+  try{
+   await requestDiscussionDraft('save_discussion_draft_v1',{
+    expected_revision:draft.revision,target_circle:null,draft_title:'',draft_body:''
+   });
+  }catch(err){
+   if(err?.code==='40001')await readAccountDraft(draft);
+   else draft.syncMessage='Account draft could not be discarded. Try again when connected.';
+   draft.syncing=false;
+   if(composerDraft===draft)render();
+   return;
   }
-  composerDraft=null;closeMemberDialog();return;
+  draft.syncing=false;
+  if(!clearPostDraft(draft)){
+   Object.assign(draft,empty,{saveError:'The account draft was discarded, but device storage could not be cleared.'});
+   if(composerDraft===draft)render();
+   return;
+  }
+  if(composerDraft===draft){composerDraft=null;closeMemberDialog()}
+  return;
  }
  if(action==='review-research'){
   const draft=CommonResearchDraft.claim(session.user.id);
@@ -939,24 +1053,34 @@ async function submitted(form){
  }
  if(type==='post'){
   const draft=composerDraft;
-  if(draft?.owner!==uid)return;
+  if(draft?.owner!==uid||draft.conflict)return;
   const group=f.get('group'),title=String(f.get('title')||'').trim(),body=String(f.get('body')||'').trim();
   if(!group||!joined(group)||title.length<8||title.length>160||body.length<3||body.length>10000){
    draft.publishError='Choose a current community and enter a title of 8–160 characters and a discussion of 3–10,000 characters.';
    render();return;
   }
+  if(draft.group!==group||draft.title!==title||draft.body!==body){
+   draft.dirty=true;draft.submission=null;
+  }
   Object.assign(draft,{group,title,body,publishError:'',publishing:true});
   savePostDraft(draft);
+  if(draft.deviceConflict){draft.publishing=false;render();return}
   render();
   try{
-   await call(client.from('discussions').insert({community_id:group,author_id:uid,title,body}));
-  }catch{
-   draft.publishing=false;
-   if(session?.user?.id===uid&&composerDraft===draft){
-    draft.publishError='The discussion could not be published. Check your connection or circle access and try again.';
-    render();
-   }
+   if((draft.dirty||draft.revision===0)&&!await writeAccountDraft(draft))return;
+   if(draft!==composerDraft||session?.user?.id!==uid)return;
+   draft.submission??=crypto.randomUUID();
+   savePostDraft(draft);
+   await requestDiscussionDraft('publish_discussion_draft_v1',{
+    expected_revision:draft.revision,submission_id:draft.submission
+   });
+  }catch(err){
+   if(err?.code==='40001')await readAccountDraft(draft);
+   draft.publishError='The discussion could not be published. Check your connection or circle access and try again.';
    return;
+  }finally{
+   draft.publishing=false;
+   if(composerDraft===draft&&session?.user?.id===uid)render();
   }
   const cleared=clearPostDraft(draft);
   if(session?.user?.id!==uid||composerDraft!==draft)return;
@@ -993,11 +1117,13 @@ document.addEventListener('change',ev=>{const node=ev.target.closest('[data-agen
 document.addEventListener('input',ev=>{
  const input=ev.target;
  const form=input.closest('[data-form="post"]');
- if(form&&composerDraft?.owner===session?.user?.id&&!composerDraft.publishing&&['group','title','body'].includes(input.name)){
+ if(form&&composerDraft?.owner===session?.user?.id&&!composerDraft.publishing&&!composerDraft.syncing&&['group','title','body'].includes(input.name)){
   composerDraft[input.name]=input.value;
+  composerDraft.dirty=true;composerDraft.submission=null;
+  composerDraft.syncMessage=composerDraft.conflict?'This account draft changed on another device.':'';
   savePostDraft(composerDraft);
   const statusNode=form.querySelector('[data-post-draft-status]');
-  const message=composerDraft.saveError||'Draft saved on this device.';
+  const message=postDraftMessage(composerDraft);
   if(statusNode.textContent!==message)statusNode.textContent=message;
   return;
  }
