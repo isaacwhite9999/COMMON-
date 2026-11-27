@@ -61,6 +61,8 @@ jobs:
         run: psql -X -v ON_ERROR_STOP=1 -f tests/pg_discussion_feed_smoke.sql
       - name: Verify research handoff publication and revocation
         run: psql -X -v ON_ERROR_STOP=1 -f tests/pg_research_handoff_smoke.sql
+      - name: Verify synced discussion drafts and atomic publication
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/pg_discussion_drafts_smoke.sql
       - name: Validate external recordkeeping schema draft in disposable database
         run: |
           psql -X -v ON_ERROR_STOP=1 -f supabase/schema-drafts/external-journal.sql
