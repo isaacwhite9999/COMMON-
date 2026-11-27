@@ -84,13 +84,13 @@ Q04.01 browser metadata, source isolation, and upgrade evidence are recorded in 
 - [ ] S01.01 **Partial / implemented in branch** — Supabase authentication/profile, registration/recovery, display names/biographies, DM preference, member profiles, shared-group member directory and block/unblock
 - [ ] S01.02 **Partial / implemented in branch** — Public signup SMTP and Google provider setup not established; verify existing auth and permissions
 - [ ] S01.03 **Remaining** — Profile avatar/cover, experience, interests, philosophy, published research, optional verified credentials
-- [ ] S01.04 **Remaining** — Follow/unfollow, friend requests/accept/decline, mutuals, suggestions, followers/following, privacy, mute, custom lists and safe contact discovery
+- [ ] S01.04 **Partial / implemented in branch** — Follow/unfollow and account-scoped Followers and Following lists. Friend requests/accept/decline, mutuals, suggestions, granular privacy, mute, custom lists and safe contact discovery remain open.
 - [ ] S01.05 **Remaining** — Global member/research search, pagination, discovery/recommendations, MFA, devices/session management, privacy/export/deletion and recovery controls
 
 ### S02 — Social publishing and education (workstream 07)
 
 - [ ] S02.01 **Partial / implemented in branch** — Member/community research feed, public discovery, likes, replies, local bookmarks, shared research projects
-- [ ] S02.02 **Remaining** — Following feed, filters and ranking controls, real persistent bookmarks, mentions, hashtags/tickers, reposts/quotes, nested replies and editing/revisions
+- [ ] S02.02 **Partial / implemented in branch** — Chronological Following feed with cursor pagination. Filters and ranking controls, real persistent bookmarks, mentions, hashtags/tickers, reposts/quotes, nested replies and editing/revisions remain open.
 - [ ] S02.03 **Remaining** — Validated media/document attachments, research articles, interactive charts, model/run artifacts, drafts, scheduled publishing, visibility, citations and disclosures
 - [ ] S02.04 **Remaining** — Collaborative workspaces, shared files/notebooks, contributor permissions, assignments, peer review, evidence versioning, publication approval and reusable strategies
 - [ ] S02.05 **Partial / implemented in branch** — Existing financial education and lessons; audit learning progress

@@ -233,9 +233,9 @@ function postCard(p){
  (joined(p.community_id)?'<form class="comment-form" data-form="comment" data-parent="'+p.id+'" data-group="'+p.community_id+'"><input class="field" name="body" maxlength="2000" required aria-label="Reply" placeholder="Reply with something useful"><button type="submit" class="button small">Reply</button></form>':''):'')+'</article>';
 }
 function home(){
- const empty=state.feed==='saved'?'<div class="empty">No saved discussions are visible.</div>':'<div class="empty"><h3>No discussions yet</h3><p>Join a community and start the first research conversation.</p>'+button('open-groups','Find a community')+'</div>';
+ const empty=state.feed==='following'?'<div class="empty"><h3>No research from members you follow</h3><p>Open a member profile from Discover or a circle and select Follow.</p>'+button('discover-feed','Discover research')+'</div>':state.feed==='saved'?'<div class="empty">No saved discussions are visible.</div>':'<div class="empty"><h3>No discussions yet</h3><p>Join a community and start the first research conversation.</p>'+button('open-groups','Find a community')+'</div>';
  return '<div class="columns"><div><div class="feature-hero"><span class="pill" style="background:#ffffff29;color:white;width:max-content">THE COMMONS</span><h2>Ideas become stronger together.</h2><p>Start conversations with real members and turn community research into meaningful, lawful action.</p>'+button('create-group','Create a community','primary')+'</div>'+
- '<div class="section-bar"><h3>Research feed</h3>'+button('compose','Share research')+'</div><div class="feed-tabs">'+[['mine','My circles'],['discover','Discover'],['saved','Saved research']].map(([k,t])=>'<button class="feed-tab '+(state.feed===k?'active':'')+'" data-feed="'+k+'" aria-pressed="'+(state.feed===k)+'">'+t+'</button>').join('')+'</div>'+
+ '<div class="section-bar"><h3>Research feed</h3>'+button('compose','Share research')+'</div><div class="feed-tabs">'+[['mine','My circles'],['following','Following'],['discover','Discover'],['saved','Saved research']].map(([k,t])=>'<button class="feed-tab '+(state.feed===k?'active':'')+'" data-feed="'+k+'" aria-pressed="'+(state.feed===k)+'">'+t+'</button>').join('')+'</div>'+
  discussionPageMarkup(discussionFeed,postCard,empty)+
  '</div><aside class="rail"><div class="surface rail-box"><h3>Your communities</h3>'+memberships.map(m=>'<button class="rail-link" data-act="open-group" data-id="'+m.community_id+'"><span class="avatar">'+e(groupName(m.community_id).slice(0,1))+'</span><strong>'+e(groupName(m.community_id))+'</strong></button>').join('')+'</div><div class="surface rail-box education-prompt"><h3>Never invested before?</h3><p>Learn about stocks, ownership, funds and legal structures without the jargon.</p>'+button('learn','Explore lessons')+'</div></aside></div>';
 }
@@ -340,13 +340,92 @@ function money(){
 }
 function learn(){return head('Understand ownership','Financial concepts explained in plain language.')+
  [['Can my friends buy the same stock?','Yes. Members can discuss and independently decide what to do through their own brokerages. Avoid agreements designed to artificially move prices.'],['What is a pooled investment club?','An actual pooled club needs a lawful structure and external financial accounts. A COMMON group is not automatically a legal fund.'],['Can our group buy housing?','An appropriately structured entity can research and potentially acquire properties using outside legal, banking and financing professionals. COMMON does not offer securities or collect investments.'],['Are community votes legally binding?','No. These opinion polls are not company shareholder votes or investment instructions.'],['What is AUM?','Assets under management is the value a manager oversees. Group size, hypothetical contributions and goal amounts do not count as real AUM.']].map(([q,a])=>'<details class="surface lesson"><summary>'+e(q)+'</summary><p>'+e(a)+'</p></details>').join('');}
+let followProfile=null, followList=null;
+const followPageSize=25;
+const followSections={following:['follower_id','followed_id'],followers:['followed_id','follower_id']};
+
+async function loadFollowProfile(member,quiet=false){
+ if(member.requesting)return;
+ member.requesting=true;
+ const {available,following,error:hadError}=member;
+ try{
+  const [blocked,edges]=await Promise.all([
+   call(client.rpc('dm_block_exists',{sender:member.owner,recipient:member.id})),
+   call(client.from('member_follows').select('followed_id').eq('follower_id',member.owner).eq('followed_id',member.id))
+  ]);
+  if(followProfile!==member)return;
+  member.available=!blocked;member.following=edges.length>0;member.error=false;
+ }catch{member.error=true}
+ member.requesting=false;
+ member.loading=false;
+ if(followProfile===member&&(!quiet||available!==member.available||following!==member.following||hadError!==member.error))render();
+}
+function followProfileControl(p){
+ const member=followProfile;
+ if(!member||member.loading)return '<span role="status">Loading follow status…</span>';
+ if(member.error)return button('retry-follow-status','Retry follow status');
+ if(!member.available||isBlocked(p.id))return '';
+ return button('toggle-follow',member.following?'Unfollow':'Follow','secondary','data-id="'+p.id+'"');
+}
+function prepareFollowViews(){
+ if(document.hidden){followProfile=followList=null;return}
+ const owner=session.user.id;
+ const member=view==='member'&&memberDetail?.id!==owner?memberDetail:null;
+ if(!member)followProfile=null;
+ else if(followProfile?.owner!==owner||followProfile.id!==member.id){
+  followProfile={owner,id:member.id,loading:true};
+  void loadFollowProfile(followProfile);
+ }
+ const section=view==='profile'&&Object.hasOwn(followSections,profileSection)?profileSection:null;
+ if(!section)followList=null;
+ else if(followList?.section!==section||followList.owner!==owner){
+  followList={owner,section,cursors:[null],items:[]};
+  void loadFollowList(followList);
+ }
+}
+async function loadFollowList(list,{focus=false,quiet=false}={}){
+ if(list.requesting)return;
+ list.requesting=true;
+ if(!quiet){list.loading=true;list.error=false;list.items=[];list.next=null}
+ const previous=JSON.stringify([list.items,list.next,list.error]);
+ const [ownerColumn,peerColumn]=followSections[list.section];
+ try{
+  let query=client.from('member_follows').select(peerColumn+',member:profiles!member_follows_'+peerColumn+'_fkey(id,display_name,handle)')
+   .eq(ownerColumn,list.owner).order(peerColumn,{ascending:true}).limit(followPageSize+1);
+  const cursor=list.cursors.at(-1);
+  if(cursor)query=query.gt(peerColumn,cursor);
+  const rows=await call(query);
+  if(followList!==list)return;
+  list.items=rows.slice(0,followPageSize).map(row=>row.member);
+  list.next=rows.length>followPageSize?rows[followPageSize-1][peerColumn]:null;
+  list.error=false;
+ }catch{list.error=true;list.items=[];list.next=null}
+ list.requesting=false;
+ list.loading=false;
+ if(followList===list&&(!quiet||previous!==JSON.stringify([list.items,list.next,list.error]))){
+  render();
+  if(focus)document.getElementById('member-follow-results')?.focus();
+ }
+}
+function followListMarkup(){
+ const list=followList;
+ let content;
+ if(!list||list.loading)content='<p role="status">Loading members…</p>';
+ else if(list.error)content='<p role="alert">Could not load members.</p>'+button('follow-list-refresh','Try again');
+ else content=list.items.length?list.items.map(p=>'<div class="space"><button class="member-link" data-act="member-profile" data-id="'+e(p.id)+'">'+e(p.display_name)+'</button><span class="muted small">@'+e(p.handle)+'</span></div>').join(''):'<p>'+ (list.section==='following'?'You have not followed any visible members.':'You have no visible followers.')+'</p>';
+ return '<div class="stack" id="member-follow-results" tabindex="-1">'+content+'</div>'+
+  (list&&!list.loading&&!list.error?'<div class="row" role="group" aria-label="Member list pages">'+
+   (list.cursors.length>1?button('follow-list-previous','Previous members'):'')+
+   (list.next?button('follow-list-next','More members'):'')+button('follow-list-refresh','Refresh members')+'</div>':'');
+}
 function memberPage(){const p=memberDetail;if(!p)return head('Member profile','Select a member from a circle.');const mine=p.id===session.user.id,shared=memberDirectory.some(x=>x.id===p.id);
-return head(p.display_name,'@'+p.handle)+button('open-groups','Back to circles')+'<div class="surface circle-tools"><div class="space"><span class="avatar">'+e(p.display_name.slice(0,2).toUpperCase())+'</span><span class="pill">Member profile</span></div><p class="post-body">'+e(p.bio||'No public biography provided.')+'</p><p class="muted small">Member-provided profile; not an independently verified investment professional or shareholder.</p><div class="row">'+(mine?'<button class="button" data-tab="profile">Edit profile</button>':(shared&&p.allow_direct_messages&&!isBlocked(p.id)?button('dm-user','Message','primary','data-id="'+p.id+'"'):'')+button(isBlocked(p.id)?'unblock-member':'block-member',isBlocked(p.id)?'Unblock member':'Block member','secondary','data-id="'+p.id+'"'))+'</div></div><div class="section-bar"><h3>Visible recent research</h3></div>'+discussionPageMarkup(discussionFeed,postCard,'<div class="empty">No visible recent research.</div>');}
-function profilePage(){const nav='<div class="feed-tabs">'+[['identity','Profile'],['privacy','Privacy & communication'],['blocked','Blocked members'],['saved','Saved research']].map(([id,label])=>'<button class="feed-tab '+(profileSection===id?'active':'')+'" data-profile-section="'+id+'">'+label+'</button>').join('')+'</div>';let c='';
+return head(p.display_name,'@'+p.handle)+button('open-groups','Back to circles')+'<div class="surface circle-tools"><div class="space"><span class="avatar">'+e(p.display_name.slice(0,2).toUpperCase())+'</span><span class="pill">Member profile</span></div><p class="post-body">'+e(p.bio||'No public biography provided.')+'</p><p class="muted small">Member-provided profile; not an independently verified investment professional or shareholder.</p><div class="row">'+(mine?'<button class="button" data-tab="profile">Edit profile</button>':(shared&&p.allow_direct_messages&&!isBlocked(p.id)?button('dm-user','Message','primary','data-id="'+p.id+'"'):'')+followProfileControl(p)+button(isBlocked(p.id)?'unblock-member':'block-member',isBlocked(p.id)?'Unblock member':'Block member','secondary','data-id="'+p.id+'"'))+'</div></div><div class="section-bar"><h3>Visible recent research</h3></div>'+discussionPageMarkup(discussionFeed,postCard,'<div class="empty">No visible recent research.</div>');}
+function profilePage(){const nav='<div class="feed-tabs">'+[['identity','Profile'],['privacy','Privacy & communication'],['blocked','Blocked members'],['saved','Saved research'],['following','Following'],['followers','Followers']].map(([id,label])=>'<button class="feed-tab '+(profileSection===id?'active':'')+'" data-profile-section="'+id+'" aria-pressed="'+(profileSection===id)+'">'+label+'</button>').join('')+'</div>';let c='';
 if(profileSection==='identity')c='<form data-form="profile" class="stack"><label><span class="form-label">Display name</span><input class="field" name="name" required maxlength="80" minlength="2" value="'+e(profile?.display_name)+'"></label><label><span class="form-label">Biography (public)</span><textarea class="field" maxlength="600" name="bio">'+e(profile?.bio||'')+'</textarea></label><button type="submit" class="button">Save profile</button></form>';
 if(profileSection==='privacy')c='<form data-form="privacy" class="stack"><label class="row"><input type="checkbox" name="allow_dm" '+(profile?.allow_direct_messages?'checked':'')+'> Allow direct messages from members of my communities</label><p class="muted small">Private messaging requires a shared circle and recipient consent. Blocking prevents direct messaging in both directions.</p><button type="submit" class="button">Save privacy preferences</button></form>';
 if(profileSection==='blocked')c='<p class="muted small">Blocked profiles are hidden from your feed and cannot exchange direct messages with you. This does not remove their public content for other users.</p>'+ (blockedMembers.length?blockedMembers.map(id=>'<div class="space"><span>'+e(person(id))+'</span>'+button('unblock-member','Unblock','secondary','data-id="'+id+'"')+'</div>').join(''):'<p>No blocked members.</p>');
 if(profileSection==='saved')c='<p class="muted small">Bookmarks are saved on this device and account only. Only research you still have permission to read is displayed.</p>'+button('saved-feed','Open saved research')+'<button class="button secondary" data-act="clear-bookmarks">Clear saved research</button>';
+if(Object.hasOwn(followSections,profileSection))c=followListMarkup();
 return head('Your account','Control your identity, communications and privacy.')+nav+'<div class="surface circle-tools"><h3>'+e(profile?.display_name)+'</h3><p class="muted small">@'+e(profile?.handle)+'</p>'+c+'</div><button class="button soft" data-act="signout">Sign out</button>';}
 
 function researchDraftNotice(){
@@ -396,6 +475,7 @@ function render(){
  if(!client){setup();return}
  if(recovering){resetDiscussionFeed();recoveryPage();return}
  if(!session?.user){resetDiscussionFeed();auth();return}
+ prepareFollowViews();
  prepareDiscussionFeed();
  const previous=root.querySelector('.common-member-dialog[open]');
  const values=previous?new FormData(previous.querySelector('form')):null;
@@ -423,7 +503,7 @@ async function init(){
    researchReview=pollDraft=null;view='home';error=info='';
    profile=null;ledgerRows=[];ledgerCircle=null;ledgerError='';decisionDetail=null;pollRows=[];pollOwn=null;
    capitalDrafts.clear();capitalTab='overview';blockedMembers=[];bookmarks=[];memberDetail=null;memberDirectory=[];
-   profileSection='identity';mobileMore=false;agentOutput=null;agentInput='';agentMode='review';agentDeskTab='analysis';
+   profileSection='identity';state.feed='mine';followProfile=followList=null;mobileMore=false;agentOutput=null;agentInput='';agentMode='review';agentDeskTab='analysis';
    agentDesk=CommonAgentDesk.initial();agentDeskOwner=null;agentLastRequest=null;
    groups=[];memberships=[];proposals=[];projects=[];watches=[];people={};messages=[];dm=[];memberPoll=[];
    moderationCases=[];moderationAppeals=[];accountRestrictions=[];selectedGroup=selectedPeer=null;
@@ -454,15 +534,19 @@ async function init(){
     await readDiscussionPage(discussionFeed,{quiet:true});
     if(discussionThread)await readDiscussionPage(discussionThread,{thread:true,quiet:true});
    }
+   if(followProfile&&!followProfile.loading)await loadFollowProfile(followProfile,true);
+   if(followList&&!followList.loading)await loadFollowList(followList,{quiet:true});
   }catch(err){console.error(err)}finally{refreshingView=false}
  },25000);
  document.addEventListener('visibilitychange',()=>{
-  if(!currentDiscussionScope())return;
-  resetDiscussionFeed();render();
+  if(!currentDiscussionScope()&&!(view==='profile'&&Object.hasOwn(followSections,profileSection)))return;
+  resetDiscussionFeed();followProfile=followList=null;render();
  });
  window.addEventListener('online',()=>{
   if(discussionFeed?.error)void readDiscussionPage(discussionFeed);
   else if(discussionThread?.error)void readDiscussionPage(discussionThread,{thread:true});
+  if(followProfile?.error)void loadFollowProfile(followProfile,true);
+  if(followList?.error)void loadFollowList(followList,{quiet:true});
  });
 }
 async function refresh(){
@@ -511,8 +595,38 @@ async function dispatch(action,element){
  if(action==='bookmark'){if(!discussionFeed?.items.some(p=>p.id===id))throw Error('Research no longer visible');toggleBookmark(id);return}
  if(action==='saved-feed'){view='home';state.feed='saved';render();return}
  if(action==='clear-bookmarks'){if(confirm('Clear all saved research on this device?')){localStorage.removeItem(bookmarkKey());bookmarks=[];resetDiscussionFeed();render()}return}
+ if(action==='discover-feed'){view='home';state.feed='discover';render();return}
+ if(action==='retry-follow-status'&&followProfile&&!followProfile.requesting){
+  followProfile.loading=true;render();return loadFollowProfile(followProfile);
+ }
+ if(action==='toggle-follow'){
+  const member=followProfile;
+  if(!member||member.id!==id||member.requesting||member.loading||!member.available)return;
+  member.loading=true;render();
+  try{
+   const edge={follower_id:member.owner,followed_id:member.id};
+   if(member.following)await call(client.from('member_follows').delete().eq('follower_id',edge.follower_id).eq('followed_id',edge.followed_id));
+   else await call(client.from('member_follows').upsert(edge,{onConflict:'follower_id,followed_id',ignoreDuplicates:true}));
+  }catch{
+   if(followProfile!==member)return;
+   member.loading=false;render();document.querySelector('[data-act="toggle-follow"]')?.focus();
+   throw Error('Could not update follow status. Please try again.');
+  }
+  if(followProfile===member){
+   await loadFollowProfile(member);
+   document.querySelector('[data-act="toggle-follow"],[data-act="retry-follow-status"]')?.focus();
+  }
+  return;
+ }
+ if(action.startsWith('follow-list-')){
+  const list=followList;
+  if(!list||list.requesting)return;
+  if(action==='follow-list-next'&&list.next)list.cursors.push(list.next);
+  if(action==='follow-list-previous'&&list.cursors.length>1)list.cursors.pop();
+  const loaded=loadFollowList(list,{focus:true});render();return loaded;
+ }
  if(action==='member-profile'){const uid=session.user.id,p=await call(client.from('profiles').select('id,display_name,handle,bio,allow_direct_messages').eq('id',id).single());if(session?.user?.id!==uid)return;memberDetail=p;view='member';render();return}
- if(action==='block-member'||action==='unblock-member'){if(id===session.user.id)throw Error('Cannot block yourself');if(action==='block-member'){if(!confirm('Block this member? Direct messaging will be disabled.'))return;await call(client.from('member_blocks').insert({blocker_id:session.user.id,blocked_id:id}));if(selectedPeer===id){selectedPeer=null;dm=[]}}else await call(client.from('member_blocks').delete().eq('blocker_id',session.user.id).eq('blocked_id',id));await refresh();return}
+ if(action==='block-member'||action==='unblock-member'){if(id===session.user.id)throw Error('Cannot block yourself');if(action==='block-member'){if(!confirm('Block this member? Direct messaging will be disabled.'))return;await call(client.from('member_blocks').insert({blocker_id:session.user.id,blocked_id:id}));if(selectedPeer===id){selectedPeer=null;dm=[]}}else await call(client.from('member_blocks').delete().eq('blocker_id',session.user.id).eq('blocked_id',id));followProfile=null;await refresh();return}
  if(action==='auth-mode'){lastAuthView=element.dataset.mode;info=error='';render();return}
  if(action==='signout'){await client.auth.signOut();return}
  if(action==='open-groups'){selectedGroup=null;messages=[];memberPoll=[];state.inviteToken=null;view='groups';state.groupTab='posts';render();return}
