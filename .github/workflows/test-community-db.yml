@@ -45,6 +45,8 @@ jobs:
             echo "Applying $sql"
             psql -X -v ON_ERROR_STOP=1 -f "$sql"
           done
+      - name: Verify authorized message deletion and private retention
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/pg_chat_deletion_smoke.sql
       - name: Verify followed member access, lists and timelines
         run: psql -X -v ON_ERROR_STOP=1 -f tests/pg_member_following_smoke.sql
       - name: Verify project assistant draft retention and access
