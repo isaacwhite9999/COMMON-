@@ -39,8 +39,9 @@ try {
           return {data:{text:followUp?${JSON.stringify(nextDraft)}:${JSON.stringify(draft)},status:'partial',step_number:followUp?2:1}};
         }
       };
-      const read=()=>JSON.parse(sessionStorage.getItem('fixture-history')||'[]');
-      const persist=rows=>sessionStorage.setItem('fixture-history',JSON.stringify(rows));
+      const key=table=>table==='research_assistant_commands'?'fixture-commands':'fixture-history';
+      const read=table=>JSON.parse(sessionStorage.getItem(key(table))||'[]');
+      const persist=(table,rows)=>sessionStorage.setItem(key(table),JSON.stringify(rows));
       const client={
         auth:{getSession:async()=>({data:{session:{user:{id:user}}}}),onAuthStateChange(fn){authChanged=fn}},
         functions:{invoke(name,{body}){
@@ -49,22 +50,29 @@ try {
         }},
         from(table){
           const filters=[];
-          let removing=false;
+          let removing=false, command=null, updates=null;
           const query={
             select(){return query}, order(){return query}, limit(){return query},
             eq(key,value){filters.push(row=>row[key]===value);return query},
-            delete(){removing=true;return query},
+            delete(){removing=true;return query}, update(value){updates=value;return query},
             insert(value){
+              if(table==='research_assistant_commands'){command=value;return query}
               if(table!=='research_assistant_drafts')throw Error('Unexpected write to '+table);
-              persist([...read(),{step_number:1,...value,id:crypto.randomUUID(),created_at:'2025-01-01T00:00:00Z'}]);
+              persist(table,[...read(table),{step_number:1,...value,id:crypto.randomUUID(),created_at:'2025-01-01T00:00:00Z'}]);
               return Promise.resolve({error:null});
             },
             then(resolve,reject){
-              const all=table==='research_workspaces'?projects:table==='research_assistant_drafts'?read():[];
+              const all=table==='research_workspaces'?projects:table.startsWith('research_assistant_')?read(table):[];
               const rows=all.filter(row=>filters.every(matches=>matches(row)));
+              if(command){
+                const row={...command,id:crypto.randomUUID(),created_at:'2025-01-01T00:00:00Z'};
+                persist(table,[...all,row]);
+                return Promise.resolve({data:[row]}).then(resolve,reject);
+              }
+              if(updates)persist(table,all.map(row=>rows.includes(row)?{...row,...updates}:row));
               if(removing){
                 if(all.some(row=>rows.some(parent=>parent.id===row.parent_draft_id)))return Promise.resolve({error:{code:'23503'}}).then(resolve,reject);
-                persist(all.filter(row=>!rows.includes(row)));
+                persist(table,all.filter(row=>!rows.includes(row)));
               }
               return Promise.resolve({data:rows}).then(resolve,reject);
             }
@@ -82,6 +90,29 @@ try {
   };
   await page.goto(new URL('lab/',base).href);
   let dialog = await open();
+  const projectCommands = () => dialog.getByRole('region',{name:'Project commands'});
+  await projectCommands().getByText('Reusable project commands').click();
+  await projectCommands().getByText('No reusable project commands yet.').waitFor();
+  await projectCommands().getByLabel('Command name').fill('Momentum holdout');
+  await projectCommands().getByLabel('Command goal').fill(goal);
+  await projectCommands().getByLabel('Command evidence').fill(evidence);
+  await projectCommands().getByRole('button',{name:'Save command'}).click();
+  await projectCommands().getByText('Command saved.').waitFor();
+  await projectCommands().getByText('Momentum holdout').click();
+  await projectCommands().getByRole('button',{name:'Edit command'}).click();
+  await projectCommands().getByLabel('Command name').fill('Holdout methodology');
+  await projectCommands().getByRole('button',{name:'Update command'}).click();
+  await projectCommands().getByText('Command updated.').waitFor();
+  await page.reload();
+  dialog = await open();
+  await projectCommands().getByText('Reusable project commands').click();
+  await projectCommands().getByText('Holdout methodology').click();
+  await dialog.getByLabel('Send this goal and evidence',{exact:false}).check();
+  await projectCommands().getByRole('button',{name:'Apply command'}).click();
+  assert.equal(await dialog.getByLabel('Send this goal and evidence',{exact:false}).isChecked(),false);
+  assert.equal(await dialog.getByLabel('Research goal').inputValue(),goal);
+  assert.equal(await dialog.getByLabel('Evidence and constraints').inputValue(),evidence);
+  assert.equal(await page.evaluate(()=>fixture.calls.length),0);
   await dialog.getByText('No drafts saved in this project.').waitFor();
   assert.equal(await page.evaluate(()=>fixture.calls.length),0);
   await dialog.getByLabel('Research goal').fill(goal);
@@ -122,7 +153,18 @@ try {
   assert.equal(await dialog.getByLabel('Research goal').inputValue(),goal);
   assert.equal(await dialog.getByLabel('Evidence and constraints').inputValue(),'');
   assert.equal(await dialog.locator('[data-context]').textContent(),draft);
-  await dialog.getByLabel('Evidence and constraints').fill(nextEvidence);
+  await projectCommands().getByText('Reusable project commands').click();
+  await projectCommands().getByText('Holdout methodology').click();
+  await projectCommands().getByRole('button',{name:'Edit command'}).click();
+  await projectCommands().getByLabel('Command goal').fill('A different goal reserved for new research plans');
+  await projectCommands().getByLabel('Command evidence').fill(nextEvidence);
+  await projectCommands().getByRole('button',{name:'Update command'}).click();
+  await projectCommands().getByText('Command updated.').waitFor();
+  await projectCommands().getByText('Holdout methodology').click();
+  await projectCommands().getByRole('button',{name:'Apply command'}).click();
+  assert.equal(await dialog.getByLabel('Research goal').inputValue(),goal);
+  assert.equal(await dialog.getByLabel('Evidence and constraints').inputValue(),nextEvidence);
+  assert.equal(await page.evaluate(()=>fixture.calls.length),0);
   await dialog.getByLabel('Send this goal and evidence',{exact:false}).check();
   await dialog.getByRole('button',{name:'Draft follow-up'}).click();
   assert.equal(await page.evaluate(()=>fixture.calls.length),0);
@@ -146,6 +188,8 @@ try {
   await page.getByRole('button',{name:'Project research assistant'}).click();
   dialog = page.getByRole('dialog');
   await dialog.getByText('No drafts saved in this project.').waitFor();
+  await projectCommands().getByText('Reusable project commands').click();
+  await projectCommands().getByText('No reusable project commands yet.').waitFor();
   await dialog.getByLabel('Research goal').fill(goal);
   await dialog.getByLabel('Evidence and constraints').fill(evidence);
   await dialog.getByLabel('Send this goal and evidence',{exact:false}).check();
@@ -160,6 +204,12 @@ try {
   dialog = await open();
   await dialog.getByText('The model provider is disabled. Saved project drafts remain available.').waitFor();
   assert.equal(await dialog.getByRole('button',{name:'Draft research plan'}).count(),0);
+  await projectCommands().getByText('Reusable project commands').click();
+  await projectCommands().getByText('Holdout methodology').click();
+  assert.equal(await projectCommands().getByRole('button',{name:'Apply command'}).count(),0);
+  page.once('dialog', confirm=>confirm.accept());
+  await projectCommands().getByRole('button',{name:'Delete command'}).click();
+  await projectCommands().getByText('Command deleted.').waitFor();
   const initialTurn = dialog.locator('details').filter({has:page.locator('summary').filter({hasText:'Turn 1'})});
   const followUpTurn = dialog.locator('details').filter({has:page.locator('summary').filter({hasText:'Turn 2'})});
   await initialTurn.locator('summary').click();
@@ -178,7 +228,7 @@ try {
   await deleteTurn(initialTurn);
   await dialog.getByText('No drafts saved in this project.').waitFor();
   assert.deepEqual(errors,[]);
-  console.log('PASS mobile project research workflow, opt-in, provider failure, private save, resumed follow-up, isolation, sign-out and disabled-provider history');
+  console.log('PASS mobile project research workflow, opt-in, provider failure, private save, reusable commands, resumed follow-up, isolation, sign-out and disabled-provider history');
 } finally {
   await browser.close();
 }
