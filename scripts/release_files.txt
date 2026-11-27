@@ -8,6 +8,7 @@ design-v3.css
 design-v3.js
 index.html
 lab/exercises.js
+lab/glossary.js
 lab/index.html
 lab/lab.css
 lab/lab.js
