@@ -18,6 +18,7 @@ test('declarative specifications reject additional properties and invalid financ
     open: 'Open', high: 'High', low: 'Low', close: 'Close' };
   assert.throws(() => canvas.compile(spec, data), /Candlestick/);
   assert.throws(() => canvas.compile({ ...spec, href: 'https://example.test' }, data), /unsupported/);
+  assert.throws(() => canvas.compile({ ...spec, chart: ['candlestick'] }, data), /supported chart/);
   const row = canvas.csv('X,Y\n<script>,0x12');
   const draft = { version: 1, chart: 'scatter', title: '<script>', x: 'X', y: 'Y' };
   assert.throws(() => canvas.compile(draft, row), /finite numeric/);

@@ -67,7 +67,7 @@
 
   function validate(spec, columns) {
     if (!spec || typeof spec !== 'object' || Array.isArray(spec) || spec.version !== 1 ||
-        !Object.hasOwn(CONFIG, spec.chart) || typeof spec.title !== 'string' ||
+        typeof spec.chart !== 'string' || !Object.hasOwn(CONFIG, spec.chart) || typeof spec.title !== 'string' ||
         !spec.title.trim() || spec.title.length > 120) throw Error('Use a version 1 specification with a supported chart and title.');
     const required = CONFIG[spec.chart];
     if (Object.keys(spec).some(key => !['version', 'chart', 'title', 'availability', ...required].includes(key))) {
