@@ -2,7 +2,9 @@
 (() => {
   'use strict';
   const PAGE_SIZE = 10;
-  const columns = 'id,goal,evidence,draft,result_status,created_at';
+  const MAX_STEPS = 5;
+  const PREVIOUS_CONTEXT_LIMIT = 3000;
+  const columns = 'id,goal,evidence,draft,result_status,created_at,parent_draft_id,step_number';
 
   function mount(client, { project, owner, enabled, currentOwner }) {
     const dialog = document.createElement('dialog');
@@ -22,10 +24,19 @@
         <label class="lab-label">Evidence and constraints
           <textarea class="lab-input" name="evidence" minlength="20" maxlength="9000" rows="5" required></textarea>
         </label>
+        <section class="lab-card" data-previous hidden>
+          <h3 data-continuation-title></h3>
+          <p>Only the preview below is included from the selected turn.</p>
+          <pre data-context></pre>
+          <label><input type="checkbox" name="previousConsent">
+            Include this previous response excerpt in the request.
+          </label>
+          <button class="lab-button secondary" type="button" data-clear-previous>Start a new plan instead</button>
+        </section>
         <label><input type="checkbox" name="consent" required>
           Send this goal and evidence to the configured model provider. I have permission to share them.
         </label>
-        <button class="lab-button" type="submit">Draft research plan</button>
+        <button class="lab-button" type="submit" data-submit>Draft research plan</button>
       </form>
       <p class="lab-hint" role="status" data-status></p>
       <p class="lab-alert error" role="alert" data-error hidden></p>
@@ -55,6 +66,7 @@
     let result = null;
     let cursor = null;
     let requestBusy = false;
+    let previous = null;
 
     get('[data-project]').textContent = project.title;
     if (!enabled) {
@@ -69,12 +81,37 @@
     const refreshControls = () => {
       for (const field of formFields) field.disabled = requestBusy;
       save.disabled = requestBusy;
+      for (const button of history.querySelectorAll('[data-resume]')) button.disabled = requestBusy;
     };
+
+    function selectPrevious(row) {
+      if (!active() || requestBusy) return;
+      if (result && !confirm('Discard the unsaved response?')) return;
+      previous = row;
+      result = null;
+      get('[data-result]').hidden = true;
+      get('[data-draft]').textContent = '';
+      get('[data-previous]').hidden = !row;
+      get('[data-context]').textContent = row ?
+        Array.from(row.draft).slice(0, PREVIOUS_CONTEXT_LIMIT).join('') : '';
+      get('[data-continuation-title]').textContent = row ? 'Continue with turn ' + (row.step_number + 1) : '';
+      get('[data-submit]').textContent = row ? 'Draft follow-up' : 'Draft research plan';
+      form.elements.goal.readOnly = Boolean(row);
+      form.elements.goal.value = row?.goal || '';
+      form.elements.evidence.value = '';
+      form.elements.evidence.maxLength = row ? 6000 : 9000;
+      form.elements.previousConsent.checked = false;
+      form.elements.previousConsent.required = Boolean(row);
+      form.elements.consent.checked = false;
+      status.textContent = row ? 'Review the previous response excerpt before sharing it.' : 'Starting a new research plan.';
+      announceError('');
+      form.elements.evidence.focus();
+    }
 
     function recordElement(row) {
       const details = document.createElement('details');
       const summary = document.createElement('summary');
-      summary.textContent = row.goal + ' · ' + new Date(row.created_at).toLocaleDateString();
+      summary.textContent = row.goal + ' · Turn ' + row.step_number + ' · ' + new Date(row.created_at).toLocaleDateString();
       const label = document.createElement('p');
       label.textContent = (row.result_status === 'partial' ? 'Partial' : 'Complete') +
         ' response · member-saved, unverified research';
@@ -97,6 +134,10 @@
         try {
           const { data, error: failure } = await client.from('research_assistant_drafts')
             .delete().eq('id', row.id).eq('workspace_id', project.id).eq('owner_id', owner).select('id');
+          if (failure?.code === '23503') {
+            announceError('Delete the follow-up turns before deleting this draft.');
+            return;
+          }
           if (failure || data?.length !== 1) throw Error('Draft deletion failed');
           if (active()) await loadHistory(true);
         } catch {
@@ -105,7 +146,22 @@
           remove.disabled = false;
         }
       });
-      details.append(summary, label, evidenceHeading, evidence, draftHeading, draft, remove);
+      details.append(summary, label, evidenceHeading, evidence, draftHeading, draft);
+      if (enabled && row.step_number < MAX_STEPS) {
+        const resume = document.createElement('button');
+        resume.className = 'lab-button';
+        resume.type = 'button';
+        resume.dataset.resume = '';
+        resume.textContent = 'Continue from this draft';
+        resume.disabled = requestBusy;
+        resume.addEventListener('click', () => selectPrevious(row));
+        details.append(resume, document.createTextNode(' '));
+      } else if (enabled) {
+        const limit = document.createElement('p');
+        limit.textContent = 'This branch has reached its five-turn limit.';
+        details.append(limit);
+      }
+      details.append(remove);
       return details;
     }
 
@@ -141,7 +197,8 @@
 
     form.addEventListener('submit', async event => {
       event.preventDefault();
-      if (!enabled || requestBusy || !active() || !form.elements.consent.checked) return;
+      if (!enabled || requestBusy || !active() || !form.elements.consent.checked ||
+          (previous && !form.elements.previousConsent.checked)) return;
       const goal = form.elements.goal.value.trim();
       const evidence = form.elements.evidence.value.trim();
       if (goal.length < 10 || evidence.length < 20) {
@@ -155,14 +212,24 @@
       get('[data-result]').hidden = true;
       status.textContent = 'Requesting a research draft…';
       form.elements.consent.checked = false;
+      form.elements.previousConsent.checked = false;
+      const turn = previous;
+      const step = turn ? turn.step_number + 1 : 1;
       try {
         const { data, error: failure } = await client.functions.invoke('common-research-agent', {
-          body: { workspace_id: project.id, mode: 'plan', goal, input: evidence, consent: true }
+          body: {
+            workspace_id: project.id, mode: 'plan', goal, input: evidence, consent: true,
+            ...(turn ? { previous_draft_id: turn.id, previous_context_consent: true } : {})
+          }
         });
         if (!active()) return;
         if (failure || typeof data?.text !== 'string' || !data.text.trim() ||
-            !['complete', 'partial'].includes(data.status)) throw Error('Research draft unavailable');
-        result = { workspace_id: project.id, owner_id: owner, goal, evidence, draft: data.text, result_status: data.status };
+            !['complete', 'partial'].includes(data.status) ||
+            (turn && data.step_number !== step)) throw Error('Research draft unavailable');
+        result = {
+          workspace_id: project.id, owner_id: owner, goal, evidence, draft: data.text, result_status: data.status,
+          ...(turn ? { parent_draft_id: turn.id, step_number: step } : {})
+        };
         get('[data-draft]').textContent = result.draft;
         get('[data-result-status]').textContent = (data.status === 'partial' ? 'Partial provider response. ' : '') +
           'Verify citations, calculations and assumptions independently.';
@@ -200,6 +267,7 @@
       }
     });
 
+    get('[data-clear-previous]').addEventListener('click', () => selectPrevious(null));
     more.addEventListener('click', () => { announceError(''); void loadHistory(); });
     retry.addEventListener('click', () => { announceError(''); void loadHistory(true); });
     get('[data-close]').addEventListener('click', () => dialog.close());
