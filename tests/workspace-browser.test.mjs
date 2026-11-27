@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import { chromium } from 'playwright';
 const browser=await chromium.launch({headless:true});
 try {
@@ -67,7 +68,34 @@ try {
  await page.getByRole('link',{name:'Correlation',exact:true}).click();
  await page.getByRole('heading',{name:'Historical correlation matrix'}).waitFor();
  await page.getByRole('link',{name:'Downside risk',exact:true}).click();
- await page.getByRole('heading',{name:'Historical downside estimates'}).waitFor();
+ await page.getByRole('heading',{name:'Portfolio downside estimates'}).waitFor();
+ // QUANT-166: independent Python NormalDist fixture gives 0.1978467912% VaR.
+ const gaussian=page.getByRole('row').filter({hasText:'Daily Gaussian VaR (95%)'});
+ await gaussian.getByRole('cell',{name:'0.20%',exact:true}).waitFor();
+ await gaussian.getByRole('cell',{name:'$197.85',exact:true}).waitFor();
+ await page.reload();
+ await gaussian.getByRole('cell',{name:'$197.85',exact:true}).waitFor();
+ await page.getByRole('link',{name:'Data & methodology',exact:true}).click();
+ const downloadPromise=page.waitForEvent('download');
+ await page.getByRole('button',{name:'Export analysis',exact:true}).click();
+ const download=await downloadPromise;
+ const exported=JSON.parse(await readFile(await download.path(),'utf8'));
+ assert.equal(download.suggestedFilename(),'common-risk-report.json');
+ assert.ok(Math.abs(exported.parametricVaR.lossFraction-.001978467912089287)<1e-12);
+ await page.getByRole('link',{name:'Downside risk',exact:true}).click();
+ const currentReport=await page.evaluate(()=>{
+  const key='common-workspace-v1';
+  const original=localStorage.getItem(key),legacy=JSON.parse(original);
+  delete legacy.riskRuns[0].parametricVaR;
+  localStorage.setItem(key,JSON.stringify(legacy));
+  return original;
+ });
+ await page.reload();
+ await page.getByText('This saved report predates Gaussian VaR.',{exact:false}).waitFor();
+ assert.equal(await gaussian.count(),0);
+ await page.evaluate(value=>localStorage.setItem('common-workspace-v1',value),currentReport);
+ await page.reload();
+ await gaussian.getByRole('cell',{name:'$197.85',exact:true}).waitFor();
  await page.getByRole('button',{name:'Prepare risk summary for sharing'}).click();
  assert.match(await page.getByLabel('Research summary').inputValue(), /Hypothetical portfolio/);
  await page.getByRole('dialog').getByRole('button',{name:'Close',exact:true}).click();
@@ -114,5 +142,5 @@ try {
  await page.getByRole('img',{name:'Strategy and benchmark normalized equity curves'}).waitFor();
  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=394),'Mobile workspace overflows');
  assert.deepEqual(errors,[]);
- console.log('PASS nested research workspace, run persistence, provenance, validation and mobile layout');
+ console.log('PASS nested research workspace, run persistence, provenance, validation, Gaussian VaR, and mobile layout');
 }finally{await browser.close();}
