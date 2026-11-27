@@ -217,3 +217,118 @@ def test_public_preview_disables_real_account_signup_but_allows_demo(client, mon
     h = demo(client)
     assert client.get('/api/communities').status_code == 200
     assert client.post('/api/watchlist', json={'symbol': 'TSLA'}, headers=h).status_code == 201
+
+
+def test_api_operations_liveness_readiness_and_correlation(client, monkeypatch):
+    correlation = "1e3e3d85-f129-4c72-af91-58872aefb838"
+    ready = client.get("/api/v1/health/ready", headers={"X-Request-ID": correlation})
+    assert ready.json() == {"status": "ready"}
+    assert ready.headers["X-Request-ID"] == correlation
+    assert ready.headers["Cache-Control"] == "no-store"
+    assert ready.headers["Server-Timing"].startswith("app;dur=")
+
+    from sqlalchemy.exc import TimeoutError as PoolTimeout
+
+    def exhausted():
+        raise PoolTimeout("connection credentials must stay private")
+
+    monkeypatch.setattr(backend.engine, "connect", exhausted)
+    assert client.get("/api/v1/health/live").json() == {"status": "ok"}
+    unavailable = client.get("/api/v1/health/ready")
+    assert unavailable.status_code == 503
+    assert unavailable.json() == {"status": "unavailable"}
+    auth = client.post("/api/auth/demo", headers={"X-Request-ID": "private-looking-string"})
+    assert auth.status_code == 503
+    assert auth.headers["Retry-After"] == "1"
+    assert auth.json()["request_id"] == auth.headers["X-Request-ID"]
+    assert "credentials" not in auth.text
+
+
+def test_body_limit_and_validation_do_not_echo_sensitive_input(client):
+    payload = b"s" * 40_000
+    body = (payload[offset:offset + 8000] for offset in range(0, len(payload), 8000))
+    rejected = client.post("/api/auth/login", content=body)
+    assert rejected.status_code == 413
+    assert rejected.json()["request_id"] == rejected.headers["X-Request-ID"]
+    assert rejected.headers["X-Content-Type-Options"] == "nosniff"
+
+    secret = "sensitive-input-" * 10
+    invalid = client.post("/api/auth/login", json={"email": "test@example.org", "password": secret})
+    assert invalid.status_code == 422
+    assert secret not in invalid.text
+    assert invalid.json()["detail"][0]["loc"] == ["body", "password"]
+
+
+def test_staging_rejects_sqlite_and_prototype_cannot_start_in_production(monkeypatch):
+    from backend.database import build_engine
+
+    monkeypatch.setenv("COMMON_API_ENV", "staging")
+    with pytest.raises(ValueError, match="requires PostgreSQL"):
+        build_engine("sqlite:///ignored.sqlite3")
+    monkeypatch.setenv("COMMON_API_ENV", "production")
+    with pytest.raises(ValueError, match="isolated staging"):
+        build_engine("postgresql://localhost/ignored")
+
+
+def test_proposal_list_uses_constant_queries(client):
+    from datetime import datetime, timezone
+    from sqlalchemy import event
+
+    demo(client)
+    baseline = client.get("/api/proposals").json()["items"][0]
+    with backend.SessionLocal.begin() as db:
+        template = db.get(backend.Proposal, baseline["id"])
+        db.add_all([
+            backend.Proposal(
+                community_id=template.community_id,
+                author_id=template.author_id,
+                title=f"Disposable research item {index}",
+                body=template.body,
+                topic=template.topic,
+                created_at=datetime.now(timezone.utc),
+            )
+            for index in range(125)
+        ])
+
+    statements = []
+
+    def record(_connection, _cursor, statement, *_args):
+        statements.append(statement)
+
+    event.listen(backend.engine, "before_cursor_execute", record)
+    try:
+        result = client.get("/api/proposals")
+    finally:
+        event.remove(backend.engine, "before_cursor_execute", record)
+    assert result.status_code == 200
+    assert len(result.json()["items"]) == 100
+    # Session and user lookup, the joined proposal read, and two batched vote reads.
+    assert len(statements) == 5
+
+
+def test_interrupted_request_body_cannot_reach_mutation_handler():
+    from anyio import run
+
+    from backend.operations import APIOperations
+
+    async def exercise():
+        events = iter([
+            {"type": "http.request", "body": b'{"choice":', "more_body": True},
+            {"type": "http.disconnect"},
+        ])
+
+        async def receive():
+            return next(events)
+
+        async def send(_message):
+            pytest.fail("The disconnected client should receive no response")
+
+        async def mutate(*_args):
+            pytest.fail("The incomplete body reached the mutation boundary")
+
+        await APIOperations(mutate)({
+            "type": "http", "method": "POST", "path": "/api/proposals/fixture/vote",
+            "scheme": "http", "headers": [], "server": ("localhost", 80),
+        }, receive, send)
+
+    run(exercise)
