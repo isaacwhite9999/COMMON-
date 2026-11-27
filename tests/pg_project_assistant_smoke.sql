@@ -63,12 +63,36 @@ BEGIN
  EXCEPTION WHEN foreign_key_violation THEN NULL; END;
 END $$;
 
+INSERT INTO public.research_assistant_commands (workspace_id,owner_id,name,goal,evidence)
+VALUES ('ab100000-0000-4000-8000-000000000001','11111111-1111-4111-8111-111111111111',
+ 'Holdout command','Test an independent research hypothesis','Only evidence expressly selected for testing.');
+DO $$
+BEGIN
+ UPDATE public.research_assistant_commands SET evidence='Different valid evidence after editing.';
+ IF NOT FOUND THEN RAISE EXCEPTION 'Owner could not update saved command'; END IF;
+ BEGIN
+  UPDATE public.research_assistant_commands SET workspace_id='ab100000-0000-4000-8000-000000000002';
+  RAISE EXCEPTION 'Command reassignment accepted';
+ EXCEPTION WHEN insufficient_privilege THEN NULL; END;
+ BEGIN
+  INSERT INTO public.research_assistant_commands (workspace_id,owner_id,name,goal,evidence)
+  VALUES ('ab100000-0000-4000-8000-000000000001','11111111-1111-4111-8111-111111111111',
+   'holdout COMMAND','Test an independent research hypothesis','Only evidence expressly selected for testing.');
+  RAISE EXCEPTION 'Duplicate command accepted';
+ EXCEPTION WHEN unique_violation THEN NULL; END;
+END $$;
+
 SELECT set_config('request.jwt.claim.sub','22222222-2222-4222-8222-222222222222',true);
 DO $$
 BEGIN
  IF EXISTS(SELECT 1 FROM public.research_assistant_drafts) THEN
   RAISE EXCEPTION 'Draft leaked to unrelated member';
  END IF;
+ IF EXISTS(SELECT 1 FROM public.research_assistant_commands) THEN
+  RAISE EXCEPTION 'Command leaked to unrelated member';
+ END IF;
+ DELETE FROM public.research_assistant_commands;
+ IF FOUND THEN RAISE EXCEPTION 'Unrelated member deleted a command'; END IF;
  DELETE FROM public.research_assistant_drafts;
  IF FOUND THEN RAISE EXCEPTION 'Unrelated member deleted protected history'; END IF;
  BEGIN
@@ -95,6 +119,9 @@ DO $$
 BEGIN
  IF EXISTS(SELECT 1 FROM public.research_assistant_drafts) THEN
   RAISE EXCEPTION 'Project deletion did not remove assistant drafts';
+ END IF;
+ IF EXISTS(SELECT 1 FROM public.research_assistant_commands) THEN
+  RAISE EXCEPTION 'Project deletion did not remove assistant commands';
  END IF;
 END $$;
 ROLLBACK;
