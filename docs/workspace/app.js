@@ -80,7 +80,7 @@ let pythonJob=null;
 const pythonTarget=(id,cellId)=>cellId?id+':'+cellId:id;
 const pythonStop=target=>'<button type="button" data-act="cancel-python:'+esc(target)+'" data-python-stop disabled>Stop execution</button>';
 const pythonProgress=target=>'<p data-python-progress="'+esc(target)+'" role="status" class="muted"></p>';
-const pythonOptions=()=>'<div class="python-packages"><span class="eyebrow">OPTIONAL SCIENTIFIC PACKAGES</span>'+P.packages.map(k=>'<label><input type="checkbox" name="pkg" value="'+k+'"> '+k+'</label>').join('')+'</div><label><input type="checkbox" name="consent" required> Run my own reviewed code locally; allow runtime/package downloads. Do not include secrets.</label>';
+const pythonOptions=()=>'<div class="python-packages"><span class="eyebrow">OPTIONAL SCIENTIFIC PACKAGES</span>'+P.packages.map(k=>'<label><input type="checkbox" name="pkg" value="'+k+'"> '+k+' '+esc(P.packageVersion(k))+'</label>').join('')+'</div><label><input type="checkbox" name="consent" required> Run my own reviewed code locally; allow runtime/package downloads. Do not include secrets.</label>';
 function syncPythonControls(){
   for(const node of app.querySelectorAll('[data-python-progress]'))
     node.textContent=pythonJob?.target===node.dataset.pythonProgress?pythonJob.status:'';
@@ -101,9 +101,23 @@ async function executePython(target,request){
     syncPythonControls();
   }
 }
+function pythonManifest(manifest){
+  const runtime=manifest.runtime;
+  const coordinates=table(['Field','Pin'],[
+    ['Runtime',esc(runtime.name+' '+runtime.version)],
+    ['Python',esc(runtime.python)],
+    ['Platform',esc(runtime.architecture+' · '+runtime.platform)],
+    ['Release lockfile SHA-256',esc(manifest.lock.sha256)],
+  ]);
+  const dependencies=manifest.dependencies.length?table(['Package','Version','Requested'],manifest.dependencies.map(pkg=>[
+    esc(pkg.name),esc(pkg.version),manifest.requested.includes(pkg.name)?'Yes':'Dependency',
+  ])):empty('Standard library only.');
+  return '<details><summary>Environment manifest</summary>'+empty(manifest.prepared?'The runtime and selected packages loaded before execution.':'Execution ended before preparation was confirmed.')+coordinates+dependencies+'</details>';
+}
 function pythonOutput(run){
   return '<p class="muted">Runtime '+esc(run.version)+' · packages: '+esc(run.libs.join(', ')||'standard library')+'</p><pre>'+esc(run.output||'(No printed output)')+'</pre>'+
-    (run.truncated?empty('Output truncated at 24,000 characters. Could also be shortened by the runtime.'):'');
+    (run.truncated?empty('Output truncated at 24,000 characters. Could also be shortened by the runtime.'):'')+
+    (run.environment?pythonManifest(run.environment):empty('This run predates environment manifests.'));
 }
 function pythonDesk(p,detail){const files=F.list(p).filter(x=>x.path.endsWith('.py')),selected=files.find(x=>x.id===detail),runs=p.pythonRuns||[],base='research/'+p.id+'/python';
 const input=selected?.content??'import statistics\nreturns = [0.01, -0.02, 0.015, 0.005]\nprint("Illustrative mean daily return:", statistics.mean(returns))';

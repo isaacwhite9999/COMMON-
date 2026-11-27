@@ -42,6 +42,14 @@ else:
   });
   assert.equal(stopped.ok, false);
   assert.match(stopped.output, /cancelled/);
+  assert.equal(stopped.environment.prepared, true);
+  const beforePreparation = await page.evaluate(() => {
+    const run = CommonPython.execute('print(1)', ['numpy']);
+    run.cancel();
+    return run.promise;
+  });
+  assert.equal(beforePreparation.environment.prepared, false);
+  assert.deepEqual(beforePreparation.environment.requested, ['numpy']);
   await page.goto(new URL('workspace/#research',base).href);
   await page.getByLabel('Project name').fill('Local compute fixture');
   await page.getByRole('button',{name:'Create project'}).click();
@@ -57,13 +65,20 @@ else:
   assert.match(evidence,/Pyodide version: 0\.27\.7/);
   assert.match(evidence,/Execution status: Completed/);
   assert.doesNotMatch(evidence,/PRIVATE_WORKSPACE_OUTPUT|print\(/);
-  await page.getByRole('button',{name:'Close',exact:true}).click();
+  await page.locator('dialog').getByRole('button',{name:'Close',exact:true}).click();
+  await page.getByText('Environment manifest',{exact:true}).click();
+  await page.getByText('Standard library only.',{exact:true}).waitFor();
+  const labDownload = page.waitForEvent('download');
+  await page.getByRole('button',{name:'Export run',exact:true}).click();
+  const labReport = JSON.parse(await readFile(await (await labDownload).path(),'utf8'));
+  assert.equal(labReport.environment.prepared,true);
+  assert.deepEqual(labReport.environment.dependencies,[]);
 
   await page.getByRole('link',{name:'Research notebook',exact:true}).click();
   await page.getByLabel('Cell title').fill('Notebook Python fixture');
   await page.getByLabel('Cell type').selectOption('python');
   assert.equal(await page.getByLabel('Cell dataset').isVisible(),false);
-  const source = '\nfor value in [42]:\n    print(value, "<b>literal output</b>")\n';
+  const source = '\nimport numpy\nimport platform\nprint(numpy.__version__, platform.python_version())\nfor value in [42]:\n    print(value, "<b>literal output</b>")\n';
   await page.getByRole('textbox',{name:'Python source',exact:true}).fill(source);
   await page.getByRole('button',{name:'Save cell'}).click();
   const cell = page.locator('.notebook-cell').filter({hasText:'Notebook Python fixture'});
@@ -76,13 +91,17 @@ else:
   await runReviewed.click();
   assert.equal(await page.locator('iframe[title="Isolated local Python execution"]').count(),0);
   assert.equal(await consent.isChecked(),false);
+  await page.getByLabel('numpy 2.0.2',{exact:true}).check();
   await consent.check();
   await runReviewed.click();
-  await cell.getByText('42 <b>literal output</b>',{exact:true}).waitFor({timeout:95_000});
+  await cell.getByText(/42 <b>literal output<\/b>/).waitFor({timeout:95_000});
   assert.equal(await cell.locator('.notebook-result pre b').count(),0);
+  assert.match(await cell.locator('.notebook-result pre').textContent(), /^2\.0\.2 3\.12\.7$/m);
   await page.reload();
-  await cell.getByText('42 <b>literal output</b>',{exact:true}).waitFor();
+  await cell.getByText(/42 <b>literal output<\/b>/).waitFor();
   assert.equal(await stopCell.isDisabled(),true);
+  await cell.getByText('Environment manifest',{exact:true}).click();
+  await cell.getByRole('row',{name:'numpy 2.0.2 Yes'}).waitFor();
 
   const downloadPromise = page.waitForEvent('download');
   await page.getByRole('button',{name:'Export notebook'}).click();
@@ -91,6 +110,11 @@ else:
   assert.equal(notebook.cells[0].text, source);
   assert.equal(notebook.cells[0].output.ok,true);
   assert.equal(notebook.cells[0].output.version,'0.27.7');
+  const manifest = notebook.cells[0].output.environment;
+  assert.equal(manifest.prepared,true);
+  assert.deepEqual(manifest.requested,['numpy']);
+  assert.deepEqual(manifest.dependencies.map(pkg=>[pkg.name,pkg.version]),[['numpy','2.0.2']]);
+  assert.match(manifest.lock.sha256,/^[a-f0-9]{64}$/);
 
   await cell.getByRole('link',{name:'Edit',exact:true}).click();
   const sourceEditor = page.getByRole('textbox',{name:'Python source',exact:true});
