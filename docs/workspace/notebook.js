@@ -19,6 +19,7 @@ function recordPython(project,snapshot,request,result){
     version:result.version,
     at:result.at,
     libs:request.libs,
+    ...(result.environment?{environment:result.environment}:{}),
   };
   return {...project,notebook:list(project).map(cell=>cell.id===current.id?{...cell,output}:cell)};
 }
