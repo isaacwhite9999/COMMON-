@@ -23,6 +23,12 @@ try {
 
   const openSettings = () => page.getByRole('link', { name: 'Project settings', exact: true }).click();
   await openSettings();
+  const fullExportEvent = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Export project', exact: true }).click();
+  const fullExport = JSON.parse(await readFile(await (await fullExportEvent).path()));
+  assert.equal(fullExport.name, 'Trend study');
+  assert.equal(fullExport.files[0].path, 'research/notes.md');
+  assert.deepEqual(fullExport.runs, []);
   const downloadEvent = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Export source bundle', exact: true }).click();
   const download = await downloadEvent;
@@ -52,6 +58,15 @@ try {
   await page.getByRole('link', { name: 'Project files', exact: true }).click();
   await page.getByRole('link', { name: 'research/notes.md', exact: true }).click();
   assert.equal(await page.locator('main').getByLabel('Source editor').inputValue(), 'Source from the research project');
+  await openSettings();
+  await page.getByLabel('Project name').fill('Trend study imported');
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await page.getByRole('heading', { name: 'Trend study imported', exact: true }).waitFor();
+  page.once('dialog', dialog => dialog.accept());
+  await page.getByRole('button', { name: 'Delete project', exact: true }).click();
+  await page.getByLabel('Search projects').fill('');
+  await page.getByRole('link', { name: 'Trend study', exact: true }).waitFor();
+  assert.equal(await page.getByRole('link', { name: 'Trend study imported', exact: true }).count(), 0);
   assert.deepEqual(errors, []);
   console.log('Project library template, duplication, archive, restore, search and source bundle round trip passed.');
 } finally {
