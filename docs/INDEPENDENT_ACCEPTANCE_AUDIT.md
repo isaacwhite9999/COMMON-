@@ -43,6 +43,7 @@ The candidate branch `codex/common-feature-integration` starts from PR #18 at `d
 - **OPS1** [Launch readiness](LAUNCH_READINESS.md), [artifact validation](../tests/test_release_candidate.py), [disposable recovery drill](../tests/recovery-drill.py)
 
 - **A2** [Persistent assistant turns and authorization](../supabase/migrations/20261127184616_research_assistant_followups.sql), [mock provider tests](../supabase/functions/common-research-agent/handler_test.ts), [Chromium continuation](../tests/project-assistant-browser.test.mjs)
+- **A3** [Studio project commands](lab/project-commands.js), [owner RLS tests](../tests/pg_project_assistant_smoke.sql), [Chromium template lifecycle and consent](../tests/project-assistant-browser.test.mjs)
 - **I2** [Project search/replacement model](workspace/files.js), [unit checks](../tests/project-file-search.test.cjs), [mobile lifecycle and revision restore](../tests/project-file-search.test.mjs)
 - **C2** [Python runtime and pins](workspace/python-runtime.js), [real execution and export](../tests/workspace-python-browser.test.mjs)
 - **D2** [Treasury terminal](terminal/terminal.js), [independent decimal revision tests](../tests/finance-terminal.test.cjs), [Chromium comparison and fallback](../tests/terminal-browser.test.mjs)
@@ -83,7 +84,7 @@ The candidate branch `codex/common-feature-integration` starts from PR #18 at `d
 | QUANT-023 | Durable long-running sessions | Missing | A | One-shot assist and local desk; no matching agent/session/tool pipeline |
 | QUANT-024 | Pause and resume | Missing | A | One-shot assist and local desk; no matching agent/session/tool pipeline |
 | QUANT-025 | Cancel active job | Partial | C | Local execution, inspection, consent, cancel or queue primitives exist; assistant has no corresponding execution integration. |
-| QUANT-026 | Custom commands | Verified | A | Create and apply local command templates; validation and context unit suite passed. |
+| QUANT-026 | Custom commands | Verified | A3 | Existing device-local templates remain available. Private Studio projects add persistent command templates with create, edit, apply and delete. Explicit review and provider consent remain mandatory. |
 | QUANT-027 | Project memory | Partial | A | Prompt-based drafting/review or local notes/history exist; scoped orchestration and verification are absent. |
 | QUANT-028 | Account memory with consent | Partial | A | Prompt-based drafting/review or local notes/history exist; scoped orchestration and verification are absent. |
 | QUANT-029 | Conversation history | Partial | A2 | Private saved planning branches preserve evidence and reviewed responses, with visible turn numbers and reload continuity. Full conversation context and agent execution history remain open. |

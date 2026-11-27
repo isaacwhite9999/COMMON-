@@ -13,6 +13,7 @@ lab/index.html
 lab/lab.css
 lab/lab.js
 lab/project-assistant.js
+lab/project-commands.js
 lab/research-engine.js
 live-community.js
 live/circles.css
