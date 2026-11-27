@@ -300,7 +300,7 @@ function chat(){
  const peers=memberDirectory.filter(x=>x.id!==session.user.id&&x.allow_direct_messages&&!isBlocked(x.id));
  return head('Messages','Private conversations are opt-in and limited to members sharing a group.')+
  '<div class="surface" style="padding:22px">'+(profile?.allow_direct_messages?'<p class="small muted">Direct messaging is enabled on your profile.</p>':'<p class="small muted">Direct messages are off by default. Enable them under Profile to receive messages from fellow group members.</p>')+
- '<div class="section-bar"><h3>Members accepting messages</h3></div><div class="stack">'+peers.map(p=>'<div class="space"><div><button class="member-link" data-act="member-profile" data-id="'+p.id+'">'+e(p.display_name)+'</button> <span class="tiny muted">@'+e(p.handle)+'</span></div>'+button('dm-user','Open chat','secondary','data-id="'+p.id+'"')+'</div>').join('')+'</div>'+
+ '<div class="section-bar"><h3>Members accepting messages</h3></div><div class="stack">'+peers.map(p=>'<div class="space connection-list-row"><div><button class="member-link" data-act="member-profile" data-id="'+p.id+'">'+e(p.display_name)+'</button> <span class="tiny muted">@'+e(p.handle)+'</span></div>'+button('dm-user','Open chat','secondary','data-id="'+p.id+'"')+'</div>').join('')+'</div>'+
  (selectedPeer?'<div class="section-bar"><h3>Conversation with '+e(person(selectedPeer))+'</h3>'+button('refresh-dm','Refresh conversation','secondary')+'</div><div data-dm-refresh-status role="status"></div><div class="chat-messages">'+dm.filter(m=>(m.sender_id===selectedPeer&&m.recipient_id===session.user.id)||(m.sender_id===session.user.id&&m.recipient_id===selectedPeer)).map(m=>'<div class="bubble '+(m.sender_id===session.user.id?'mine':'')+'">'+e(m.body)+safetyLabel('direct_message',m.id)+'</div>').join('')+'</div><form data-form="dm" class="chat-write"><input class="field" name="body" required maxlength="2000" aria-label="Private message" placeholder="Write a private message"><button class="button">Send</button></form>':'')+'</div>';
 }
 function ownership(){
@@ -340,9 +340,44 @@ function money(){
 }
 function learn(){return head('Understand ownership','Financial concepts explained in plain language.')+
  [['Can my friends buy the same stock?','Yes. Members can discuss and independently decide what to do through their own brokerages. Avoid agreements designed to artificially move prices.'],['What is a pooled investment club?','An actual pooled club needs a lawful structure and external financial accounts. A COMMON group is not automatically a legal fund.'],['Can our group buy housing?','An appropriately structured entity can research and potentially acquire properties using outside legal, banking and financing professionals. COMMON does not offer securities or collect investments.'],['Are community votes legally binding?','No. These opinion polls are not company shareholder votes or investment instructions.'],['What is AUM?','Assets under management is the value a manager oversees. Group size, hypothetical contributions and goal amounts do not count as real AUM.']].map(([q,a])=>'<details class="surface lesson"><summary>'+e(q)+'</summary><p>'+e(a)+'</p></details>').join('');}
-let followProfile=null, followList=null;
+let followProfile=null, followList=null, connectionSection='incoming';
 const followPageSize=25;
 const followSections={following:['follower_id','followed_id'],followers:['followed_id','follower_id']};
+const connectionSections={incoming:'Received',outgoing:'Sent',accepted:'Accepted'};
+const connectionActions={
+ available:[['request','Request connection']],
+ incoming:[['accept','Accept request'],['decline','Decline request']],
+ outgoing:[['withdraw','Withdraw request']],
+ accepted:[['remove','Remove connection']]
+};
+function connectionButtons(peerId,section){
+ return (connectionActions[section]||[]).map(([action,label])=>
+  button('member-connection',label,action==='accept'?'primary':'secondary',
+   'data-id="'+e(peerId)+'" data-choice="'+action+'"')).join('');
+}
+async function loadConnectionProfile(member,quiet=false){
+ if(member.connectionRequest&&quiet)return;
+ const request={};
+ member.connectionRequest=request;
+ const previous=member.connection;
+ let status;
+ try{
+  status=await call(client.rpc('member_connection_state_v1',{peer_id:member.id}));
+ }catch{status='error'}
+ if(member.connectionRequest!==request)return;
+ member.connection=status;
+ member.connectionRequest=null;
+ if(followProfile===member&&(!quiet||previous!==member.connection))render();
+}
+function connectionProfileControls(peerId){
+ if(followProfile?.id!==peerId||isBlocked(peerId))return '';
+ if(followProfile.connection==='error')return button('retry-connection-status','Retry connection status');
+ if(!followProfile.connection)return '<span role="status">Loading connection status…</span>';
+ return connectionButtons(peerId,followProfile.connection);
+}
+function connectionListSection(){
+ return view==='profile'&&profileSection==='connections'?connectionSection:null;
+}
 
 async function loadFollowProfile(member,quiet=false){
  if(member.requesting)return;
@@ -375,8 +410,9 @@ function prepareFollowViews(){
  else if(followProfile?.owner!==owner||followProfile.id!==member.id){
   followProfile={owner,id:member.id,loading:true};
   void loadFollowProfile(followProfile);
+  void loadConnectionProfile(followProfile);
  }
- const section=view==='profile'&&Object.hasOwn(followSections,profileSection)?profileSection:null;
+ const section=connectionListSection()||(view==='profile'&&Object.hasOwn(followSections,profileSection)?profileSection:null);
  if(!section)followList=null;
  else if(followList?.section!==section||followList.owner!==owner){
   followList={owner,section,cursors:[null],items:[]};
@@ -388,16 +424,24 @@ async function loadFollowList(list,{focus=false,quiet=false}={}){
  list.requesting=true;
  if(!quiet){list.loading=true;list.error=false;list.items=[];list.next=null}
  const previous=JSON.stringify([list.items,list.next,list.error]);
- const [ownerColumn,peerColumn]=followSections[list.section];
  try{
-  let query=client.from('member_follows').select(peerColumn+',member:profiles!member_follows_'+peerColumn+'_fkey(id,display_name,handle)')
-   .eq(ownerColumn,list.owner).order(peerColumn,{ascending:true}).limit(followPageSize+1);
   const cursor=list.cursors.at(-1);
-  if(cursor)query=query.gt(peerColumn,cursor);
-  const rows=await call(query);
+  const columns=followSections[list.section];
+  let items;
+  if(columns){
+   const [ownerColumn,peerColumn]=columns;
+   let query=client.from('member_follows').select(peerColumn+',member:profiles!member_follows_'+peerColumn+'_fkey(id,display_name,handle)')
+    .eq(ownerColumn,list.owner).order(peerColumn,{ascending:true}).limit(followPageSize+1);
+   if(cursor)query=query.gt(peerColumn,cursor);
+   items=(await call(query)).map(row=>row.member);
+  }else{
+   items=await call(client.rpc('member_connection_page_v1',{
+    connection_scope:list.section,after_id:cursor,page_size:followPageSize+1
+   }));
+  }
   if(followList!==list)return;
-  list.items=rows.slice(0,followPageSize).map(row=>row.member);
-  list.next=rows.length>followPageSize?rows[followPageSize-1][peerColumn]:null;
+  list.items=items.slice(0,followPageSize);
+  list.next=items.length>followPageSize?list.items.at(-1).id:null;
   list.error=false;
  }catch{list.error=true;list.items=[];list.next=null}
  list.requesting=false;
@@ -412,20 +456,33 @@ function followListMarkup(){
  let content;
  if(!list||list.loading)content='<p role="status">Loading members…</p>';
  else if(list.error)content='<p role="alert">Could not load members.</p>'+button('follow-list-refresh','Try again');
- else content=list.items.length?list.items.map(p=>'<div class="space"><button class="member-link" data-act="member-profile" data-id="'+e(p.id)+'">'+e(p.display_name)+'</button><span class="muted small">@'+e(p.handle)+'</span></div>').join(''):'<p>'+ (list.section==='following'?'You have not followed any visible members.':'You have no visible followers.')+'</p>';
+ else{
+  const empty={
+   following:'You have not followed any visible members.', followers:'You have no visible followers.',
+   incoming:'No received requests.', outgoing:'No sent requests.', accepted:'No accepted connections.'
+  };
+  content=list.items.length?list.items.map(p=>'<div class="space connection-list-row"><div><button class="member-link" data-act="member-profile" data-id="'+e(p.id)+'">'+e(p.display_name)+'</button> <span class="muted small">@'+e(p.handle)+'</span></div><div class="row">'+connectionButtons(p.id,list.section)+'</div></div>').join(''):
+   '<p>'+empty[list.section]+'</p>';
+ }
  return '<div class="stack" id="member-follow-results" tabindex="-1">'+content+'</div>'+
   (list&&!list.loading&&!list.error?'<div class="row" role="group" aria-label="Member list pages">'+
    (list.cursors.length>1?button('follow-list-previous','Previous members'):'')+
    (list.next?button('follow-list-next','More members'):'')+button('follow-list-refresh','Refresh members')+'</div>':'');
 }
 function memberPage(){const p=memberDetail;if(!p)return head('Member profile','Select a member from a circle.');const mine=p.id===session.user.id,shared=memberDirectory.some(x=>x.id===p.id);
-return head(p.display_name,'@'+p.handle)+button('open-groups','Back to circles')+'<div class="surface circle-tools"><div class="space"><span class="avatar">'+e(p.display_name.slice(0,2).toUpperCase())+'</span><span class="pill">Member profile</span></div><p class="post-body">'+e(p.bio||'No public biography provided.')+'</p><p class="muted small">Member-provided profile; not an independently verified investment professional or shareholder.</p><div class="row">'+(mine?'<button class="button" data-tab="profile">Edit profile</button>':(shared&&p.allow_direct_messages&&!isBlocked(p.id)?button('dm-user','Message','primary','data-id="'+p.id+'"'):'')+followProfileControl(p)+button(isBlocked(p.id)?'unblock-member':'block-member',isBlocked(p.id)?'Unblock member':'Block member','secondary','data-id="'+p.id+'"'))+'</div></div><div class="section-bar"><h3>Visible recent research</h3></div>'+discussionPageMarkup(discussionFeed,postCard,'<div class="empty">No visible recent research.</div>');}
-function profilePage(){const nav='<div class="feed-tabs">'+[['identity','Profile'],['privacy','Privacy & communication'],['blocked','Blocked members'],['saved','Saved research'],['following','Following'],['followers','Followers']].map(([id,label])=>'<button class="feed-tab '+(profileSection===id?'active':'')+'" data-profile-section="'+id+'" aria-pressed="'+(profileSection===id)+'">'+label+'</button>').join('')+'</div>';let c='';
+return head(p.display_name,'@'+p.handle)+button('open-groups','Back to circles')+'<div class="surface circle-tools"><div class="space"><span class="avatar">'+e(p.display_name.slice(0,2).toUpperCase())+'</span><span class="pill">Member profile</span></div><p class="post-body">'+e(p.bio||'No public biography provided.')+'</p><p class="muted small">Member-provided profile; not an independently verified investment professional or shareholder.</p><div class="row member-profile-actions">'+(mine?'<button class="button" data-tab="profile">Edit profile</button>':(shared&&p.allow_direct_messages&&!isBlocked(p.id)?button('dm-user','Message','primary','data-id="'+p.id+'"'):'')+followProfileControl(p)+connectionProfileControls(p.id)+button(isBlocked(p.id)?'unblock-member':'block-member',isBlocked(p.id)?'Unblock member':'Block member','secondary','data-id="'+p.id+'"'))+'</div></div><div class="section-bar"><h3>Visible recent research</h3></div>'+discussionPageMarkup(discussionFeed,postCard,'<div class="empty">No visible recent research.</div>');}
+function profilePage(){const nav='<div class="feed-tabs">'+[['identity','Profile'],['privacy','Privacy & communication'],['blocked','Blocked members'],['saved','Saved research'],['following','Following'],['followers','Followers'],['connections','Connections']].map(([id,label])=>'<button class="feed-tab '+(profileSection===id?'active':'')+'" data-profile-section="'+id+'" aria-pressed="'+(profileSection===id)+'">'+label+'</button>').join('')+'</div>';let c='';
 if(profileSection==='identity')c='<form data-form="profile" class="stack"><label><span class="form-label">Display name</span><input class="field" name="name" required maxlength="80" minlength="2" value="'+e(profile?.display_name)+'"></label><label><span class="form-label">Biography (public)</span><textarea class="field" maxlength="600" name="bio">'+e(profile?.bio||'')+'</textarea></label><button type="submit" class="button">Save profile</button></form>';
 if(profileSection==='privacy')c='<form data-form="privacy" class="stack"><label class="row"><input type="checkbox" name="allow_dm" '+(profile?.allow_direct_messages?'checked':'')+'> Allow direct messages from members of my communities</label><p class="muted small">Private messaging requires a shared circle and recipient consent. Blocking prevents direct messaging in both directions.</p><button type="submit" class="button">Save privacy preferences</button></form>';
 if(profileSection==='blocked')c='<p class="muted small">Blocked profiles are hidden from your feed and cannot exchange direct messages with you. This does not remove their public content for other users.</p>'+ (blockedMembers.length?blockedMembers.map(id=>'<div class="space"><span>'+e(person(id))+'</span>'+button('unblock-member','Unblock','secondary','data-id="'+id+'"')+'</div>').join(''):'<p>No blocked members.</p>');
 if(profileSection==='saved')c='<p class="muted small">Bookmarks are saved on this device and account only. Only research you still have permission to read is displayed.</p>'+button('saved-feed','Open saved research')+'<button class="button secondary" data-act="clear-bookmarks">Clear saved research</button>';
 if(Object.hasOwn(followSections,profileSection))c=followListMarkup();
+if(profileSection==='connections'){
+ c='<div class="feed-tabs" role="group" aria-label="Connection lists">'+Object.entries(connectionSections).map(([id,label])=>
+   button('connection-list',label,connectionSection===id?'primary':'secondary',
+    'data-choice="'+id+'" aria-pressed="'+(connectionSection===id)+'"')).join('')+
+   '</div>'+followListMarkup();
+}
 return head('Your account','Control your identity, communications and privacy.')+nav+'<div class="surface circle-tools"><h3>'+e(profile?.display_name)+'</h3><p class="muted small">@'+e(profile?.handle)+'</p>'+c+'</div><button class="button soft" data-act="signout">Sign out</button>';}
 
 function researchDraftNotice(){
@@ -569,7 +626,7 @@ async function init(){
    researchReview=pollDraft=composerDraft=null;view='home';error=info='';
    profile=null;ledgerRows=[];ledgerCircle=null;ledgerError='';decisionDetail=null;pollRows=[];pollOwn=null;
    capitalDrafts.clear();capitalTab='overview';blockedMembers=[];bookmarks=[];memberDetail=null;memberDirectory=[];
-   profileSection='identity';state.feed='mine';followProfile=followList=null;mobileMore=false;agentOutput=null;agentInput='';agentMode='review';agentDeskTab='analysis';
+   profileSection='identity';connectionSection='incoming';state.feed='mine';followProfile=followList=null;mobileMore=false;agentOutput=null;agentInput='';agentMode='review';agentDeskTab='analysis';
    agentDesk=CommonAgentDesk.initial();agentDeskOwner=null;agentLastRequest=null;
    groups=[];memberships=[];proposals=[];projects=[];watches=[];people={};messages=[];dm=[];memberPoll=[];
    moderationCases=[];moderationAppeals=[];accountRestrictions=[];selectedGroup=selectedPeer=null;
@@ -601,17 +658,19 @@ async function init(){
     if(discussionThread)await readDiscussionPage(discussionThread,{thread:true,quiet:true});
    }
    if(followProfile&&!followProfile.loading)await loadFollowProfile(followProfile,true);
+   if(followProfile)await loadConnectionProfile(followProfile,true);
    if(followList&&!followList.loading)await loadFollowList(followList,{quiet:true});
   }catch(err){console.error(err)}finally{refreshingView=false}
  },25000);
  document.addEventListener('visibilitychange',()=>{
-  if(!currentDiscussionScope()&&!(view==='profile'&&Object.hasOwn(followSections,profileSection)))return;
+  if(!currentDiscussionScope()&&!connectionListSection()&&!(view==='profile'&&Object.hasOwn(followSections,profileSection)))return;
   resetDiscussionFeed();followProfile=followList=null;render();
  });
  window.addEventListener('online',()=>{
   if(discussionFeed?.error)void readDiscussionPage(discussionFeed);
   else if(discussionThread?.error)void readDiscussionPage(discussionThread,{thread:true});
   if(followProfile?.error)void loadFollowProfile(followProfile,true);
+  if(followProfile?.connection==='error')void loadConnectionProfile(followProfile,true);
   if(followList?.error)void loadFollowList(followList,{quiet:true});
  });
 }
@@ -662,6 +721,30 @@ async function dispatch(action,element){
  if(action==='saved-feed'){view='home';state.feed='saved';render();return}
  if(action==='clear-bookmarks'){if(confirm('Clear all saved research on this device?')){localStorage.removeItem(bookmarkKey());bookmarks=[];resetDiscussionFeed();render()}return}
  if(action==='discover-feed'){view='home';state.feed='discover';render();return}
+ if(action==='connection-list'&&Object.hasOwn(connectionSections,choice)){
+  connectionSection=choice;render();document.querySelector('[data-act="connection-list"][aria-pressed="true"]')?.focus();return;
+ }
+ if(action==='retry-connection-status'&&followProfile)return loadConnectionProfile(followProfile);
+ if(action==='member-connection'){
+  const member=followProfile?.id===id?followProfile:null;
+  const list=followList?.items.some(peer=>peer.id===id)&&connectionListSection()?followList:null;
+  const section=member?.connection||list?.section;
+  if(!connectionActions[section]?.some(([decision])=>decision===choice))return;
+  if(choice==='remove'&&!confirm('Remove this connection?'))return;
+  if(choice==='request')await call(client.rpc('request_member_connection_v1',{peer_id:id}));
+  else await call(client.rpc('respond_member_connection_v1',{peer_id:id,decision:choice}));
+  if(member&&followProfile===member){
+   await loadConnectionProfile(member);
+   document.querySelector('[data-act="member-connection"],[data-act="retry-connection-status"]')?.focus();
+  }
+  if(list&&followList===list){
+   followList={owner:list.owner,section:list.section,cursors:list.cursors,items:[]};
+   const loaded=loadFollowList(followList,{focus:true});
+   render();
+   await loaded;
+  }
+  return;
+ }
  if(action==='retry-follow-status'&&followProfile&&!followProfile.requesting){
   followProfile.loading=true;render();return loadFollowProfile(followProfile);
  }

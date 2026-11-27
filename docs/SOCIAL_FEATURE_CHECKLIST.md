@@ -26,8 +26,8 @@ Expanded from the prior product discussions and the grouped acceptance backlog. 
 ## Social graph — workstream 06 / parent S01
 
 - [x] SOCIAL-019 — Follow and unfollow
-- [ ] SOCIAL-020 — Friend requests
-- [ ] SOCIAL-021 — Accept and decline requests
+- [x] SOCIAL-020 — Friend requests
+- [x] SOCIAL-021 — Accept and decline requests
 - [ ] SOCIAL-022 — Mutual connections
 - [ ] SOCIAL-023 — Suggested connections
 - [ ] SOCIAL-024 — Interest discovery
