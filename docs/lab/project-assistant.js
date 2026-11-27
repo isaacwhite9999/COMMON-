@@ -46,6 +46,7 @@
         <pre data-draft></pre>
         <button class="lab-button" type="button" data-save>Save to this project</button>
       </section>
+      <section class="lab-card" aria-label="Project commands" data-project-commands></section>
       <section aria-label="Saved drafts">
         <h3>Saved project drafts</h3>
         <p data-empty hidden>No drafts saved in this project.</p>
@@ -275,6 +276,26 @@
     const close = () => { if (dialog.open) dialog.close(); };
     document.body.append(dialog);
     dialog.showModal();
+    CommonProjectCommands.mount(get('[data-project-commands]'), {
+      client, project, owner, active,
+      apply: enabled ? command => {
+        if (requestBusy) {
+          announceError('Wait for the current research request before applying a command.');
+          return;
+        }
+        if (result && !confirm('Discard the unsaved response?')) return;
+        result = null;
+        get('[data-result]').hidden = true;
+        get('[data-draft]').textContent = '';
+        if (!previous) form.elements.goal.value = command.goal;
+        form.elements.evidence.value = command.evidence;
+        form.elements.consent.checked = false;
+        form.elements.previousConsent.checked = false;
+        status.textContent = 'Command applied. Review the fields before sharing.';
+        announceError('');
+        form.elements.evidence.focus();
+      } : null
+    });
     void loadHistory(true);
     return close;
   }
