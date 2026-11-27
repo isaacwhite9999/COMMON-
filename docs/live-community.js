@@ -466,6 +466,9 @@ function render(){
  const modal=root.querySelector('.common-member-dialog');
  if(!modal)return;
  const form=modal.querySelector('form');
+ if(form.dataset.form==='post'&&composerDraft.publishing){
+  for(const control of form.elements)control.disabled=true;
+ }
  if(values&&previousForm.dataset.form===form.dataset.form){
   for(const [name,value] of values){
    const control=form.elements.namedItem(name);
@@ -793,7 +796,7 @@ document.addEventListener('change',ev=>{const node=ev.target.closest('[data-agen
 document.addEventListener('input',ev=>{
  const input=ev.target;
  const form=input.closest('[data-form="post"]');
- if(form&&composerDraft?.owner===session?.user?.id&&['group','title','body'].includes(input.name)){
+ if(form&&composerDraft?.owner===session?.user?.id&&!composerDraft.publishing&&['group','title','body'].includes(input.name)){
   composerDraft[input.name]=input.value;
   savePostDraft(composerDraft);
   const statusNode=form.querySelector('[data-post-draft-status]');

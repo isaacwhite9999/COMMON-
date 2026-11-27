@@ -13,7 +13,7 @@ const sdk = `
     description:'Synthetic fixture',visibility:'private',category:'markets'};
   const profile = (id,display_name) => ({id,display_name,handle:display_name.replace(/ /g,'_')});
   const profiles = [profile(idA,'Fixture Member A'),profile(idB,'Fixture Member B')];
-  const state = window.draftFixture = {fail:false,created:[],attempts:0};
+  const state = window.draftFixture = {fail:false,hold:false,created:[],attempts:0};
   const tables = {profiles, communities:[circle], memberships:[{community_id:circle.id,user_id:idA,role:'member'}]};
   let changed;
   const selection = () => ({user:{id:sessionStorage.getItem('fixture-active-account')||idA}});
@@ -34,8 +34,12 @@ const sdk = `
         if(table!=='discussions')return Promise.resolve({error:new Error('Unexpected insert')});
         state.attempts++;
         if(state.fail)return Promise.resolve({error:new Error('Temporary failure')});
-        state.created.push(values);
-        return Promise.resolve({data:null,error:null});
+        const finish = () => {
+          state.created.push(values);
+          return {data:null,error:null};
+        };
+        if(state.hold)return new Promise(resolve=>{state.complete=()=>resolve(finish())});
+        return Promise.resolve(finish());
       },
       then(resolve,reject) {
         const rows=(tables[table]||[]).filter(row=>filters.every(([key,values])=>values.includes(row[key])));
@@ -123,8 +127,14 @@ try {
   assert.equal(await title.inputValue(),'Evidence-based discussion');
   assert.equal(await select.inputValue(),circleId);
 
-  await page.evaluate(()=>{draftFixture.fail=false});
+  await page.evaluate(()=>{draftFixture.fail=false;draftFixture.hold=true});
   await publish();
+  await modal.getByRole('button',{name:'Publishing…',exact:true}).waitFor();
+  assert.ok(await title.isDisabled());
+  assert.ok(await body.isDisabled());
+  assert.ok(await modal.getByRole('button',{name:'Discard draft'}).isDisabled());
+  await page.waitForFunction(()=>typeof draftFixture.complete==='function');
+  await page.evaluate(()=>draftFixture.complete());
   await page.getByText('Discussion submitted. Community moderation applies.').waitFor();
   assert.deepEqual(await page.evaluate(()=>draftFixture.created),[{
     community_id:circleId,author_id:accountA,title:'Evidence-based discussion',
