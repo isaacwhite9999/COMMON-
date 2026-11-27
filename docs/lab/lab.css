@@ -129,3 +129,14 @@ body{background:var(--lab-bg);color:var(--lab-dark);font-family:'DM Sans',system
  .lab-auth-card{padding:30px 24px}
 }
 @media(prefers-reduced-motion:reduce){.lab-button{transition:none}.lab-button:hover{transform:none}}
+
+.lab-assistant-dialog {
+  width: min(44rem, calc(100% - 2rem));
+  max-height: calc(100% - 2rem);
+  overflow: auto;
+  margin: auto;
+}
+
+.lab-assistant-dialog::backdrop { background: rgb(10 20 35 / 64%); }
+.lab-assistant-dialog [hidden] { display: none; }
+.lab-assistant-dialog pre { white-space: pre-wrap; overflow-wrap: anywhere; }

@@ -7,3 +7,9 @@ QuantPad-inspired project-scoped assistants, custom commands, tool traces, datas
 
 ## Research desk extension
 Member-scoped local command templates, optional research-context notes, and explicitly saved analysis history. Six analysis modes cover methodology, evidence explanation, planning, Python review, fundamentals and risk. Notes are opt-in for each request; the combined request remains capped at 10,000 characters. History is not encrypted or synced, and is never auto-sent to a model. Python suggestions are not automatically executed. Provider remains gated.
+
+## Project research plans
+
+From a private project in Research Studio, open **Project research assistant**. Enter a goal and evidence, review the provider disclosure, then request a plan. The endpoint checks project ownership using the caller’s access token before checking quota or contacting the model. Only the entered goal and evidence are sent. Project notes, attachments, identifiers and previous drafts are excluded.
+
+Save a result explicitly to keep its goal, evidence, completion status and plan in that project's account history. The owner may delete drafts, and deleting a project removes its history. Drafts are labeled as unverified member-saved records and may remain visible while the model is disabled. This is a bounded planning request with saved history. Autonomous execution, multi-turn context, streaming and tool runs remain open under QUANT-001, QUANT-002 and QUANT-029.
