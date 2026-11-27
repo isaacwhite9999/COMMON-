@@ -79,12 +79,14 @@ try {
  await page.locator('#create-form button[type=submit]').click();
  await page.getByRole('heading',{name:'Workspace notes'}).waitFor();
  await page.getByRole('button',{name:/Data desk/}).first().click();
+ await page.getByRole('region',{name:'Key terms'}).getByText('Adjusted close',{exact:true}).waitFor();
  const date=(i)=>new Date(Date.UTC(2023,0,1+i)).toISOString().slice(0,10);
  const lines=Array.from({length:180},(_,i)=>date(i)+','+(100+i*.2+Math.sin(i/8)*2).toFixed(4));
  await page.locator('#price-file').setInputFiles({name:'observed-prices.csv',mimeType:'text/csv',buffer:Buffer.from('Date,Close\n'+lines.join('\n'))});
  await page.getByRole('heading',{name:'Import diagnostics'}).waitFor({timeout:15000});
  assert.match(await page.locator('#lab-root').innerText(),/180/);
  await page.getByRole('button',{name:/Strategy lab/}).click();
+ await page.getByRole('region',{name:'Key terms'}).getByText('Lookahead bias',{exact:true}).waitFor();
  await page.locator('#run-form button[type=submit]').click();
  await page.getByRole('heading',{name:'Computed result'}).waitFor();
  await page.getByRole('button',{name:'Inspect validation'}).click();
@@ -93,6 +95,27 @@ try {
  await page.getByRole('button',{name:'Save this experiment'}).click();
  await page.getByText('Experiment saved as a private').waitFor();
  await page.getByText('observed-prices.csv').waitFor();
+
+ // SOCIAL-197: definitions in context, alias search, empty recovery, and lesson links.
+ const keyTerms=page.getByRole('region',{name:'Key terms'});
+ const drawdown=keyTerms.locator('summary').filter({hasText:'Maximum drawdown'});
+ await drawdown.focus();
+ await drawdown.press('Enter');
+ await keyTerms.getByText('The largest percentage decline',{exact:false}).waitFor();
+ await keyTerms.getByRole('button',{name:'Browse financial glossary'}).click();
+ const glossaryTitle=page.getByRole('heading',{name:'Financial glossary'});
+ await glossaryTitle.waitFor();
+ assert.equal(await glossaryTitle.evaluate(node=>node===document.activeElement),true);
+ const glossarySearch=page.getByRole('searchbox',{name:'Search terms or abbreviations'});
+ await glossarySearch.fill('out-of-sample');
+ await page.locator('#glossary-count').getByText('1 term found',{exact:true}).waitFor();
+ await page.locator('#glossary-results').getByText('Chronological holdout',{exact:true}).waitFor();
+ await glossarySearch.fill('<img src=x>');
+ await page.getByText('No terms found.',{exact:false}).waitFor();
+ assert.equal(await page.locator('#glossary-results img').count(),0);
+ await glossarySearch.fill('BPS');
+ await page.getByRole('button',{name:'Open related lesson for Basis point'}).click();
+ await page.getByRole('heading',{name:'Include trading costs'}).waitFor();
  await page.getByRole('button',{name:/Instructor/}).first().click();
  await page.getByRole('heading',{name:'Research instructor'}).waitFor();
  await page.getByRole('button',{name:/Avoid lookahead bias/}).click();
@@ -131,8 +154,15 @@ try {
  await page.getByRole('button',{name:/Instructor/}).first().click();
  await page.getByRole('button',{name:/Avoid lookahead bias/}).click();
  assert.equal(await feedback.textContent(),'Exercise completion saved.');
- const w=await page.evaluate(()=>document.documentElement.scrollWidth);
- assert.ok(w<=394,'Mobile instructor horizontal overflow '+w+'px');
+ await page.getByRole('button',{name:'Browse financial glossary'}).click();
+ await glossaryTitle.waitFor();
+ for(const width of [390,768]){
+  await page.setViewportSize({width,height:844});
+  const w=await page.evaluate(()=>document.documentElement.scrollWidth);
+  assert.ok(w<=width,'Glossary width '+w+'px exceeds '+width+'px viewport');
+ }
+ await page.getByRole('button',{name:'Back to instructor'}).click();
+ await page.getByRole('heading',{name:'Avoid lookahead bias'}).waitFor();
  assert.deepEqual(jsErrors,[],'Research Studio mobile JavaScript errors');
- console.log('PASS research browser flow: projects, real CSV import, backtest, Monte Carlo, save, instructor, scored exercises, mobile');
+ console.log('PASS research browser flow: projects, real CSV import, backtest, Monte Carlo, save, instructor, scored exercises, contextual glossary, mobile');
 } finally {await browser.close();}
