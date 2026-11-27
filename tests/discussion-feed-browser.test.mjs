@@ -25,7 +25,18 @@ const stub = `
   const writeRelationships = rows => sessionStorage.setItem('fixture.follows',JSON.stringify(rows));
   const tables = {profiles:[profile,author],communities:[circle],
     memberships:[{community_id:circle.id,user_id:uid,role:'member'}]};
-  let authChanged;
+  const connectionKey='fixture.connection';
+  let current=uid, authChanged;
+  clientCalls.switchAccount = () => {
+    current=current===uid?author.id:uid;
+    authChanged('SIGNED_IN',{user:{id:current}});
+  };
+  function connectionState(peer){
+    const edge=JSON.parse(sessionStorage.getItem(connectionKey)||'null');
+    if(clientCalls.blocked)return 'blocked';
+    if(!edge||!([edge.sender,edge.receiver].includes(current)&&[edge.sender,edge.receiver].includes(peer)))return 'available';
+    return edge.accepted?'accepted':edge.sender===current?'outgoing':'incoming';
+  }
   function from(table){
     clientCalls.tables.push(table);
     let filters=[], single=false, operation='read', projection='';
@@ -48,12 +59,28 @@ const stub = `
     return query;
   }
   window.supabase={createClient:()=>({
-    auth:{getSession:async()=>({data:{session:{user:{id:uid}}}}),
+    auth:{getSession:async()=>({data:{session:{user:{id:current}}}}),
       onAuthStateChange(listener){authChanged=listener},
       signOut:async()=>{authChanged('SIGNED_OUT',null)}},
     from,
     async rpc(name,args){
       if(name==='dm_block_exists')return {data:clientCalls.blocked,error:null};
+      if(name==='request_member_connection_v1'){
+        sessionStorage.setItem(connectionKey,JSON.stringify({sender:current,receiver:args.peer_id}));
+        return {data:null,error:null};
+      }
+      if(name==='member_connection_state_v1')return {data:connectionState(args.peer_id),error:null};
+      if(name==='member_connection_page_v1'){
+        const peer=current===uid?author:profile;
+        return {data:connectionState(peer.id)===args.connection_scope?[peer]:[],error:null};
+      }
+      if(name==='respond_member_connection_v1'){
+        if(args.decision==='accept'){
+          const edge=JSON.parse(sessionStorage.getItem(connectionKey));
+          sessionStorage.setItem(connectionKey,JSON.stringify({...edge,accepted:true}));
+        }else sessionStorage.removeItem(connectionKey);
+        return {data:true,error:null};
+      }
       if(name!=='discussion_feed_v1')return {data:null,error:new Error('Unexpected RPC')};
       clientCalls.pages.push(args);
       if(clientCalls.fail)return {data:null,error:new Error('Fixture network failure')};
@@ -134,6 +161,8 @@ try {
   await page.getByRole('button',{name:'Discover research'}).click();
   await recent.waitFor();
   await page.getByRole('button',{name:'Research Author',exact:true}).click();
+  await page.getByRole('button',{name:'Request connection',exact:true}).click();
+  await page.getByRole('button',{name:'Withdraw request',exact:true}).waitFor();
   await page.getByRole('button',{name:'Follow',exact:true}).click();
   await page.getByRole('button',{name:'Unfollow',exact:true}).waitFor();
   assert.equal(await page.evaluate(()=>document.activeElement.textContent),'Unfollow');
@@ -144,11 +173,18 @@ try {
   await recent.waitFor();
   await page.getByRole('button',{name:'Following',exact:true}).click();
   await recent.waitFor();
-  if(desktop)await page.getByRole('button',{name:'Profile',exact:true}).click();
-  else{
-    await page.getByRole('button',{name:'More navigation'}).click();
-    await page.getByRole('navigation',{name:'More sections'}).getByRole('button',{name:'Profile',exact:true}).click();
-  }
+  const openProfile = async () => {
+    if(desktop)await page.locator('.navbar .nav-links [data-tab="profile"]').click();
+    else{
+      await page.getByRole('button',{name:'More navigation'}).click();
+      await page.getByRole('navigation',{name:'More sections'}).getByRole('button',{name:'Profile',exact:true}).click();
+    }
+  };
+  await openProfile();
+  await page.getByRole('button',{name:'Connections',exact:true}).click();
+  await page.getByText('No received requests.').waitFor();
+  await page.getByRole('button',{name:'Sent',exact:true}).click();
+  await page.getByRole('button',{name:'Withdraw request',exact:true}).waitFor();
   await page.getByRole('button',{name:'Followers',exact:true}).click();
   await page.getByText('You have no visible followers.').waitFor();
   await page.getByRole('button',{name:'Following',exact:true}).click();
@@ -158,9 +194,35 @@ try {
   if(desktop)await page.getByRole('button',{name:'Home',exact:true}).click();
   else await page.locator('.mobile-nav [data-tab=home]').click();
   await page.getByRole('heading',{name:'No research from members you follow'}).waitFor();
+  await page.evaluate(()=>feedFixture.switchAccount());
+  // The recipient must reload from their own account after the session changes.
+  await recent.waitFor();
+  await openProfile();
+  await page.getByRole('button',{name:'Connections',exact:true}).click();
+  await page.getByRole('button',{name:'Accept request',exact:true}).click();
+  await page.getByText('No received requests.').waitFor();
+  await page.getByRole('button',{name:'Accepted',exact:true}).click();
+  await page.getByRole('button',{name:'Fixture Member',exact:true}).waitFor();
+  await page.evaluate(()=>feedFixture.switchAccount());
+  await recent.waitFor();
+  await openProfile();
+  await page.getByRole('button',{name:'Connections',exact:true}).click();
+  await page.getByRole('button',{name:'Accepted',exact:true}).click();
+  await page.getByRole('button',{name:'Research Author',exact:true}).waitFor();
+  page.once('dialog', dialog => dialog.accept());
+  await page.getByRole('button',{name:'Remove connection',exact:true}).click();
+  await page.getByText('No accepted connections.').waitFor();
+  await page.evaluate(()=>{
+    sessionStorage.setItem('fixture.connection',JSON.stringify({
+      sender:'71000000-0000-4000-8000-000000000001',receiver:'71000002-0000-4000-8000-000000000002'
+    }));
+  });
+  await page.getByRole('button',{name:'Received',exact:true}).click();
+  await page.getByRole('button',{name:'Decline request',exact:true}).click();
+  await page.getByText('No received requests.').waitFor();
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
   assert.deepEqual(errors,[]);
-  console.log('PASS '+(desktop?'desktop':'mobile')+' discussion pagination, timestamp precision, older bookmarks, replies, retry, scope isolation, following and member lists');
+  console.log('PASS '+(desktop?'desktop':'mobile')+' discussion pagination, timestamp precision, older bookmarks, replies, retry, scope isolation, following, member lists and consent-based connection requests');
 } finally {
   await browser.close();
 }
