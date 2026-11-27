@@ -25,14 +25,14 @@ Expanded from the prior product discussions and the grouped acceptance backlog. 
 
 ## Social graph — workstream 06 / parent S01
 
-- [ ] SOCIAL-019 — Follow and unfollow
+- [x] SOCIAL-019 — Follow and unfollow
 - [ ] SOCIAL-020 — Friend requests
 - [ ] SOCIAL-021 — Accept and decline requests
 - [ ] SOCIAL-022 — Mutual connections
 - [ ] SOCIAL-023 — Suggested connections
 - [ ] SOCIAL-024 — Interest discovery
-- [ ] SOCIAL-025 — Follower lists
-- [ ] SOCIAL-026 — Following lists
+- [x] SOCIAL-025 — Follower lists
+- [x] SOCIAL-026 — Following lists
 - [ ] SOCIAL-027 — Profile visibility
 - [ ] SOCIAL-028 — Block users
 - [ ] SOCIAL-029 — Mute users
@@ -43,7 +43,7 @@ Expanded from the prior product discussions and the grouped acceptance backlog. 
 ## Social publishing — workstream 07 / parent S02
 
 - [ ] SOCIAL-033 — Chronological feed
-- [ ] SOCIAL-034 — Following feed
+- [x] SOCIAL-034 — Following feed
 - [ ] SOCIAL-035 — Discovery feed
 - [ ] SOCIAL-036 — Text posts
 - [ ] SOCIAL-037 — Media posts

@@ -1,7 +1,7 @@
 'use strict';
 const assert=require('node:assert/strict');
 const lab=require('../docs/lab/research-engine.js');
-assert.equal(lab.VERSION,'common-lab-v1');
+assert.equal(lab.VERSION,'common-lab-v1.1');
 const bars=[];
 for(let i=0;i<180;i++){
  const date=new Date(Date.UTC(2024,0,1+i)).toISOString().slice(0,10);

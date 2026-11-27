@@ -49,11 +49,21 @@ UPDATE public.research_workspaces SET research_notes='Independent research quest
 WHERE id='98765432-4321-4321-8321-123456789abc';
 INSERT INTO public.research_learning_progress(user_id,lesson_key,completed)
 VALUES ('11111111-1111-4111-8111-111111111111','hypothesis',true);
+-- SOCIAL-195 uses a separately versioned record through the same member-scoped API.
+INSERT INTO public.research_learning_progress(user_id,lesson_key,completed)
+VALUES ('11111111-1111-4111-8111-111111111111','exercise-v1-hypothesis',true)
+ON CONFLICT (user_id,lesson_key) DO UPDATE SET completed=EXCLUDED.completed;
+INSERT INTO public.research_learning_progress(user_id,lesson_key,completed)
+VALUES ('11111111-1111-4111-8111-111111111111','exercise-v1-hypothesis',true)
+ON CONFLICT (user_id,lesson_key) DO UPDATE SET completed=EXCLUDED.completed;
 DO $$
 BEGIN
  IF NOT EXISTS(SELECT 1 FROM public.research_learning_progress
  WHERE lesson_key='hypothesis' AND completed) THEN
  RAISE EXCEPTION 'Progress did not persist';END IF;
+ IF (SELECT count(*) FROM public.research_learning_progress
+     WHERE lesson_key='exercise-v1-hypothesis' AND completed)<>1
+ THEN RAISE EXCEPTION 'Exercise completion was not saved idempotently'; END IF;
 END $$;
 RESET ROLE;
 
@@ -63,6 +73,15 @@ DO $$
 BEGIN
  IF EXISTS(SELECT 1 FROM public.research_learning_progress WHERE lesson_key='hypothesis')
  THEN RAISE EXCEPTION 'Lesson progress leaked to other account'; END IF;
+ IF EXISTS(SELECT 1 FROM public.research_learning_progress WHERE lesson_key='exercise-v1-hypothesis')
+ THEN RAISE EXCEPTION 'Exercise completion leaked to other account'; END IF;
+ BEGIN
+  INSERT INTO public.research_learning_progress(user_id,lesson_key,completed)
+  VALUES ('11111111-1111-4111-8111-111111111111','exercise-v1-hypothesis',false)
+  ON CONFLICT (user_id,lesson_key) DO UPDATE SET completed=EXCLUDED.completed;
+  RAISE EXCEPTION 'Another account could overwrite private exercise progress';
+ EXCEPTION WHEN insufficient_privilege THEN NULL;
+ END;
 END $$;
 RESET ROLE;
 SELECT 'PASS research RLS: owner projects, experiments, immutable owner, private progress' AS result;

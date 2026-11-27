@@ -4,8 +4,10 @@
 (() => {
 'use strict';
 const root=document.getElementById('lab-root');
-const config=window.COMMON_CONFIG||{};
 const engine=window.COMMON_RESEARCH_ENGINE;
+const exercises=window.CommonResearchExercises;
+const requestedSymbol=new URLSearchParams(location.search).get('symbol')||'';
+let projectSymbol=/^[A-Z][A-Z0-9.-]{0,11}$/.test(requestedSymbol)?requestedSymbol:'';
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 const clean=s=>String(s??'').trim();
@@ -32,9 +34,9 @@ const lessons=[
  ['bootstrap','Read Monte Carlo cautiously','Resampling past returns helps visualize uncertainty. It cannot predict a crash.',
   'Seeded circular block bootstrap approximately preserves short serial dependence. Results are conditional on the observed sample and omit regime breaks, tail dependence and execution constraints.']
 ];
-let client=null,session=null;
+let client=null,session=null,closeAssistant=null;
 const state={view:'overview',projects:[],runs:[],progress:[],selected:null,bars:null,diagnostics:null,sourceSha:null,sourceLabel:'',
-  lastRun:null,sim:null,busy:false,error:'',notice:'',expert:false,lesson:'hypothesis',working:false,uploading:false};
+  lastRun:null,sim:null,busy:false,error:'',notice:'',expert:document.documentElement.dataset.commonGuidance==='advanced',lesson:'hypothesis',working:false,uploading:false};
 function info(msg){state.notice=msg;state.error='';render();}
 function fail(err){console.error(err);state.error=err?.message||String(err);state.notice='';render();}
 function safe(fn){return async ev=>{ev?.preventDefault?.();if(state.busy)return;state.busy=true;try{await fn(ev);}catch(e){fail(e);}finally{state.busy=false;}};}
@@ -86,7 +88,7 @@ function overview(){
  return hdr('Think rigorously. Invest independently.','A real workspace for research, backtests and financial methods—not invented market data.')+
  '<div class="lab-grid3"><div class="lab-stat"><span>Your projects</span><strong>'+state.projects.length+'</strong><small>Private and persistent</small></div>'+
  '<div class="lab-stat"><span>Saved experiments</span><strong>'+state.runs.length+'</strong><small>Client-calculated, unaudited</small></div>'+
- '<div class="lab-stat"><span>Lessons completed</span><strong>'+state.progress.filter(x=>x.completed).length+' / '+lessons.length+'</strong><small>Learning history saved</small></div></div>'+
+ '<div class="lab-stat"><span>Lessons completed</span><strong>'+lessons.filter(([key])=>hasProgress(key)).length+' / '+lessons.length+'</strong><small>Learning history saved</small></div></div>'+
  '<div class="lab-card"><h2>Research protocol</h2><div class="lab-steps">'+
  [['01','Form a thesis','Write a question someone could disprove.','workspaces'],['02','Inspect data','Import an actual historical CSV and check quality.','data'],['03','Test a rule','Run a lagged, fee-aware backtest.','strategy'],['04','Challenge results','Check holdout performance and risk.','validate']]
  .map(x=>'<button class="lab-step" data-nav="'+x[3]+'"><span>'+x[0]+'</span><div><strong>'+x[1]+'</strong><small>'+x[2]+'</small></div><b>↗</b></button>').join('')+'</div></div>'+
@@ -103,16 +105,16 @@ function workspaces(){
  return hdr('Research projects','Each research question has a private, persistent workspace.')+
  '<div class="lab-card"><div class="lab-split"><h2>Your projects</h2>'+action('New research project','new-project')+'</div>'+
  (state.projects.length?'<div class="lab-item-list">'+state.projects.map(projectCard).join('')+'</div>':'<div class="lab-empty">Nothing saved yet. Create a project to begin.</div>')+'</div>'+
- (p?'<div class="lab-card"><h2>Workspace notes</h2><p>Describe a hypothesis and why it might fail. No trade is placed.</p>'+
+ (p?'<div class="lab-card"><div class="lab-split"><h2>Workspace notes</h2>'+action('Project research assistant','project-assistant',true)+'</div><p>Describe a hypothesis and why it might fail. No trade is placed.</p>'+
  '<form id="notes-form" class="lab-form"><label class="lab-label">Project title<input class="lab-input" name="title" minlength="3" maxlength="110" required value="'+esc(p.title)+'"></label>'+
  '<label class="lab-label">Falsifiable hypothesis<textarea class="lab-input" name="hypothesis" maxlength="5000" rows="4" placeholder="Example: Trend-following on this asset produces better out-of-sample risk-adjusted results than buy-and-hold after fees.">'+esc(p.hypothesis)+'</textarea></label>'+
  '<label class="lab-label">Observations and counterarguments<textarea class="lab-input" name="notes" maxlength="12000" rows="5">'+esc(p.research_notes)+'</textarea></label>'+
  '<div class="lab-split">'+action('Delete project','delete-project',true)+
  '<button class="lab-button" type="submit">Save changes</button></div></form></div>':'')+
- '<div id="create-project-dialog" class="lab-card" hidden><h2>New project</h2><form id="create-form" class="lab-form">'+
+ '<div id="create-project-dialog" class="lab-card" '+(projectSymbol?'':'hidden')+'><h2>New project</h2><form id="create-form" class="lab-form">'+
  '<label class="lab-label">Name<input class="lab-input" name="title" minlength="3" maxlength="110" required placeholder="e.g. Momentum versus buy-and-hold"></label>'+
  '<label class="lab-label">Asset type<select class="lab-input" name="asset_class"><option value="equity">US equity</option><option value="etf">Exchange-traded fund</option><option value="futures">Futures research</option><option value="equity_options">Options research</option><option value="macro">Macro / economics</option><option value="housing">Housing</option><option value="business">Local business</option></select></label>'+
- '<label class="lab-label">Instrument (optional)<input class="lab-input" name="symbol" maxlength="30" placeholder="e.g. SPY"></label>'+
+ '<label class="lab-label">Instrument (optional)<input class="lab-input" name="symbol" maxlength="30" value="'+esc(projectSymbol)+'" placeholder="e.g. SPY"></label>'+
  '<label class="lab-label">Hypothesis<textarea class="lab-input" name="hypothesis" maxlength="5000" rows="3" placeholder="What observation would falsify the idea?"></textarea></label>'+
  '<div class="lab-row"><button type="submit" class="lab-button">Create workspace</button>'+action('Cancel','close-create',true)+'</div></form></div>';
 }
@@ -161,7 +163,7 @@ function runSummary(r){
  metric('Position changes',String(r.turnover))+'</div>'+
  lineChart(r.test.curve,r.dates.slice(-r.test.observations),'Holdout strategy equity (start = 1.0)')+
  '<div class="lab-hint">'+esc(r.warning)+'</div>'+
- '<div class="lab-row">'+action('Inspect validation','to-validation')+'</div></div>';
+ '<div class="lab-row">'+action('Inspect validation','to-validation')+action('Review for circle sharing','share-run')+'</div></div>';
 }
 function strategy(){
  return hdr('Strategy lab','Execute a simple, reproducible cost-aware strategy using your own price series.')+
@@ -229,6 +231,52 @@ function catalog(){
  '<a href="https://fred.stlouisfed.org/" target="_blank" rel="noopener noreferrer">FRED ↗</a>'+
  '<a href="https://www.investor.gov/" target="_blank" rel="noopener noreferrer">Investor.gov ↗</a></div></div>';
 }
+function hasProgress(key){
+ return state.progress.some(row=>row.lesson_key===key&&row.completed);
+}
+function renderExercise(lesson){
+ const exercise=exercises?.exercises[lesson];
+ if(!exercise)return '';
+ const passed=hasProgress(exercises.progressKey(lesson));
+ return '<section class="lab-exercise" aria-labelledby="exercise-title"><h3 id="exercise-title">Practice exercise</h3>'+
+ '<form id="exercise-form"><fieldset><legend>'+esc(exercise.question)+'</legend>'+
+ exercise.choices.map(([id,label])=>'<label><input type="radio" name="answer" value="'+esc(id)+'" required> '+esc(label)+'</label>').join('')+
+ '</fieldset><button class="lab-button secondary" type="submit">Check answer</button>'+
+ '<p class="lab-exercise-feedback" role="status" aria-atomic="true">'+(passed?'Exercise completion saved.':'')+'</p></form></section>';
+}
+async function submitExercise(form){
+ const lesson=state.lesson, owner=session?.user?.id;
+ if(!owner)return;
+ const result=exercises.grade(lesson,new FormData(form).get('answer'));
+ if(!result)return;
+ const feedback=form.querySelector('[role="status"]');
+ const key=exercises.progressKey(lesson);
+ if(!result.correct){
+  feedback.textContent='Score: 0 / 1. '+result.message+(hasProgress(key)?' Exercise completion is already saved.':'');
+  return;
+ }
+ const score='Score: 1 / 1. '+result.message;
+ if(hasProgress(key)){
+  feedback.textContent=score+' Exercise completion saved.';
+  return;
+ }
+ feedback.textContent=score+' Saving progress…';
+ const button=form.querySelector('button');
+ button.disabled=true;
+ try {
+  await api(client.from('research_learning_progress').upsert({
+   user_id:owner,lesson_key:key,completed:true,updated_at:new Date().toISOString()
+  },{onConflict:'user_id,lesson_key'}));
+  if(session?.user?.id!==owner)return;
+  state.progress=[...state.progress.filter(row=>row.lesson_key!==key),{lesson_key:key,completed:true}];
+  const visibleFeedback=document.querySelector('#exercise-form [role="status"]');
+  if(state.lesson===lesson&&visibleFeedback)visibleFeedback.textContent=score+' Exercise completion saved.';
+ } catch {
+  feedback.textContent=score+' Progress could not be saved. Check your connection and submit again.';
+ } finally {
+  button.disabled=false;
+ }
+}
 function instructor(){
  const l=lessons.find(x=>x[0]===state.lesson)||lessons[0],complete=state.progress.some(x=>x.lesson_key===l[0]&&x.completed);
  return hdr('Research instructor','Beginner language when you need it; graduate-level detail when you want it.')+
@@ -239,7 +287,7 @@ function instructor(){
  '<h3>Beginner explanation</h3><p>'+esc(l[2])+'</p>'+
  '<h3>Advanced methodology</h3><p>'+esc(l[3])+'</p>'+
  '<div class="lab-row">'+action(complete?'Mark incomplete':'Mark lesson complete','toggle-lesson',false,'data-id="'+l[0]+'"')+
- action('Open relevant screen','lesson-to-screen',true)+'</div></div></div>';
+ action('Open relevant screen','lesson-to-screen',true)+'</div>'+renderExercise(l[0])+'</div></div>';
 }
 function layout(){
  root.innerHTML=sidebar()+'<div class="lab-main">'+breadcrumbs()+'<main>'+alerts()+
@@ -263,6 +311,7 @@ async function refresh(){
  api(client.from('research_workspaces').select('*').order('updated_at',{ascending:false}).limit(100)),
  api(client.from('research_learning_progress').select('lesson_key,completed').eq('user_id',uid))
  ]);
+ if(session?.user?.id!==uid)return;
  state.projects=p;state.progress=progress;
  if(state.selected&&!p.some(x=>x.id===state.selected))state.selected=null;
  if(!state.selected&&p.length)state.selected=p[0].id;
@@ -271,8 +320,10 @@ async function refresh(){
 }
 async function loadRuns(){
  if(!state.selected){state.runs=[];return;}
- state.runs=await api(client.from('research_experiments').select('id,workspace_id,strategy,source_label,sample_start,sample_end,metrics,created_at')
- .eq('workspace_id',state.selected).order('created_at',{ascending:false}).limit(75));
+ const owner=session?.user?.id,project=state.selected;
+ const runs=await api(client.from('research_experiments').select('id,workspace_id,strategy,source_label,sample_start,sample_end,metrics,created_at')
+ .eq('workspace_id',project).order('created_at',{ascending:false}).limit(75));
+ if(session?.user?.id===owner&&state.selected===project)state.runs=runs;
 }
 async function hash(s){
  if(!globalThis.crypto?.subtle)throw Error('Secure context required for SHA-256 provenance. Use HTTPS.');
@@ -281,10 +332,12 @@ async function hash(s){
 }
 async function fileSelected(file){
  if(!file)return;
+ const owner=session?.user?.id;
  if(file.size>16_000_000)throw Error('CSV exceeds the 16MB limit.');
  const text=await file.text();
  const parsed=engine.parseCsv(text);
  const digest=await hash(text);
+ if(!owner||session?.user?.id!==owner)return;
  state.bars=parsed.bars;state.diagnostics=parsed.diagnostics;state.sourceSha=digest;
  state.sourceLabel=file.name.slice(0,120);state.lastRun=null;state.sim=null;
  state.view='data';
@@ -295,7 +348,7 @@ async function createProject(form){
  const item=await api(client.from('research_workspaces').insert({
   owner_id:session.user.id,title,asset_class:f.get('asset_class'),symbol,hypothesis
  }).select('*').single());
- state.selected=item.id;state.view='workspaces';
+ projectSymbol='';state.selected=item.id;state.view='workspaces';
  await refresh();info('Private research project created.');
 }
 async function saveNotes(form){
@@ -334,15 +387,34 @@ async function saveRun(){
  await loadRuns();info('Experiment saved as a private, immutable research run. It is not verified trading performance.');
 }
 async function dispatch(action,element){
+ if(action==='project-assistant'){
+  const project=current(),owner=session?.user?.id;
+  if(!project||!owner)return;
+  closeAssistant?.();
+  closeAssistant=CommonProjectAssistant.mount(client,{
+   project,owner,enabled:window.COMMON_CONFIG?.researchAgentEnabled===true,
+   currentOwner:()=>session?.user?.id
+  });
+  return;
+ }
+ if(action==='share-run'){
+  const r=state.lastRun,owner=session?.user?.id;
+  if(!r||!owner)throw Error('Sign in and calculate a backtest before sharing.');
+  const draft=CommonResearchDraft.backtest(state.projects.find(item=>item.id===state.selected)?.title,r,{
+   sha256:state.sourceSha,first:r.dates[0],last:r.dates.at(-1)
+  });
+  if(CommonResearchDraft.stage(draft,owner))location.assign('../live/');
+  return;
+ }
  if(action==='level'){state.expert=!state.expert;render();return;}
  if(action==='new-project'){state.view='workspaces';render();const dialog=$('#create-project-dialog');if(dialog){dialog.hidden=false;dialog.scrollIntoView({block:'nearest'});}return;}
- if(action==='close-create'){const d=$('#create-project-dialog');if(d)d.hidden=true;return;}
+ if(action==='close-create'){projectSymbol='';const d=$('#create-project-dialog');if(d)d.hidden=true;return;}
  if(action==='open-project'){
   state.selected=element.dataset.id;state.lastRun=null;state.sim=null;state.bars=null;state.diagnostics=null;
   await loadRuns();state.view='workspaces';render();return;
  }
  if(action==='delete-project'){
-  if(!state.selected||!confirm('Permanently delete this project and all saved experiments?'))return;
+  if(!state.selected||!confirm('Permanently delete this project, its experiments and its assistant drafts?'))return;
   await api(client.from('research_workspaces').delete().eq('id',state.selected).eq('owner_id',session.user.id));
   state.selected=null;state.lastRun=null;state.bars=null;await refresh();info('Project and its experiments deleted.');return;
  }
@@ -393,16 +465,26 @@ document.addEventListener('change',ev=>{
 });
 document.addEventListener('submit',ev=>{
  const form=ev.target;
- const action=form.id==='create-form'?createProject:form.id==='notes-form'?saveNotes:form.id==='run-form'?runStrategy:null;
+ const action=form.id==='create-form'?createProject:form.id==='notes-form'?saveNotes:form.id==='run-form'?runStrategy:form.id==='exercise-form'?submitExercise:null;
  if(action)safe(()=>action(form))(ev);
 });
 async function init(){
  if(!engine)throw Error('Research engine is missing.');
- if(!config.communityBackendReady||!config.supabaseUrl||!config.supabaseAnonKey||!window.supabase?.createClient)throw Error('Supabase backend has not been configured.');
- client=window.supabase.createClient(config.supabaseUrl,config.supabaseAnonKey,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
+ client=window.CommonSession.memberClient();
+ if(!client)throw Error('Research Studio sign-in is unavailable in this environment.');
  const r=await client.auth.getSession();if(r.error)throw r.error;
  session=r.data.session;
- client.auth.onAuthStateChange((_evt,next)=>{session=next;if(next)queueMicrotask(()=>refresh().catch(fail));else render();});
+ if(projectSymbol)state.view='workspaces';
+ client.auth.onAuthStateChange((event,next)=>{
+  if(session?.user?.id!==next?.user?.id){
+   closeAssistant?.();closeAssistant=null;
+   Object.assign(state,{projects:[],runs:[],progress:[],selected:null,bars:null,diagnostics:null,
+    sourceSha:null,sourceLabel:'',lastRun:null,sim:null,error:'',notice:'',view:projectSymbol?'workspaces':'overview'});
+  }
+  session=next;
+  if(!next)render();
+  else if(event!=='INITIAL_SESSION'&&event!=='TOKEN_REFRESHED')setTimeout(()=>refresh().catch(fail),0);
+ });
  if(session)await refresh();else render();
 }
 init().catch(fail);

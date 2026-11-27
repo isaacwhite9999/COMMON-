@@ -14,6 +14,10 @@ Baseline: development branch `common/unified-workspace` at d5b4e100a600f0b9565cd
 
 ## Status and known blockers
 
+The [independent acceptance audit](INDEPENDENT_ACCEPTANCE_AUDIT.md) cross-references implementation candidate evidence, disposable tests, and remaining blockers by requirement ID. The grouped requirements below remain open where they combine several granular features.
+
+- Workstream 01 foundation evidence and remaining coverage are tracked in [Foundation contracts](FOUNDATION_CONTRACTS.md). Existing product-level acceptance remains subject to review.
+
 - Latest known frontend/API and disposable database checks passed at d5b4e10. Full workspace checks were still running for that head at inventory creation. Prior workspace runs failed. Inspect fresh job logs, particularly editor browser and Python runtime smoke tests, before claiming readiness.
 - AI provider and external journal flags remain disabled unless independently configured and verified; no paid activation authorized.
 - No actual pooled money, deposit, withdrawal, securities execution or legally binding vote is active. No production merge or deployment is authorized by this inventory.
@@ -25,7 +29,7 @@ Baseline: development branch `common/unified-workspace` at d5b4e100a600f0b9565cd
 
 - [ ] Q01.01 **Partial / implemented in branch** — Authenticated, opt-in research assistant; six modes (review/explain/plan/code/fundamentals/risk), bounded server quota and provider gate
 - [ ] Q01.02 **Partial / implemented in branch** — Local custom slash-command templates, explicitly selected research notes and saved analysis history
-- [ ] Q01.03 **Remaining** — Goal-based persistent project-scoped agent sessions, conversation history and context compaction
+- [ ] Q01.03 **Partial / implemented in branch** — Gated goal-based plans and private, reviewed project draft history. Multi-turn sessions and context compaction remain open.
 - [ ] Q01.04 **Remaining** — Plan/tool/execute/observe/validate state machine with bounded retries, debugging and code corrections
 - [ ] Q01.05 **Remaining** — Fundamental, technical, quant, portfolio, macro, SEC, risk, modeling, data retrieval and verification agents
 - [ ] Q01.06 **Remaining** — Multi-agent orchestration, streaming responses, tool traces, model selection and cost tracking
@@ -33,21 +37,23 @@ Baseline: development branch `common/unified-workspace` at d5b4e100a600f0b9565cd
 
 ### Q02 — Research IDE (workstream 03)
 
-- [ ] Q02.01 **Partial / implemented in branch** — Browser-local research project CRUD, notes and export; existing authenticated research studio is separate
+- [ ] Q02.01 **Partial / implemented in branch** — Browser-local project lifecycle, filters, notes and full JSON export. The authenticated Studio has separate account projects.
 - [ ] Q02.02 **Partial / implemented in branch** — Text file explorer, relative paths, revision history and restore; basic source editor with line numbers, find, go-to-line and indentation; verify editor browser regression
 - [ ] Q02.03 **Remaining** — Professional syntax highlighting, language services, autocomplete, linting and diagnostics
 - [ ] Q02.04 **Remaining** — AI inline edits, diff review, tabs, nested folders, cross-file search, terminal, resizable panels and keyboard shortcuts
-- [ ] Q02.05 **Remaining** — Project templates, duplication, complete import/export, Git integration, sharing, persistent storage and collaborative editing
+- [ ] Q02.05 **Partial / implemented in branch** — Browser-local templates, project duplication and versioned source bundles. Complete project import, Git, sharing and collaborative editing remain open.
 
 ### Q03 — Compute and notebooks (workstream 03)
 
 - [ ] Q03.01 **Partial / implemented in branch** — Fixed-function notebook cells: notes, data profile, return distribution, drawdown, SMA backtest, ordered cells, provenance, export and persistence
 - [ ] Q03.02 **Partial / implemented in branch** — Experimental browser Python: pinned Pyodide, opt-in source, worker/opaque iframe, package selection (numpy/pandas/scipy/statsmodels), output cap, cancel and history; actual isolation/runtime tests need to pass
-- [ ] Q03.03 **Remaining** — Executable Python notebook cells, persistent kernels, project data access, artifact storage and package management
+- [ ] Q03.03 **Partial / implemented in branch** — Executable Python notebook cells with per-run review, cancel and local output persistence are verified. Persistent kernels, project data access and hosted artifacts remain open.
 - [ ] Q03.04 **Remaining** — Scikit-learn/PyTorch where appropriate, pinned environment manifests, secret handling and resource monitoring
 - [ ] Q03.05 **Remaining** — Separate isolated cloud compute, CPU/memory/time limits, network deny by default, queued jobs, parallelism, suspension and recovery
 
 ### Q04 — Market data and APIs (workstream 04)
+
+Q04.01 browser metadata, source isolation, and upgrade evidence are recorded in [Browser dataset catalog](DATASET_STORAGE.md).
 
 - [ ] Q04.01 **Partial / implemented in branch** — Historical CSV import, IndexedDB dataset library, provenance hashes, quality checks and reusable inputs; user-uploaded daily close data
 - [ ] Q04.02 **Partial / implemented in branch** — Existing SEC EDGAR/fundamentals and official economic-data integrations; audit availability and source correctness
@@ -78,13 +84,13 @@ Baseline: development branch `common/unified-workspace` at d5b4e100a600f0b9565cd
 - [ ] S01.01 **Partial / implemented in branch** — Supabase authentication/profile, registration/recovery, display names/biographies, DM preference, member profiles, shared-group member directory and block/unblock
 - [ ] S01.02 **Partial / implemented in branch** — Public signup SMTP and Google provider setup not established; verify existing auth and permissions
 - [ ] S01.03 **Remaining** — Profile avatar/cover, experience, interests, philosophy, published research, optional verified credentials
-- [ ] S01.04 **Remaining** — Follow/unfollow, friend requests/accept/decline, mutuals, suggestions, followers/following, privacy, mute, custom lists and safe contact discovery
+- [ ] S01.04 **Partial / implemented in branch** — Follow/unfollow and account-scoped Followers and Following lists. Friend requests/accept/decline, mutuals, suggestions, granular privacy, mute, custom lists and safe contact discovery remain open.
 - [ ] S01.05 **Remaining** — Global member/research search, pagination, discovery/recommendations, MFA, devices/session management, privacy/export/deletion and recovery controls
 
 ### S02 — Social publishing and education (workstream 07)
 
 - [ ] S02.01 **Partial / implemented in branch** — Member/community research feed, public discovery, likes, replies, local bookmarks, shared research projects
-- [ ] S02.02 **Remaining** — Following feed, filters and ranking controls, real persistent bookmarks, mentions, hashtags/tickers, reposts/quotes, nested replies and editing/revisions
+- [ ] S02.02 **Partial / implemented in branch** — Chronological Following feed with cursor pagination. Filters and ranking controls, real persistent bookmarks, mentions, hashtags/tickers, reposts/quotes, nested replies and editing/revisions remain open.
 - [ ] S02.03 **Remaining** — Validated media/document attachments, research articles, interactive charts, model/run artifacts, drafts, scheduled publishing, visibility, citations and disclosures
 - [ ] S02.04 **Remaining** — Collaborative workspaces, shared files/notebooks, contributor permissions, assignments, peer review, evidence versioning, publication approval and reusable strategies
 - [ ] S02.05 **Partial / implemented in branch** — Existing financial education and lessons; audit learning progress
@@ -118,6 +124,10 @@ Baseline: development branch `common/unified-workspace` at d5b4e100a600f0b9565cd
 
 ### X01 — Unified product and release infrastructure (workstream 01/10)
 
+The [department integration evidence](DEPARTMENT_INTEGRATION.md) records the completed research-to-circle journey and remaining release requirements for X01.07.
+
+API operations evidence for X01.05 and X01.06 is recorded in [isolated API staging and performance results](API_OPERATIONS.md). Production member identity and full-workload capacity remain open.
+
 - [ ] X01.01 **Partial / implemented in branch** — Separate static research, terminal, studio and community entrypoints; FastAPI prototype and Supabase auth/community backend; draft PR, not unified deployment
 - [ ] X01.02 **Remaining** — Unified session, navigation, shared component system and responsive institutional UX; accessible dense data and beginner progressive disclosure
 - [ ] X01.03 **Remaining** — Deep nested settings: account/security/privacy, appearance/density, AI/model/memory/commands, data/entitlements, compute, portfolio, circles/governance, integrations/API, notifications, billing/usage
@@ -129,3 +139,7 @@ Baseline: development branch `common/unified-workspace` at d5b4e100a600f0b9565cd
 ## Definition of done for each ID
 
 Record the PR, exact files/routes, persistence and authorization, empty/loading/error/recovery states, desktop/mobile accessibility, unit/integration/security and numerical tests with actual results, limitations, and dependency/activation status. Check off only after review of working evidence. Never silently remove a requirement or replace it with placeholders; split into smaller acceptance IDs if useful. Preserve previous functionality. See AGENTS.md for engineering standards.
+
+### Durable queue evidence
+
+X01.05, X01.06, Q01.07 and Q03.05 have tested infrastructure coverage for durable job scheduling, scoped database roles, admission caps, concurrency and crash recovery. See [Durable PostgreSQL jobs](DURABLE_JOB_QUEUE.md) for interfaces, query-plan evidence and remaining handler, isolation and rollout gates.
