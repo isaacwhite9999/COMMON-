@@ -2,7 +2,7 @@
 
 Original audit baseline `aa0f89a` (design branch including integration), plus the messaging and Python control corrections in this audit. This is a source and disposable-test audit. Hosted identity, staging integrations, actual provider credentials, assistive technology, and live money were outside the verification environment.
 
-**Candidate granular totals** 76 verified, 3 unverified, 171 partial, 179 missing, 0 broken, 21 external gate.
+**Candidate granular totals** 77 verified, 3 unverified, 170 partial, 179 missing, 0 broken, 21 external gate.
 
 Verified = fully implemented and verified within the stated feature scope. Unverified = implemented but unverified. Partial = partially implemented. Missing = no matching working path found in the inspected domain. Broken = an existing path demonstrably fails. External gate = blocked by an external dependency or regulatory requirement. A prerequisite or numerical engine alone does not establish feature acceptance.
 
@@ -48,6 +48,9 @@ The candidate branch `codex/common-feature-integration` starts from PR #18 at `d
 - **D2** [Treasury terminal](terminal/terminal.js), [independent decimal revision tests](../tests/finance-terminal.test.cjs), [Chromium comparison and fallback](../tests/terminal-browser.test.mjs)
 - **S2** [Member connection permissions](../supabase/migrations/20261127184624_member_connection_requests.sql), [role smoke tests](../tests/pg_member_connections_smoke.sql), [two-account Chromium flow](../tests/discussion-feed-browser.test.mjs)
 - **L2** [Studio glossary](lab/glossary.js), [keyboard and contextual help Chromium tests](../tests/lab-browser.test.mjs)
+
+- **R2** [Portfolio risk model](workspace/risk.js), [known-answer fixtures](../tests/workspace-risk.test.cjs), [Chromium persistence and export](../tests/workspace-browser.test.mjs)
+- **F2** [Draft sync contract](DISCUSSION_DRAFTS.md), [database revision and isolation checks](../tests/pg_discussion_drafts_smoke.sql), [two-device Chromium flow](../tests/publishing-draft-browser.test.mjs)
 
 ## Individual requirements
 
@@ -220,7 +223,7 @@ The candidate branch `codex/common-feature-integration` starts from PR #18 at `d
 | QUANT-163 | Multi-asset portfolios | Partial | R | Hypothetical model, single analysis or constrained simulation; production breadth and independent validation remain. |
 | QUANT-164 | Correlation matrices | Verified | R | Existing analytical workflow within calculator/risk scope; numerical fixtures and Chromium workflows passed. |
 | QUANT-165 | Covariance estimation | Verified | R | Existing analytical workflow within calculator/risk scope; numerical fixtures and Chromium workflows passed. |
-| QUANT-166 | Historical and model-based VaR | Partial | R | Hypothetical model, single analysis or constrained simulation; production breadth and independent validation remain. |
+| QUANT-166 | Historical and model-based VaR | Verified | R2 | The browser-local risk lab compares historical and Gaussian 95% one-interval VaR for two to eight long-only assets. Independent numeric fixtures and persisted/exported reports passed. |
 | QUANT-167 | Expected shortfall | Verified | R | Existing analytical workflow within calculator/risk scope; numerical fixtures and Chromium workflows passed. |
 | QUANT-168 | Risk contribution and attribution | Partial | R | Hypothetical model, single analysis or constrained simulation; production breadth and independent validation remain. |
 | QUANT-169 | Portfolio optimization | Missing | R | Historical portfolio risk and calculators; no matching optimizer or analytics workflow |
@@ -325,7 +328,7 @@ The candidate branch `codex/common-feature-integration` starts from PR #18 at `d
 | SOCIAL-050 | Hashtags and ticker tags | Missing | F | Circle discussion, likes, local bookmarks and summary handoff; no matching publishing workflow |
 | SOCIAL-051 | Post editing | Partial | F | Single-level discussion replies or author update policy present; full reply threading or edit UI absent. |
 | SOCIAL-052 | Revision history | Missing | F | Circle discussion, likes, local bookmarks and summary handoff; no matching publishing workflow |
-| SOCIAL-053 | Drafts | Partial | F1 | One discussion draft per account on the device persists through reload and failed publication, with explicit discard. Cross-device, multi-draft and other publishing surfaces remain open. |
+| SOCIAL-053 | Drafts | Partial | F2 | One account-scoped discussion draft syncs explicitly across devices with revision conflict resolution, offline local edits and transactional publish. Multiple drafts and background sync remain open. |
 | SOCIAL-054 | Scheduled publishing | Missing | F | Circle discussion, likes, local bookmarks and summary handoff; no matching publishing workflow |
 | SOCIAL-055 | Post visibility | Verified | F | Feed, visibility, replies and block behavior exercised with browser fixtures and PostgreSQL policies. |
 | SOCIAL-056 | Recommendation controls | Missing | F | Circle discussion, likes, local bookmarks and summary handoff; no matching publishing workflow |

@@ -40,7 +40,7 @@ The [independent acceptance audit](INDEPENDENT_ACCEPTANCE_AUDIT.md) cross-refere
 - [ ] Q02.01 **Partial / implemented in branch** — Browser-local project lifecycle, filters, notes and full JSON export. The authenticated Studio has separate account projects.
 - [ ] Q02.02 **Partial / implemented in branch** — Text file explorer, relative paths, revision history and restore; basic source editor with line numbers, find, go-to-line and indentation; verify editor browser regression
 - [ ] Q02.03 **Remaining** — Professional syntax highlighting, language services, autocomplete, linting and diagnostics
-- [ ] Q02.04 **Remaining** — AI inline edits, diff review, tabs, nested folders, cross-file search, terminal, resizable panels and keyboard shortcuts
+- [ ] Q02.04 **Partial / implemented in branch** — Browser-local cross-file search and reviewed replacement. AI inline edits, broader diff review, tabs and full terminal/editor ergonomics remain open.
 - [ ] Q02.05 **Partial / implemented in branch** — Browser-local templates, project duplication and versioned source bundles. Complete project import, Git, sharing and collaborative editing remain open.
 
 ### Q03 — Compute and notebooks (workstream 03)
@@ -48,7 +48,7 @@ The [independent acceptance audit](INDEPENDENT_ACCEPTANCE_AUDIT.md) cross-refere
 - [ ] Q03.01 **Partial / implemented in branch** — Fixed-function notebook cells: notes, data profile, return distribution, drawdown, SMA backtest, ordered cells, provenance, export and persistence
 - [ ] Q03.02 **Partial / implemented in branch** — Experimental browser Python: pinned Pyodide, opt-in source, worker/opaque iframe, package selection (numpy/pandas/scipy/statsmodels), output cap, cancel and history; actual isolation/runtime tests need to pass
 - [ ] Q03.03 **Partial / implemented in branch** — Executable Python notebook cells with per-run review, cancel and local output persistence are verified. Persistent kernels, project data access and hosted artifacts remain open.
-- [ ] Q03.04 **Remaining** — Scikit-learn/PyTorch where appropriate, pinned environment manifests, secret handling and resource monitoring
+- [ ] Q03.04 **Partial / implemented in branch** — Browser Python runs record pinned environment and dependency manifests. Hosted manifests, expanded package availability, secret handling and resource monitoring remain open.
 - [ ] Q03.05 **Remaining** — Separate isolated cloud compute, CPU/memory/time limits, network deny by default, queued jobs, parallelism, suspension and recovery
 
 ### Q04 — Market data and APIs (workstream 04)
@@ -56,7 +56,7 @@ The [independent acceptance audit](INDEPENDENT_ACCEPTANCE_AUDIT.md) cross-refere
 Q04.01 browser metadata, source isolation, and upgrade evidence are recorded in [Browser dataset catalog](DATASET_STORAGE.md).
 
 - [ ] Q04.01 **Partial / implemented in branch** — Historical CSV import, IndexedDB dataset library, provenance hashes, quality checks and reusable inputs; user-uploaded daily close data
-- [ ] Q04.02 **Partial / implemented in branch** — Existing SEC EDGAR/fundamentals and official economic-data integrations; audit availability and source correctness
+- [ ] Q04.02 **Partial / implemented in branch** — Existing SEC EDGAR/fundamentals and official economic-data integrations, with browser-observed Treasury revision comparison. Broader coverage, historic vintages and shared ingestion remain open.
 - [ ] Q04.03 **Remaining** — Equity, ETF, international, futures, options, FX, fixed income, trade/quote and depth provider adapters; entitlements
 - [ ] Q04.04 **Remaining** — Security master, symbol resolution, corporate actions, adjusted OHLCV, dividends, calendar/time zone, continuous futures, point-in-time data and caching
 - [ ] Q04.05 **Remaining** — Versioned REST, Python SDK, MCP, scoped API keys, rotation/revocation, rate limits, usage analytics, bulk exports, webhooks, developer docs and examples (coordinate 10)
