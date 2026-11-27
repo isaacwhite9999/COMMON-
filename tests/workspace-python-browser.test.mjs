@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
 import { launchBrowser } from './browser.mjs';
 
 const base = process.env.COMMON_SITE_URL || 'http://127.0.0.1:8765/';
@@ -56,6 +57,63 @@ else:
   assert.match(evidence,/Pyodide version: 0\.27\.7/);
   assert.match(evidence,/Execution status: Completed/);
   assert.doesNotMatch(evidence,/PRIVATE_WORKSPACE_OUTPUT|print\(/);
+  await page.getByRole('button',{name:'Close',exact:true}).click();
+
+  await page.getByRole('link',{name:'Research notebook',exact:true}).click();
+  await page.getByLabel('Cell title').fill('Notebook Python fixture');
+  await page.getByLabel('Cell type').selectOption('python');
+  assert.equal(await page.getByLabel('Cell dataset').isVisible(),false);
+  const source = '\nfor value in [42]:\n    print(value, "<b>literal output</b>")\n';
+  await page.getByRole('textbox',{name:'Python source',exact:true}).fill(source);
+  await page.getByRole('button',{name:'Save cell'}).click();
+  const cell = page.locator('.notebook-cell').filter({hasText:'Notebook Python fixture'});
+  const run = cell.getByRole('button',{name:'Run Python cell'});
+  const stopCell = cell.getByRole('button',{name:'Stop execution'});
+  const consent = page.getByLabel(/Run my own reviewed code locally/);
+  const runReviewed = page.getByRole('button',{name:'Run reviewed Python'});
+  assert.equal(await stopCell.isDisabled(),true);
+  await run.click();
+  await runReviewed.click();
+  assert.equal(await page.locator('iframe[title="Isolated local Python execution"]').count(),0);
+  assert.equal(await consent.isChecked(),false);
+  await consent.check();
+  await runReviewed.click();
+  await cell.getByText('42 <b>literal output</b>',{exact:true}).waitFor({timeout:95_000});
+  assert.equal(await cell.locator('.notebook-result pre b').count(),0);
+  await page.reload();
+  await cell.getByText('42 <b>literal output</b>',{exact:true}).waitFor();
+  assert.equal(await stopCell.isDisabled(),true);
+
+  const downloadPromise = page.waitForEvent('download');
+  await page.getByRole('button',{name:'Export notebook'}).click();
+  const download = await downloadPromise;
+  const notebook = JSON.parse(await readFile(await download.path(),'utf8'));
+  assert.equal(notebook.cells[0].text, source);
+  assert.equal(notebook.cells[0].output.ok,true);
+  assert.equal(notebook.cells[0].output.version,'0.27.7');
+
+  await cell.getByRole('link',{name:'Edit',exact:true}).click();
+  const sourceEditor = page.getByRole('textbox',{name:'Python source',exact:true});
+  assert.equal(await sourceEditor.inputValue(), source);
+  await sourceEditor.fill('raise ValueError("NOTEBOOK_FIXTURE_ERROR")');
+  await page.getByRole('button',{name:'Save cell'}).click();
+  assert.equal(await cell.locator('.notebook-result').count(),0);
+  await run.click();
+  assert.equal(await consent.isChecked(),false);
+  await consent.check();
+  await runReviewed.click();
+  await cell.locator('.notebook-result').getByText(/ValueError: NOTEBOOK_FIXTURE_ERROR/).waitFor({timeout:95_000});
+
+  await cell.getByRole('link',{name:'Edit',exact:true}).click();
+  await sourceEditor.fill('while True: pass');
+  await page.getByRole('button',{name:'Save cell'}).click();
+  await run.click();
+  await consent.check();
+  await runReviewed.click();
+  await stopCell.click();
+  await cell.getByText('Execution cancelled.',{exact:true}).waitFor();
+  assert.equal(await stopCell.isDisabled(),true);
+  console.log('PASS notebook Python review, success, reload, export, failure, edit and stop');
   console.log('PASS browser Python, blocked application-origin access, cancellation and reviewed evidence');
 } finally {
   await browser.close();

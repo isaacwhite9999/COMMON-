@@ -16,7 +16,7 @@ const select=(n,t,opts,v)=>'<label>'+esc(t)+'<select name="'+n+'">'+opts.map(([k
 const form=(id,body,submit='Save')=>'<form data-form="'+esc(id)+'">'+body+'<button class="primary">'+esc(submit)+'</button></form>';
 function toast(t){notice.textContent=t;notice.style.display='block';clearTimeout(toast.timer);toast.timer=setTimeout(()=>notice.style.display='none',4500);}
 function save(v){if(blocked)throw Error('Stored data could not be read. Export or reset it first.');localStorage.setItem(key,JSON.stringify(v));s=v;render();}
-function render(){const p=location.hash.slice(1).split('/');const page=routes.find(r=>r[0]===p[0])||routes[0];document.body.dataset.theme=s.settings.theme;document.body.dataset.density=s.settings.density;app.innerHTML='<div class="shell"><aside class="side" id="side"><a class="brand" href="#home"><span class="mark">C.</span>COMMON</a>'+groups.map(([t,rs])=>'<nav aria-label="'+t+'"><span class="eyebrow">'+t+'</span>'+rs.map(([k,v])=>a(k,v,'nav '+(page[0]===k?'active':''))).join('')+'</nav>').join('')+'<div class="foot">Institutional intelligence.<br>Collective ownership.<br>'+external('../live/','Member sign-in')+'</div></aside><div><header class="top"><button class="mobile" data-act="menu" aria-label="Navigation">☰</button><span class="crumb muted">Workspace / '+esc(page[1])+'</span>'+b('search','Search workspace · Ctrl K','search')+'<span class="mode">RESEARCH / SIMULATION</span></header><main id="main" class="main" tabindex="-1">'+(blocked?'<p class="note">Stored data invalid. Export or reset in Settings / Data.</p>':'')+view(page[0],p[1],p[2],p[3],p[4])+'</main></div></div>';CommonEditor.enhance(app);}
+function render(){const p=location.hash.slice(1).split('/');const page=routes.find(r=>r[0]===p[0])||routes[0];document.body.dataset.theme=s.settings.theme;document.body.dataset.density=s.settings.density;app.innerHTML='<div class="shell"><aside class="side" id="side"><a class="brand" href="#home"><span class="mark">C.</span>COMMON</a>'+groups.map(([t,rs])=>'<nav aria-label="'+t+'"><span class="eyebrow">'+t+'</span>'+rs.map(([k,v])=>a(k,v,'nav '+(page[0]===k?'active':''))).join('')+'</nav>').join('')+'<div class="foot">Institutional intelligence.<br>Collective ownership.<br>'+external('../live/','Member sign-in')+'</div></aside><div><header class="top"><button class="mobile" data-act="menu" aria-label="Navigation">☰</button><span class="crumb muted">Workspace / '+esc(page[1])+'</span>'+b('search','Search workspace · Ctrl K','search')+'<span class="mode">RESEARCH / SIMULATION</span></header><main id="main" class="main" tabindex="-1">'+(blocked?'<p class="note">Stored data invalid. Export or reset in Settings / Data.</p>':'')+view(page[0],p[1],p[2],p[3],p[4])+'</main></div></div>';CommonEditor.enhance(app);syncPythonControls();}
 let projectSearch='',projectStatus='active';
 function projectRows(){
  const query=projectSearch.trim().toLocaleLowerCase();
@@ -77,16 +77,60 @@ if(current==='quality')content=section('Data quality',table(['Control','Result']
 if(current==='provenance')content=section('Source record',table(['Attribute','Value'],[['Filename',esc(item.name)],['Symbol label',esc(item.symbol||'Not supplied')],['Imported',esc(new Date(item.created).toLocaleString())]])+'<label>SHA-256<input readonly value="'+esc(item.sha256)+'"></label>'+empty('Hash identifies file text, not authenticity, licensing or corporate-action correctness.')+'<div class="row">'+b('download-dataset:'+item.id,'Download original CSV')+b('delete-dataset:'+item.id,'Delete source')+'</div>');
 return head(item.name,'Historical data / local library')+a('datasets','← All datasets')+tabs(base,[['overview','Overview'],['quality','Quality checks'],['provenance','Source & actions']],current)+content;}
 let pythonJob=null;
+const pythonTarget=(id,cellId)=>cellId?id+':'+cellId:id;
+const pythonStop=target=>'<button type="button" data-act="cancel-python:'+esc(target)+'" data-python-stop disabled>Stop execution</button>';
+const pythonProgress=target=>'<p data-python-progress="'+esc(target)+'" role="status" class="muted"></p>';
+const pythonOptions=()=>'<div class="python-packages"><span class="eyebrow">OPTIONAL SCIENTIFIC PACKAGES</span>'+P.packages.map(k=>'<label><input type="checkbox" name="pkg" value="'+k+'"> '+k+'</label>').join('')+'</div><label><input type="checkbox" name="consent" required> Run my own reviewed code locally; allow runtime/package downloads. Do not include secrets.</label>';
+function syncPythonControls(){
+  for(const node of app.querySelectorAll('[data-python-progress]'))
+    node.textContent=pythonJob?.target===node.dataset.pythonProgress?pythonJob.status:'';
+  for(const node of app.querySelectorAll('[data-python-stop]'))
+    node.disabled=node.dataset.act!=='cancel-python:'+pythonJob?.target;
+  for(const node of app.querySelectorAll('[data-python-start],form[data-form^="execute-python:"] button.primary'))
+    node.disabled=Boolean(pythonJob);
+}
+async function executePython(target,request){
+  if(pythonJob)throw Error('A Python execution is already running in this tab.');
+  const job={target,status:''};
+  pythonJob=job;
+  try {
+    job.handle=P.execute(request.code,request.libs,status=>{job.status=status;syncPythonControls();});
+    return await job.handle.promise;
+  } finally {
+    pythonJob=null;
+    syncPythonControls();
+  }
+}
+function pythonOutput(run){
+  return '<p class="muted">Runtime '+esc(run.version)+' · packages: '+esc(run.libs.join(', ')||'standard library')+'</p><pre>'+esc(run.output||'(No printed output)')+'</pre>'+
+    (run.truncated?empty('Output truncated at 24,000 characters. Could also be shortened by the runtime.'):'');
+}
 function pythonDesk(p,detail){const files=F.list(p).filter(x=>x.path.endsWith('.py')),selected=files.find(x=>x.id===detail),runs=p.pythonRuns||[],base='research/'+p.id+'/python';
 const input=selected?.content??'import statistics\nreturns = [0.01, -0.02, 0.015, 0.005]\nprint("Illustrative mean daily return:", statistics.mean(returns))';
-return section('Local Python environment',empty('Experimental browser-based Python '+P.VERSION+' runtime. Each run starts in a fresh opaque-origin sandbox and worker. No server credentials, private circle records, or dataset files are injected. Runtime and selected packages download from a pinned CDN release. Never run untrusted code or include confidential information. Browser memory exhaustion and CDN access are possible; this is not a production multi-tenant compute service.')+empty('Example source is illustrative only; replace it with your own research. Use print() for results.')+select('unused','Open saved Python file',[['','Scratch editor'],...files.map(f=>[f.id,f.path])],selected?.id||'').replace('name="unused"','data-python-file="'+esc(base)+'"')+form('execute-python:'+p.id, '<label for="python-source">Python source</label><textarea id="python-source" name="code" class="source-editor" spellcheck="false" maxlength="40000" required>'+esc(input)+'</textarea><div class="python-packages"><span class="eyebrow">OPTIONAL SCIENTIFIC PACKAGES</span>'+P.packages.map(k=>'<label><input type="checkbox" name="pkg" value="'+k+'"> '+k+'</label>').join('')+'</div><label><input type="checkbox" name="consent" required> Run my own reviewed code locally; allow runtime/package downloads. Do not include secrets.</label>','Run Python')+'<div class="row">'+'<button type="button" data-act="cancel-python:'+esc(p.id)+'" '+(pythonJob?.id===p.id?'':'disabled')+'>Stop execution</button>'+b('save-python-file:'+p.id,'Save editor as source file')+'</div><p id="python-progress" role="status" class="muted">'+(pythonJob?.id===p.id?'Execution in progress…':'')+'</p>')+section('Execution history',runs.length?runs.slice().reverse().map(r=>'<details class="python-result" '+(r===runs.at(-1)?'open':'')+'><summary><strong>'+esc(r.ok?'Completed':'Failed / cancelled')+'</strong> <span class="muted">'+esc(new Date(r.at).toLocaleString())+'</span></summary><p class="muted">Runtime '+esc(r.version)+' · packages: '+esc(r.libs.join(', ')||'standard library')+'</p><pre>'+esc(r.output||'(No printed output)')+'</pre>'+(r.truncated?empty('Output truncated at 24,000 characters. Could also be shortened by the runtime.'): '')+'<details><summary>Executed source</summary><pre>'+esc(r.code)+'</pre></details>'+b('share-python:'+p.id+':'+r.id,'Prepare execution summary')+' '+b('export-python:'+p.id+':'+r.id,'Export run')+' '+b('delete-python:'+p.id+':'+r.id,'Delete run')+'</details>').join(''):empty('No Python executions saved.'));}
+return section('Local Python environment',empty('Experimental browser-based Python '+P.VERSION+' runtime. Each run starts in a fresh opaque-origin sandbox and worker. No server credentials, private circle records, or dataset files are injected. Runtime and selected packages download from a pinned CDN release. Never run untrusted code or include confidential information. Browser memory exhaustion and CDN access are possible; this is not a production multi-tenant compute service.')+empty('Example source is illustrative only; replace it with your own research. Use print() for results.')+select('unused','Open saved Python file',[['','Scratch editor'],...files.map(f=>[f.id,f.path])],selected?.id||'').replace('name="unused"','data-python-file="'+esc(base)+'"')+form('execute-python:'+p.id, '<label for="python-source">Python source</label><textarea id="python-source" name="code" class="source-editor" spellcheck="false" maxlength="40000" required>'+esc(input)+'</textarea>'+pythonOptions(),'Run Python')+'<div class="row">'+pythonStop(p.id)+b('save-python-file:'+p.id,'Save editor as source file')+'</div>'+pythonProgress(p.id))+section('Execution history',runs.length?runs.slice().reverse().map(r=>'<details class="python-result" '+(r===runs.at(-1)?'open':'')+'><summary><strong>'+esc(r.ok?'Completed':'Failed / cancelled')+'</strong> <span class="muted">'+esc(new Date(r.at).toLocaleString())+'</span></summary>'+pythonOutput(r)+'<details><summary>Executed source</summary><pre>'+esc(r.code)+'</pre></details>'+b('share-python:'+p.id+':'+r.id,'Prepare execution summary')+' '+b('export-python:'+p.id+':'+r.id,'Export run')+' '+b('delete-python:'+p.id+':'+r.id,'Delete run')+'</details>').join(''):empty('No Python executions saved.'));}
 function notebookDesk(p,detail){const cells=N.list(p),base='research/'+p.id+'/notebook',selected=cells.find(x=>x.id===detail),kinds=Object.entries(N.kinds);
 const edit=selected||{kind:'note',title:'',text:'',dataset:'',config:{}};const cfg=edit.config||{};
 const sources=[['','Select a saved dataset'],...datasets.map(d=>[d.id,(d.symbol?d.symbol+' · ':'')+d.name])];if(edit.dataset&&!datasets.some(d=>d.id===edit.dataset))sources.push([edit.dataset,'Source removed · '+edit.dataset.slice(0,12)]);
-const editor=section(selected?'Edit cell':'Add research cell',form('save-cell:'+p.id+(selected?':'+selected.id:''),field('title','Cell title',edit.title)+select('kind','Cell type',kinds,edit.kind)+area('text','Research context and assumptions',edit.text)+select('dataset','Cell dataset',sources,edit.dataset)+empty('Dataset is required for analytical cells; notes do not execute. SMA settings apply only to strategy backtest cells.')+'<div class="grid">'+field('fast','Fast SMA',cfg.fast??10,'number')+field('slow','Slow SMA',cfg.slow??30,'number')+field('fee','Cost (bps)',cfg.fee??s.settings.fee,'number')+field('holdout','Holdout (%)',cfg.holdout??s.settings.holdout,'number')+'</div>','Save cell')+a(base,'New cell'));
+const editor=section(selected?'Edit cell':'Add research cell',form('save-cell:'+p.id+(selected?':'+selected.id:''),
+  field('title','Cell title',edit.title)+select('kind','Cell type',kinds,edit.kind)+
+  '<label for="notebook-cell-source" data-notebook-source-label>'+esc(edit.kind==='python'?'Python source':'Research context and assumptions')+'</label><textarea id="notebook-cell-source" name="text" class="source-editor" maxlength="'+N.CELL_TEXT_LIMIT+'" spellcheck="false" '+(edit.kind==='python'?'required':'')+'>\n'+esc(edit.text)+'</textarea>'+
+  '<div data-notebook-dataset '+(N.needsDataset(edit.kind)?'':'hidden')+'>'+select('dataset','Cell dataset',sources,edit.dataset)+'</div>'+
+  '<fieldset class="notebook-parameters" data-notebook-backtest '+(edit.kind==='backtest'?'':'hidden disabled')+'><div class="grid">'+field('fast','Fast SMA',cfg.fast??10,'number')+field('slow','Slow SMA',cfg.slow??30,'number')+field('fee','Cost (bps)',cfg.fee??s.settings.fee,'number')+field('holdout','Holdout (%)',cfg.holdout??s.settings.holdout,'number')+'</div></fieldset>',
+  'Save cell')+a(base,'New cell'));
 const fmt=(v,t)=>v==null?'—':t==='pct'?pct(v):t==='number'&&typeof v==='number'?v.toFixed(4):String(v);
 const renderOutput=o=>{let c=table(['Metric','Result'],o.metrics.map(([k,v,t])=>[esc(k),esc(fmt(v,t))]));if(o.histogram){const max=Math.max(1,...o.histogram.map(x=>x.count));c+='<div class="notebook-histogram" aria-label="Return histogram">'+o.histogram.map(x=>'<div><span>'+pct(x.lo)+'</span><div class="notebook-track"><i style="width:'+100*x.count/max+'%"></i></div><span>'+x.count+'</span></div>').join('')+'</div>';}if(o.curves){const ch=R.chart([{id:'strategy',values:o.curves.strategy},{id:'benchmark',values:o.curves.benchmark}]);if(ch)c+='<div class="report-chart"><svg viewBox="0 0 '+ch.width+' '+ch.height+'" role="img" aria-label="Notebook strategy and benchmark chart">'+ch.lines.map(x=>'<polyline fill="none" stroke="'+(x.id==='strategy'?'var(--accent)':'#8292b0')+'" stroke-width="2" points="'+x.points+'"/>').join('')+'</svg><p class="muted">Strategy / buy and hold</p></div>';}return c+empty(o.warning)+empty('Computed '+new Date(o.at).toLocaleString()+' · '+o.version+' · SHA-256 '+o.dataset);};
-return '<div class="notebook-layout"><div>'+section('Research notebook',empty('Ordered, reproducible analytical cells. Fixed functions only; arbitrary Python execution is not available here.')+a('datasets','Manage evidence datasets')+b('export-notebook:'+p.id,'Export notebook'))+cells.map((c,i)=>'<article class="panel notebook-cell"><div class="row between"><span class="eyebrow">CELL '+String(i+1).padStart(2,'0')+' / '+esc(N.kinds[c.kind])+'</span><span class="muted">'+(c.output?'Computed':c.kind==='note'?'Note':'Not executed')+'</span></div><h2>'+esc(c.title)+'</h2><p class="notebook-text">'+esc(c.text)+'</p><div class="row notebook-actions">'+a(base+'/'+c.id,'Edit')+(c.kind!=='note'?b('run-cell:'+p.id+':'+c.id,'Run cell','primary'):'')+(i>0?b('move-cell:'+p.id+':'+c.id+'/-1','Move up'):'')+(i<cells.length-1?b('move-cell:'+p.id+':'+c.id+'/1','Move down'):'')+b('delete-cell:'+p.id+':'+c.id,'Delete')+'</div>'+(c.output?'<div class="notebook-result">'+renderOutput(c.output)+'</div>':'')+'</article>').join('')+(!cells.length?section('Empty notebook',empty('Add a research note or analytical cell to begin.')):'')+'</div><aside>'+editor+'</aside></div>';}
+const renderCell=(c,i)=>{
+  const isPython=c.kind==='python', target=pythonTarget(p.id,c.id);
+  const status=c.output?(isPython?(c.output.ok?'Completed':'Failed / cancelled'):'Computed'):c.kind==='note'?'Note':'Not executed';
+  const run=isPython?'<button type="button" class="primary" data-act="review-python-cell:'+esc(target)+'" data-python-start>Run Python cell</button>'+pythonStop(target):
+    N.needsDataset(c.kind)?b('run-cell:'+p.id+':'+c.id,'Run cell','primary'):'';
+  const output=c.output?(isPython?'<div class="python-result">'+empty('Executed '+new Date(c.output.at).toLocaleString())+pythonOutput(c.output)+'</div>':renderOutput(c.output)):'';
+  return '<article class="panel notebook-cell"><div class="row between"><span class="eyebrow">CELL '+String(i+1).padStart(2,'0')+' / '+esc(N.kinds[c.kind])+'</span><span class="muted">'+status+'</span></div><h2>'+esc(c.title)+'</h2>'+
+    (isPython?'<details><summary>Saved Python source</summary><pre class="notebook-text">'+esc(c.text)+'</pre></details>':'<p class="notebook-text">'+esc(c.text)+'</p>')+
+    '<div class="row notebook-actions">'+a(base+'/'+c.id,'Edit')+run+(i>0?b('move-cell:'+p.id+':'+c.id+'/-1','Move up'):'')+(i<cells.length-1?b('move-cell:'+p.id+':'+c.id+'/1','Move down'):'')+b('delete-cell:'+p.id+':'+c.id,'Delete')+'</div>'+
+    (isPython?pythonProgress(target):'')+(output?'<div class="notebook-result">'+output+'</div>':'')+'</article>';
+};
+return '<div class="notebook-layout"><div>'+section('Research notebook',empty('Save research notes, analyze a dataset, or run a Python cell in a fresh browser environment.')+a('datasets','Manage evidence datasets')+b('export-notebook:'+p.id,'Export notebook'))+cells.map(renderCell).join('')+(!cells.length?section('Empty notebook',empty('Add a research note, dataset analysis or Python cell to begin.')):'')+'</div><aside>'+editor+'</aside></div>';}
 function fileDesk(p,detail){const files=F.list(p),base='research/'+p.id+'/files',file=files.find(x=>x.id===detail);
 const explorer='<aside class="file-explorer"><div class="row between"><strong>Explorer</strong>'+b('new-file:'+p.id,'New file')+'</div><div class="eyebrow">PROJECT / '+files.length+' FILES</div>'+files.slice().sort((a,b)=>a.path.localeCompare(b.path)).map(f=>a(base+'/'+f.id,f.path,'file-row '+(f.id===detail?'active':''))).join('')+(files.length?'':empty('Create your first text file.'))+'</aside>';
 const editor=file?'<div class="editor-pane"><div class="row between"><strong>'+esc(file.path)+'</strong><span class="muted">Text only · not executable</span></div>'+form('edit-file:'+p.id+':'+file.id,field('path','Relative path',file.path)+'<label for="file-source">Source editor</label><textarea id="file-source" class="source-editor" name="content" maxlength="40000" spellcheck="false">'+esc(file.content)+'</textarea>','Save revision')+'<div class="row">'+b('export-file:'+p.id+':'+file.id,'Download source')+b('delete-file:'+p.id+':'+file.id,'Delete file')+'</div>'+section('Revision history',file.revisions.length?table(['Modified','Path',''],file.revisions.map((r,i)=>[day(r.at),esc(r.path),b('restore-file:'+p.id+':'+file.id+'/'+i,'Restore')])):empty('No previous versions.'))+'</div>':'<div class="editor-pane"><h2>Project source files</h2><p class="muted">Maintain research notes, Python source, configuration JSON and small CSV samples. Paths and revisions are saved locally. Python is edited as text, never executed in the browser.</p>'+b('new-file:'+p.id,'Create source file','primary')+'</div>';
@@ -142,11 +186,21 @@ case 'delete-risk':if(confirm('Delete risk report?')){save({...s,riskRuns:(s.ris
 case 'reload-datasets':refreshDatasets().then(render);break;
 case 'download-dataset':D.get(id).then(row=>{if(!row)throw Error('Dataset not found.');const url=URL.createObjectURL(new Blob([row.source],{type:'text/csv;charset=utf-8'})),el=document.createElement('a');el.href=url;el.download=row.name;el.click();setTimeout(()=>URL.revokeObjectURL(url),500);}).catch(err=>toast(err.message));break;
 case 'delete-dataset':if(confirm('Delete this source file? Existing analysis reports will remain.'))D.remove(id).then(refreshDatasets).then(()=>{location.hash='datasets';render();}).catch(err=>toast(err.message));break;
-case 'cancel-python':if(pythonJob?.id===id)pythonJob.handle.cancel();else toast('No Python execution in this project.');break;
+case 'cancel-python':if(pythonJob?.target===pythonTarget(id,i))pythonJob.handle.cancel();break;
+case 'review-python-cell':{
+  if(pythonJob)throw Error('A Python execution is already running in this tab.');
+  const cell=p&&N.list(p).find(x=>x.id===i);
+  if(cell?.kind!=='python')throw Error('Python cell not found.');
+  show('Run Python cell',empty('Runs in a fresh, experimental browser worker. It receives only the source below and your package choices. No saved datasets or credentials are passed in. Run only your reviewed code.')+
+    '<p><strong>'+esc(cell.title)+'</strong></p><pre class="notebook-text">'+esc(cell.text)+'</pre>'+
+    form('execute-python-cell:'+pythonTarget(id,i),pythonOptions(),'Run reviewed Python'));
+  dialog.querySelector('form').dataset.reviewedSource=cell.text;
+  break;
+}
 case 'save-python-file':{const source=document.querySelector('form[data-form^="execute-python:"] textarea[name="code"]')?.value;if(typeof source!=='string')throw Error('Editor not open.');show('Save Python source',form('new-file:'+id,field('path','Relative path','models/research.py')+'<label for="new-file-source">Source editor</label><textarea id="new-file-source" class="source-editor" name="content" maxlength="40000" spellcheck="false">'+esc(source)+'</textarea>','Create file'));break;}
 case 'export-python':{const r=(p?.pythonRuns||[]).find(x=>x.id===i);if(r)exportData('common-python-run.json',r);break;}
 case 'delete-python':if(confirm('Delete this Python output and source snapshot?'))update(id,p=>({...p,pythonRuns:(p.pythonRuns||[]).filter(x=>x.id!==i)}));break;
-case 'run-cell':{if(!p)throw Error('Project not found.');const cell=N.list(p).find(x=>x.id===i);if(!cell||cell.kind==='note')throw Error('Analytical cell required.');el.disabled=true;D.get(cell.dataset).then(row=>{if(!row)throw Error('Source dataset removed.');const result=N.analyze(cell,E.parseCsv(row.source),E);update(id,current=>{const found=N.list(current).find(x=>x.id===i);if(!found||found.updated!==cell.updated)throw Error('Cell changed during calculation.');return {...current,notebook:N.list(current).map(x=>x.id===i?{...x,output:result}:x)};});toast('Cell executed.');}).catch(err=>toast(err.message)).finally(()=>{el.disabled=false;});break;}
+case 'run-cell':{if(!p)throw Error('Project not found.');const cell=N.list(p).find(x=>x.id===i);if(!cell||!N.needsDataset(cell.kind))throw Error('A dataset analysis cell is required.');el.disabled=true;D.get(cell.dataset).then(row=>{if(!row)throw Error('Source dataset removed.');const result=N.analyze(cell,E.parseCsv(row.source),E);update(id,current=>{const found=N.list(current).find(x=>x.id===i);if(!found||found.updated!==cell.updated)throw Error('Cell changed during calculation.');return {...current,notebook:N.list(current).map(x=>x.id===i?{...x,output:result}:x)};});toast('Cell executed.');}).catch(err=>toast(err.message)).finally(()=>{el.disabled=false;});break;}
 case 'move-cell':{const [cid,delta]=String(i).split('/');update(id,p=>N.move(p,cid,Number(delta)));break;}
 case 'delete-cell':if(confirm('Delete cell and output?')){update(id,p=>N.remove(p,i));location.hash='research/'+id+'/notebook';}break;
 case 'export-notebook':if(p)exportData('common-research-notebook.json',{project:p.name,version:N.VERSION,cells:N.list(p)});break;
@@ -182,7 +236,29 @@ document.addEventListener('submit',async e=>{const f=e.target.closest('form[data
 case 'handoff':if(CommonResearchDraft.stage({title:d.title.trim().slice(0,160),body:d.body.trim()}))location.assign('../live/');break;
 case 'risk-run':{if((s.riskRuns||[]).length>=10)throw Error('Export and delete an existing report before adding another (limit ten).');const chosen=[];for(let i=0;i<8;i++){if(!d['asset'+i])continue;const row=await D.get(d['asset'+i]);if(!row)throw Error('Dataset not found.');if(d['weight'+i]==='')throw Error('Enter each selected weight.');chosen.push({id:row.id,label:row.symbol||row.name,weight:Number(d['weight'+i])/100,bars:E.parseCsv(row.source).bars});}const report={id:crypto.randomUUID(),at:new Date().toISOString(),...K.analyze(chosen,{capital:d.capital,fee:d.fee})};save({...s,riskRuns:[...(s.riskRuns||[]),report]});location.hash='risk/'+report.id+'/overview';break;}
 case 'import-dataset':{if(d.csv.size>D.MAX_BYTES)throw Error('CSV exceeds 16 MB.');const row=await D.inspect(await d.csv.text(),d.csv.name,d.symbol,E);const result=await D.put(row);await refreshDatasets();location.hash='datasets/'+result.id+'/overview';render();break;}
-case 'execute-python':{if(pythonJob)throw Error('A Python execution is already running.');if(d.consent!=='on')throw Error('Review and consent required.');if((s.projects.find(x=>x.id===id)?.pythonRuns||[]).length>=10)throw Error('Export and delete an existing run before starting another (limit ten).');const libs=new FormData(f).getAll('pkg'),request=P.input(d.code,libs),handle=P.execute(request.code,request.libs,t=>{const node=document.querySelector('#python-progress');if(node)node.textContent=t;});pythonJob={id,handle};const stop=app.querySelector('[data-act="cancel-python:'+CSS.escape(id)+'"]');if(stop)stop.disabled=false;try{const result=await handle.promise;pythonJob=null;if(!s.projects.some(x=>x.id===id))throw Error('Project removed.');update(id,p=>({...p,pythonRuns:[...(p.pythonRuns||[]),{id:crypto.randomUUID(),...result,...request}]}));}finally{pythonJob=null;if(stop)stop.disabled=true;}break;}
+case 'execute-python':{
+  if(d.consent!=='on')throw Error('Review and consent required.');
+  if((s.projects.find(x=>x.id===id)?.pythonRuns||[]).length>=10)throw Error('Export and delete an existing run before starting another (limit ten).');
+  const request=P.input(d.code,new FormData(f).getAll('pkg'));
+  const result=await executePython(id,request);
+  if(!s.projects.some(x=>x.id===id))throw Error('Project removed.');
+  update(id,p=>({...p,pythonRuns:[...(p.pythonRuns||[]),{id:crypto.randomUUID(),...result,...request}]}));
+  toast('Saved to this browser.');
+  return;
+}
+case 'execute-python-cell':{
+  if(pythonJob)throw Error('A Python execution is already running in this tab.');
+  if(d.consent!=='on')throw Error('Review and consent required.');
+  const project=s.projects.find(x=>x.id===id),cell=project&&N.list(project).find(x=>x.id===detail);
+  if(cell?.kind!=='python'||cell.text!==f.dataset.reviewedSource)throw Error('Reopen the run dialog to review the current Python source.');
+  const request=P.input(cell.text,new FormData(f).getAll('pkg'));
+  dialog.close();
+  const result=await executePython(pythonTarget(id,detail),request);
+  if(!s.projects.some(x=>x.id===id))throw Error('Project removed. No output was saved.');
+  update(id,p=>N.recordPython(p,cell,request,result));
+  toast(result.ok?'Python cell completed.':'Python cell stopped or failed. See saved output.');
+  return;
+}
 case 'save-cell':{const p=s.projects.find(x=>x.id===id);if(!p)throw Error('Project not found.');const next=N.write(p,d,detail);update(id,()=>next);location.hash='research/'+id+'/notebook';break;}
 case 'new-file':{const p=s.projects.find(x=>x.id===id);if(!p)throw Error('Project not found.');const next=F.write(p,d.path,d.content);update(id,()=>next);location.hash='research/'+id+'/files/'+next.files.at(-1).id;break;}
 case 'edit-file':update(id,p=>F.write(p,d.path,d.content,detail));break;
@@ -198,7 +274,16 @@ case 'memo':save({...s,proposals:[...s.proposals,M.proposal(d.title,d.thesis)]})
 case 'edit-memo':save({...s,proposals:s.proposals.map(p=>p.id===id?{...M.proposal(d.title,d.thesis),id}:p)});break;
 case 'settings':save(M.settings(s,d));break;
 }if(dialog.open)dialog.close();toast('Saved to this browser.');}catch(err){const progress=f.getAttribute('data-form').startsWith('validate:')?document.querySelector('#quant-progress'):null;if(progress)progress.textContent=err.message;toast(err.message);}finally{if(submit)submit.disabled=false;}});
-document.addEventListener('change',e=>{const el=e.target.closest('[data-python-file]');if(el)location.hash=el.dataset.pythonFile+(el.value?'/'+el.value:'');});document.addEventListener('input',event=>{
+document.addEventListener('change',e=>{const el=e.target.closest('[data-python-file]');if(el)location.hash=el.dataset.pythonFile+(el.value?'/'+el.value:'');
+const cellEditor=e.target.closest('form[data-form^="save-cell:"] select[name="kind"]');
+if(cellEditor){
+  const f=cellEditor.form,kind=cellEditor.value;
+  f.querySelector('[data-notebook-dataset]').hidden=!N.needsDataset(kind);
+  const parameters=f.querySelector('[data-notebook-backtest]');
+  parameters.hidden=parameters.disabled=kind!=='backtest';
+  f.elements.text.required=kind==='python';
+  f.querySelector('[data-notebook-source-label]').textContent=kind==='python'?'Python source':'Research context and assumptions';
+}});document.addEventListener('input',event=>{
  const target=event.target;
  if(target.id==='project-search')projectSearch=target.value;
  else if(target.name==='project-status')projectStatus=target.value;
