@@ -84,7 +84,7 @@ Q04.01 browser metadata, source isolation, and upgrade evidence are recorded in 
 - [ ] S01.01 **Partial / implemented in branch** — Supabase authentication/profile, registration/recovery, display names/biographies, DM preference, member profiles, shared-group member directory and block/unblock
 - [ ] S01.02 **Partial / implemented in branch** — Public signup SMTP and Google provider setup not established; verify existing auth and permissions
 - [ ] S01.03 **Remaining** — Profile avatar/cover, experience, interests, philosophy, published research, optional verified credentials
-- [ ] S01.04 **Partial / implemented in branch** — Follow/unfollow and account-scoped Followers and Following lists. Friend requests/accept/decline, mutuals, suggestions, granular privacy, mute, custom lists and safe contact discovery remain open.
+- [ ] S01.04 **Partial / implemented in branch** — Follow/unfollow, account-scoped Followers and Following lists, and consent-based connection requests with Received, Sent and Accepted views. Mutual member discovery, suggestions, granular privacy, mute, custom lists and safe contact discovery remain open.
 - [ ] S01.05 **Remaining** — Global member/research search, pagination, discovery/recommendations, MFA, devices/session management, privacy/export/deletion and recovery controls
 
 ### S02 — Social publishing and education (workstream 07)
