@@ -60,3 +60,78 @@ begin
 end $$;
 revoke all on function public.common_external_journal_guard() from public,anon,authenticated;
 create trigger common_external_journal_guard before insert or update or delete on public.circle_external_journal for each row execute function public.common_external_journal_guard();
+
+-- Reports share the journal's member RLS. Draft only. No source provider or ownership claims.
+create or replace function public.read_external_journal_statement(
+ p_circle_id uuid, p_start_date date, p_end_date date
+)
+returns jsonb language plpgsql stable security invoker set search_path='' as $$
+declare
+ result jsonb;
+ evidence_limit constant integer := 10000;
+begin
+ if (select auth.uid()) is null or not exists(
+  select 1 from public.communities c where c.id=p_circle_id and c.visibility='private'
+   and public.is_member(c.id,(select auth.uid()))
+ ) then
+  raise insufficient_privilege using message='Private journal membership required';
+ end if;
+ if p_start_date is null or p_end_date is null
+  or not isfinite(p_start_date) or not isfinite(p_end_date)
+  or p_start_date<date '1900-01-01' or p_end_date>current_date
+  or p_start_date>p_end_date or p_end_date-p_start_date>365 then
+  raise invalid_parameter_value using message='Choose a valid journal period of up to 366 days';
+ end if;
+
+ -- Read one database snapshot, including opening entries before the reporting period.
+ with evidence as materialized (
+  select j.id,j.record_date,j.lines from public.circle_external_journal j
+   where j.community_id=p_circle_id and j.record_date<=p_end_date
+   order by j.record_date,j.created_at
+   limit evidence_limit+1
+ ), counts as (
+  select count(*) as total,count(*) filter(where record_date>=p_start_date) as period
+  from evidence
+ ), catalog(account, debit_normal, position) as (
+  values ('cash',true,1),('investments',true,2),('receivables',true,3),
+   ('payables',false,4),('capital',false,5),('income',false,6),
+   ('realized_gain',false,7),('realized_loss',true,8),('expenses',true,9)
+ ), entries as (
+  select evidence.record_date, line->>'account' as account, line->>'side' as side,
+   (line->>'cents')::numeric as cents
+  from evidence cross join lateral jsonb_array_elements(evidence.lines) as rows(line)
+  where (select total from counts)<=evidence_limit
+ ), balances as (
+  select cat.account,cat.debit_normal,cat.position,
+   coalesce(sum(case when (e.side='debit')=cat.debit_normal then e.cents else -e.cents end)
+    filter(where e.record_date<p_start_date),0) as opening,
+   coalesce(sum(e.cents) filter(where e.record_date>=p_start_date and e.side='debit'),0) as debits,
+   coalesce(sum(e.cents) filter(where e.record_date>=p_start_date and e.side='credit'),0) as credits
+  from catalog cat left join entries e on e.account=cat.account
+  group by cat.account,cat.debit_normal,cat.position
+ )
+ select jsonb_build_object(
+  'schema','common.external-journal-statement.v1',
+  'circleId',p_circle_id,'currency','USD','startDate',p_start_date,'endDate',p_end_date,
+  'generatedAt',statement_timestamp(),'evidenceCount',(select total from counts),
+  'periodEntryCount',(select period from counts),
+  'evidenceSha256',(
+   select encode(sha256(convert_to(coalesce(
+    jsonb_agg(jsonb_build_array(ev.id,ev.record_date,ev.lines) order by ev.id),'[]'::jsonb
+   )::text,'UTF8')),'hex') from evidence ev where (select total from counts)<=evidence_limit
+  ),
+  'debitsCents',sum(b.debits)::text,'creditsCents',sum(b.credits)::text,
+  'accounts',jsonb_agg(jsonb_build_object(
+   'account',b.account,'normalSide',case when b.debit_normal then 'debit' else 'credit' end,
+   'openingCents',b.opening::text,'debitsCents',b.debits::text,'creditsCents',b.credits::text,
+   'closingCents',(b.opening+case when b.debit_normal then b.debits-b.credits else b.credits-b.debits end)::text
+  ) order by b.position)
+ ) into result from balances b;
+
+ if (result->>'evidenceCount')::integer>evidence_limit then
+  raise program_limit_exceeded using message='Journal exceeds this statement evidence limit. Choose an earlier end date.';
+ end if;
+ return result;
+end $$;
+revoke all on function public.read_external_journal_statement(uuid,date,date) from public,anon,authenticated;
+grant execute on function public.read_external_journal_statement(uuid,date,date) to authenticated;

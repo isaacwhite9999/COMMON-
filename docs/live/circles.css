@@ -30,3 +30,11 @@ body{background:#f5f7f4;color:var(--circle-ink)}.app-shell .navbar{background:#1
   justify-content: flex-end;
   margin-top: 4px;
 }
+
+.journal-statement{display:grid;gap:12px}
+.journal-statement code{overflow-wrap:anywhere}
+.journal-statement-scroll{overflow-x:auto}
+.journal-statement-table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+.journal-statement-table caption{text-align:left;margin-bottom:.5rem}
+.journal-statement-table :is(th,td){padding:.5rem;text-align:right;white-space:nowrap;border-bottom:1px solid currentColor}
+.journal-statement-table th:first-child{text-align:left}

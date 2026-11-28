@@ -13,7 +13,7 @@ const icons={
  home:'⌂',groups:'◎',chat:'◉',ownership:'◇',invest:'↗',studio:'⌇',agent:'◇',money:'\u0024',learn:'?',profile:'◍',add:'＋',safety:'⚑'
 };
 let blockedMembers=[],bookmarks=[],memberDetail=null,profileSection='identity',memberDirectory=[],mobileMore=false;let agentOutput=null,agentInput='',agentMode='review',agentSending=false,agentDeskTab='analysis',agentDesk=CommonAgentDesk.initial(),agentDeskOwner=null,agentLastRequest=null;let client=null,session=null,profile=null,groups=[],memberships=[],proposals=[],projects=[],watches=[],people={},messages=[],dm=[],selectedGroup=null,selectedPeer=null,view='home',busy=false,search='',error='',info='',pendingInvite=null,memberPoll=[],pollSelection=null,lastAuthView='signin',recovering=false,moderationCases=[],moderationAppeals=[],accountRestrictions=[],googleProviderStatus='checking';
-const capitalDrafts=new Map();let capitalTab='overview';let ledgerRows=[],ledgerCircle=null,ledgerError='',ledgerLoading=false;let decisionDetail=null,pollRows=[],pollOwn=null;
+const capitalDrafts=new Map();let capitalTab='overview';let ledgerRows=[],ledgerCircle=null,ledgerError='',ledgerLoading=false;let decisionDetail=null,pollRows=[],pollOwn=null;let ledgerStatement=null;
 const state={directory:'mine',feed:'mine',groupTab:'posts',comments:null,composer:false,groupCreate:false,projectCreate:false,proposalCreate:false,inviteToken:null,showMembers:false};
 let researchReview=null,pollDraft=null,composerDraft=null;
 const base=location.pathname.replace(/\/live\/?(?:index.html)?$/,'/live/');
@@ -272,13 +272,75 @@ function capitalDesk(g){
  return '<div class="section-bar"><h3>Collective capital workspace</h3></div>'+notice+nav+body;
 }
 async function loadLedger(){const cid=selectedGroup,uid=session?.user?.id;ledgerRows=[];ledgerCircle=null;ledgerError='';if(config.externalLedgerEnabled!==true||!uid||!joined(cid)||groupById(cid)?.visibility!=='private')return;ledgerLoading=true;try{const rows=[];for(let offset=0;offset<10000;offset+=500){const page=await call(client.from('circle_external_journal').select('id,community_id,author_id,record_date,source_ref,lines,reverses_id,created_at').eq('community_id',cid).order('created_at',{ascending:true}).order('id',{ascending:true}).range(offset,offset+499));rows.push(...page);if(page.length<500)break;if(offset===9500)throw Error('Journal exceeds this reader limit. Export through the authorized administrator before further posting.');}if(session?.user?.id!==uid||selectedGroup!==cid)return;ledgerRows=rows;ledgerCircle=cid;}catch(err){if(session?.user?.id===uid&&selectedGroup===cid)ledgerError=err.message||'Unable to load journal';}finally{ledgerLoading=false;}}
+function externalStatementContext(){
+ const circleId=selectedGroup,userId=session?.user?.id;
+ if(config.externalLedgerEnabled!==true||!userId||!joined(circleId)||groupById(circleId)?.visibility!=='private'||
+   state.groupTab!=='capital'||capitalTab!=='ledger')throw Error('Current private journal access required.');
+ return {circleId,userId};
+}
+function sameStatementContext(context){
+ return session?.user?.id===context.userId&&selectedGroup===context.circleId&&joined(context.circleId)&&
+  groupById(context.circleId)?.visibility==='private'&&state.groupTab==='capital'&&capitalTab==='ledger';
+}
+async function requestExternalStatement(context,period){
+ const result=await call(client.rpc('read_external_journal_statement',{
+  p_circle_id:context.circleId,p_start_date:period.startDate,p_end_date:period.endDate
+ }));
+ return CommonLedger.statementTotals(result,{...context,...period});
+}
+function externalStatement(g){
+ const L=CommonLedger;
+ const selected=ledgerStatement?.circleId===g.id&&ledgerStatement.userId===session?.user?.id?ledgerStatement:null;
+ const today=new Date().toISOString().slice(0,10),start=selected?.report.startDate||today.slice(0,8)+'01',end=selected?.report.endDate||today;
+ let details='';
+ if(selected){
+  const {report,comparison}=selected;
+  const rows=report.accounts.map(row=>'<tr><th scope="row">'+e(L.accounts[row.account])+'</th>'+
+   [row.openingCents,row.debitsCents,row.creditsCents,row.closingCents].map(cents=>'<td>'+e(L.money(cents))+'</td>').join('')+'</tr>').join('');
+  details='<h4 tabindex="-1" id="journal-statement-result">Statement for '+e(report.startDate)+' through '+e(report.endDate)+'</h4>'+
+   '<p class="muted small" role="status">'+e(report.periodEntryCount)+' period entries · '+e(report.evidenceCount)+' total entries through period close</p>'+
+   (report.evidenceCount?'<div class="journal-statement-scroll" role="region" aria-label="Period statement table" tabindex="0">'+
+     '<table class="journal-statement-table"><caption>USD · Opening and closing amounts follow each account’s normal side</caption>'+
+     '<thead><tr><th scope="col">Account</th><th scope="col">Opening</th><th scope="col">Debits</th><th scope="col">Credits</th><th scope="col">Closing</th></tr></thead>'+
+     '<tbody>'+rows+'</tbody><tfoot><tr><th scope="row">Period totals</th><td></td><td>'+e(L.money(report.debitsCents))+
+     '</td><td>'+e(L.money(report.creditsCents))+'</td><td></td></tr></tfoot></table></div>':'<p>No journal evidence through this period.</p>')+
+   '<details><summary>Statement provenance</summary><p>Generated <time datetime="'+e(report.generatedAt)+'">'+e(report.generatedAt)+
+   '</time></p><p>Journal evidence SHA-256 <code>'+e(report.evidenceSha256)+'</code></p></details>'+
+   (report.evidenceCount?'<form data-form="external-statement-compare" class="stack">'+
+    '<label><span class="form-label">Observed closing cash (USD)</span><input class="field" name="observed" inputmode="decimal" maxlength="22" required></label>'+
+    '<p class="muted small">Enter an aggregate amount for this period end from an independent record. Keep bank details and member identifiers out of this form. The amount stays in this view and any explicit export.</p>'+
+    '<button type="submit" class="button secondary">Compare closing cash</button></form>':'')+
+   (comparison?'<section aria-label="Cash reconciliation result" role="status"><h5>'+ (comparison.matches?'Figures match':'Difference to investigate')+
+    '</h5><dl class="circle-facts"><dt>Journal closing cash</dt><dd>'+e(L.money(comparison.recordedCents))+
+    '</dd><dt>Entered closing cash</dt><dd>'+e(L.money(comparison.observedCents))+
+    '</dd><dt>Journal less entered cash</dt><dd>'+e(L.money(comparison.differenceCents))+
+    '</dd></dl><p class="muted small">This comparison uses a manually entered figure. Investigate differences separately.</p></section>':'')+
+   button('export-journal-statement','Export statement','secondary');
+ }
+ return '<section class="surface circle-tools journal-statement"><h3>Period statement and cash comparison</h3>'+
+  '<p class="muted small">Roll up aggregate journal accounts for a period of up to 366 days. Closing amounts are manual book figures. No member ownership or provider verification is inferred.</p>'+
+  '<form data-form="external-statement" class="stack"><div class="capital-form-grid">'+
+  '<label><span class="form-label">Period start</span><input class="field" type="date" name="start" value="'+e(start)+'" required></label>'+
+  '<label><span class="form-label">Period end</span><input class="field" type="date" name="end" value="'+e(end)+'" required></label></div>'+
+  '<button type="submit" class="button secondary">Prepare statement</button></form>'+details+'</section>';
+}
+function downloadExternalStatement(report,comparison){
+ const file={mode:'manual_external_records_unverified',statement:report,cashComparison:comparison};
+ const url=URL.createObjectURL(new Blob([JSON.stringify(file,null,2)],{type:'application/json'}));
+ const anchor=document.createElement('a');
+ anchor.href=url;
+ anchor.download='common-journal-statement-'+report.endDate+'.json';
+ anchor.click();
+ setTimeout(()=>URL.revokeObjectURL(url),500);
+}
 function externalLedger(g){const L=window.CommonLedger,notice='<div class="capital-disclosure"><strong>EXTERNAL RECORDKEEPING · NO CUSTODY</strong><p>Records describe completed activity at an independently authorized financial institution. They are member-entered and not independently reconciled, verified balances or proof of ownership. Never enter account numbers, names, credentials or payment instructions. All current members of this private circle can read these aggregate records.</p></div>';
 if(g.visibility!=='private')return notice+'<div class="empty">External recordkeeping is available only to eligible private circles.</div>';
 if(config.externalLedgerEnabled!==true)return notice+'<div class="empty"><h3>External journal not activated</h3><p>Requires the reviewed database schema and approved recordkeeping pilot. No deposits, transfers or securities orders are available.</p></div>';
-if(ledgerLoading||ledgerCircle!==g.id&&!ledgerError)return notice+'<div class="empty">Loading journal…</div>';
-if(ledgerError)return notice+'<div class="empty">'+e(ledgerError)+'<button class="button" data-act="refresh-ledger">Retry</button></div>';
+const statement=externalStatement(g);
+if(ledgerLoading||ledgerCircle!==g.id&&!ledgerError)return notice+statement+'<div class="empty">Loading journal…</div>';
+if(ledgerError)return notice+statement+'<div class="empty">'+e(ledgerError)+'<button class="button" data-act="refresh-ledger">Retry</button></div>';
 const totals=L.balances(ledgerRows),options=Object.entries(L.accounts).map(([k,v])=>'<option value="'+k+'">'+e(v)+'</option>').join(''),entries=ledgerRows.slice().reverse().map(r=>'<details class="surface circle-project"><summary><span><strong>'+e(r.source_ref)+'</strong><small>'+e(r.record_date)+' · '+e(person(r.author_id))+'</small></span><strong>'+L.money(L.validate(r.lines))+'</strong></summary><dl class="circle-facts">'+r.lines.map(l=>'<dt>'+e(L.accounts[l.account]+' / '+l.side)+'</dt><dd>'+L.money(l.cents)+'</dd>').join('')+'</dl>'+(r.reverses_id?'<p class="muted small">Reversal entry</p>':own(g.id)&&!ledgerRows.some(x=>x.reverses_id===r.id)?button('reverse-external','Reverse entry','secondary','data-id="'+r.id+'"'):'')+'</details>').join('');
-return notice+'<section class="surface circle-tools"><h3>Recorded account totals</h3><dl class="circle-facts">'+Object.entries(totals).map(([k,v])=>'<dt>'+e(L.accounts[k])+'</dt><dd>'+L.money(v)+'</dd>').join('')+'</dl><p class="muted small">Aggregate USD book totals, not current market value or funds available to spend.</p>'+button('refresh-ledger','Refresh')+' '+button('export-ledger','Export journal')+'</section>'+
+return notice+statement+'<section class="surface circle-tools"><h3>Recorded account totals</h3><dl class="circle-facts">'+Object.entries(totals).map(([k,v])=>'<dt>'+e(L.accounts[k])+'</dt><dd>'+L.money(v)+'</dd>').join('')+'</dl><p class="muted small">Aggregate USD book totals, not current market value or funds available to spend.</p>'+button('refresh-ledger','Refresh')+' '+button('export-ledger','Export journal')+'</section>'+
 (own(g.id)?'<section class="surface circle-tools"><h3>Record a completed external event</h3><form data-form="external-entry" class="stack"><label><span class="form-label">Record date</span><input name="date" type="date" class="field" required></label><label><span class="form-label">Internal reference (not a bank reference)</span><input name="reference" class="field" minlength="3" maxlength="80" pattern="[A-Za-z0-9][A-Za-z0-9._\\-]{2,79}" required></label><p class="muted small">Enter balanced debit and credit lines. Leave unused amounts blank.</p>'+Array.from({length:6},(_,i)=>'<div class="ledger-line"><label><span class="form-label">Account '+(i+1)+'</span><select class="field" name="account'+i+'">'+options+'</select></label><label><span class="form-label">Side</span><select class="field" name="side'+i+'"><option value="debit">Debit</option><option value="credit" '+(i===1?'selected':'')+'>Credit</option></select></label><label><span class="form-label">USD</span><input class="field" name="amount'+i+'" type="number" min=".01" max="10000000" step=".01"></label></div>').join('')+'<label class="row"><input type="checkbox" name="ack" required> Completed external activity only; not an instruction to move money.</label><button class="button primary">Record journal entry</button></form></section>':'')+'<div class="section-bar"><h3>Append-only journal</h3></div>'+(entries||'<div class="empty">No external records.</div>');}
 async function loadPoll(id){const p=proposals.find(x=>x.id===id),uid=session?.user?.id,cid=selectedGroup;if(!p||p.community_id!==cid||!joined(cid))throw Error('Circle membership required');const [counts,vote]=await Promise.all([call(client.rpc('proposal_tally',{pid:id})),call(client.from('proposal_votes').select('choice').eq('proposal_id',id).eq('user_id',uid).maybeSingle())]);if(session?.user?.id!==uid||selectedGroup!==cid)return;decisionDetail=id;pollRows=counts;pollOwn=vote?.choice||null;render();}
 function decisionPage(g){const p=proposals.find(x=>x.id===decisionDetail&&x.community_id===g.id);if(!p)return '<div class="space"><h3>Community decisions</h3>'+button('new-proposal','Start poll','primary')+'</div><p class="muted small">Research and community opinions only; not legal authority to invest or move money.</p>'+(proposals.filter(x=>x.community_id===g.id).map(p=>'<article class="surface circle-tools"><div class="space"><h3>'+e(p.title)+'</h3><span class="pill">'+e(p.status)+'</span></div><p class="post-body">'+e(p.rationale)+'</p>'+button('poll-detail','View decision','secondary','data-id="'+p.id+'"')+'</article>').join('')||'<div class="empty">No community proposals yet.</div>');
@@ -704,7 +766,7 @@ async function init(){
  client.auth.onAuthStateChange((evt,next)=>{
   if(session?.user?.id!==next?.user?.id){
    researchReview=pollDraft=composerDraft=null;view='home';error=info='';
-   profile=null;ledgerRows=[];ledgerCircle=null;ledgerError='';decisionDetail=null;pollRows=[];pollOwn=null;
+   profile=null;ledgerRows=[];ledgerCircle=null;ledgerError='';ledgerStatement=null;decisionDetail=null;pollRows=[];pollOwn=null;
    capitalDrafts.clear();capitalTab='overview';blockedMembers=[];bookmarks=[];memberDetail=null;memberDirectory=[];
    profileSection='identity';connectionSection='incoming';state.feed='mine';followProfile=followList=null;mobileMore=false;agentOutput=null;agentInput='';agentMode='review';agentDeskTab='analysis';
    agentDesk=CommonAgentDesk.initial();agentDeskOwner=null;agentLastRequest=null;
@@ -885,7 +947,7 @@ async function dispatch(action,element){
  if(action==='auth-mode'){lastAuthView=element.dataset.mode;info=error='';render();return}
  if(action==='signout'){await client.auth.signOut();return}
  if(action==='open-groups'){selectedGroup=null;messages=[];memberPoll=[];state.inviteToken=null;view='groups';state.groupTab='posts';render();return}
- if(action==='open-group'){capitalTab='overview';decisionDetail=null;pollRows=[];pollOwn=null;ledgerRows=[];ledgerCircle=null;ledgerError='';selectedGroup=id;messages=[];memberPoll=[];state.inviteToken=null;state.comments=null;view='groups';state.groupTab='posts';render();return}
+ if(action==='open-group'){capitalTab='overview';decisionDetail=null;pollRows=[];pollOwn=null;ledgerRows=[];ledgerCircle=null;ledgerError='';ledgerStatement=null;selectedGroup=id;messages=[];memberPoll=[];state.inviteToken=null;state.comments=null;view='groups';state.groupTab='posts';render();return}
  if(action==='join-group'){await call(client.rpc('join_public_community',{cid:id}));await refresh();return}
  if(action==='create-group'){state.groupCreate=true;render();return}
  if(action==='compose'){
@@ -1002,6 +1064,15 @@ async function dispatch(action,element){
  if(action==='poll-list'){decisionDetail=null;pollRows=[];pollOwn=null;render();return}
  if(action==='poll-vote'){const p=proposals.find(x=>x.id===id);if(!p||p.community_id!==selectedGroup||!joined(selectedGroup))throw Error('Circle membership required');await call(client.from('proposal_votes').upsert({proposal_id:id,user_id:session.user.id,choice},{onConflict:'proposal_id,user_id'}));await loadPoll(id);status('Your nonbinding member opinion was recorded. No transaction is authorized.');return}
  if(action==='refresh-ledger'){await loadLedger();render();return}
+ if(action==='export-journal-statement'){
+  const context=externalStatementContext(),selected=ledgerStatement;
+  if(selected?.userId!==context.userId||selected.circleId!==context.circleId)throw Error('Prepare a statement before exporting.');
+  const latest=await requestExternalStatement(context,selected.report);
+  if(!sameStatementContext(context))return;
+  if(latest.evidenceSha256!==selected.report.evidenceSha256)
+   throw Error('Journal evidence changed. Prepare the statement again before exporting.');
+  downloadExternalStatement(selected.report,selected.comparison);return;
+ }
  if(action==='export-ledger'){if(config.externalLedgerEnabled!==true||ledgerCircle!==selectedGroup||!joined(selectedGroup))throw Error('Journal unavailable');const url=URL.createObjectURL(new Blob([JSON.stringify({mode:'manual_external_records_unverified',entries:ledgerRows},null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='common-external-journal.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),500);return}
  if(action==='reverse-external'){const g=groupById(selectedGroup),original=ledgerRows.find(x=>x.id===id);if(config.externalLedgerEnabled!==true||!g||g.visibility!=='private'||!own(g.id)||ledgerCircle!==g.id||!original||original.reverses_id)throw Error('Reversal unavailable');if(!confirm('Append a reversing entry? Original records remain unchanged.'))return;await call(client.from('circle_external_journal').insert({community_id:g.id,record_date:new Date().toISOString().slice(0,10),source_ref:'rev-'+crypto.randomUUID(),lines:CommonLedger.reverse(original.lines),reverses_id:id}));await loadLedger();render();return}
  if(action==='make-invite'){const token=await call(client.rpc('create_private_invite',{cid:selectedGroup,permitted_uses:10}));state.inviteToken=token;render();return}
@@ -1107,6 +1178,27 @@ async function dispatch(action,element){
 }
 async function submitted(form){
  const f=new FormData(form),type=form.getAttribute('data-form'),uid=session.user.id;
+ if(type==='external-statement'){
+  const context=externalStatementContext(),period={startDate:f.get('start'),endDate:f.get('end')};
+  const submit=form.querySelector('button[type="submit"]');
+  submit.disabled=true;submit.textContent='Preparing statement…';
+  try{
+   const result=await requestExternalStatement(context,period);
+   if(!sameStatementContext(context))return;
+   ledgerStatement={...context,report:result,comparison:null};
+   render();document.getElementById('journal-statement-result')?.focus();
+  }finally{
+   submit.disabled=false;submit.textContent='Prepare statement';
+  }
+  return;
+ }
+ if(type==='external-statement-compare'){
+  const context=externalStatementContext(),selected=ledgerStatement;
+  if(selected?.userId!==context.userId||selected.circleId!==context.circleId||!selected.report.evidenceCount)
+   throw Error('Prepare a statement with journal evidence before comparing.');
+  selected.comparison=CommonLedger.reconcileCash(selected.report,String(f.get('observed')||''));
+  render();return;
+ }
  if(type==='external-entry'){const g=groupById(selectedGroup);if(config.externalLedgerEnabled!==true||!g||g.visibility!=='private'||!own(g.id)||ledgerCircle!==g.id||f.get('ack')!=='on')throw Error('Authorized private recordkeeping required');const lines=[];for(let i=0;i<6;i++){const v=f.get('amount'+i);if(v!=='')lines.push({account:f.get('account'+i),side:f.get('side'+i),cents:CommonLedger.amount(v)});}CommonLedger.validate(lines);await call(client.from('circle_external_journal').insert({community_id:g.id,record_date:f.get('date'),source_ref:String(f.get('reference')).trim(),lines}));await loadLedger();render();return}
  if(type==='capital-plan'){const g=groupById(selectedGroup);if(!g||!joined(g.id))throw Error('Circle membership required.');const input=Object.fromEntries(f),result=CommonCapital.plan(input);capitalDrafts.set(g.id,{input,result});capitalTab='review';render();return}
  if(type==='capital-share'){const g=groupById(selectedGroup),draft=capitalDrafts.get(selectedGroup),title=String(f.get('title')||'').trim();if(!g||g.visibility!=='private'||!joined(g.id)||!draft||f.get('confirm')!=='on'||title.length<8||title.length>120)throw Error('Private circle membership, valid title and explicit confirmation required.');await call(client.from('proposals').insert({community_id:g.id,author_id:uid,title:'Scenario: '+title,rationale:CommonCapital.summary(draft.result)}));if(session?.user?.id===uid){state.groupTab='decisions';await refresh();status('Hypothetical research poll published. No funds or commitments were collected.');}return}
