@@ -32,6 +32,7 @@ terminal/index.html
 terminal/terminal.css
 terminal/terminal.js
 workspace/app.js
+workspace/canvas/account.js
 workspace/canvas/app.js
 workspace/canvas/canvas.css
 workspace/canvas/engine.js

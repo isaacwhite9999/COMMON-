@@ -7,6 +7,9 @@
 <link rel="stylesheet" href="../../shared/shell.css">
 <link rel="stylesheet" href="../style.css">
 <link rel="stylesheet" href="canvas.css">
+<script defer src="../../config.js"></script>
+<script defer src="../../shared/session.js"></script>
+<script defer src="account.js"></script>
 <script defer src="../../shared/shell.js"></script>
 <script defer src="../datasets.js"></script>
 <script defer src="engine.js"></script>
@@ -72,6 +75,19 @@
 <button type="button" id="export">Export JSON</button>
 </div>
 <div id="saved"></div>
+</section>
+<section class="panel">
+<h2>Private account library</h2>
+<p id="account-status" role="status">Checking account session…</p>
+<p><a href="../../live/">Community sign-in</a></p>
+<fieldset id="account-controls" disabled>
+<legend>Account specification actions</legend>
+<label class="canvas-consent"><input id="account-consent" type="checkbox"> Save this specification, including its title and field mappings, and its source fingerprint to my account.</label>
+<div class="canvas-actions"><button type="button" id="account-create">Save new account document</button>
+<button type="button" id="account-update">Append account revision</button>
+<button type="button" id="account-refresh">Refresh account library</button></div>
+</fieldset>
+<div id="account-documents"></div>
 </section>
 </div>
 </div>

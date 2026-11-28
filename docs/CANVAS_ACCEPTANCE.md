@@ -26,7 +26,7 @@ These IDs extend the existing 450 granular requirements. The existing checklists
 | CANVAS-020 | Multi-asset and corporate scenario laboratory | Open | Add hypothetical inputs, constrained calculations and independently tested outputs. |
 | CANVAS-021 | Versioned research tool library and dependency review | Open | Add permission manifests, search, attribution, version pinning and removal. |
 | CANVAS-022 | Bounded browser computation and reproducible performance | Partial | CSV parsing and chart compilation run in a worker with time and size limits. Local benchmark below. Streaming, virtualization, intentional accuracy-preserving downsampling and durable jobs remain open. |
-| CANVAS-023 | Account authorization, cloud persistence and sharing | Open | The current Canvas uses browser-local files, IndexedDB datasets and specification storage. No Canvas server-side storage or write API is exposed. |
+| CANVAS-023 | Account authorization, cloud persistence and sharing | Partial | Private account documents support consented save, retained revisions, duplicate-as-new, restore with matching source and deletion. PostgreSQL validates the payload and enforces ownership, revision conflict checks and quotas. Circle sharing and hosted rollout remain open. |
 
 ## Reproduction and operating limits
 
@@ -37,3 +37,9 @@ Plotly.js 3.3.1 is MIT-licensed and loads on first render using a pinned CDN URL
 Run `node --test tests/canvas-engine.test.cjs`, `node tests/canvas-browser.test.mjs` against the project preview, and `node scripts/benchmark_canvas.cjs`. In a local Node 22.23.5 run, parsing and compiling a synthetic 30,000-row, 312,904-byte histogram fixture measured p50 15.18 ms and p95 30.32 ms over 25 trials after warm-up. This excludes worker startup, browser rendering, CDN delivery, and market data streaming. A live Treasury adapter smoke normalized 72 public observations with record dates from 2020-11-30 through 2026-10-31. This coverage is a retrieval sample, and the adapter does not infer publication timestamps from record dates.
 
 Rollback removes the Canvas entry, static files, and package allowlist additions. Existing research datasets remain untouched. Canvas specifications use their own local storage key.
+
+## Private Canvas library
+
+When a member account is available, the Canvas library can store the rendered chart specification and its source fingerprint after explicit confirmation. Files, filenames, source preview rows and private provider data remain on the device. The member can read their own documents and open matching historical revisions. A compare-and-swap revision prevents one tab or device from silently overwriting a newer version. Account changes clear account-derived chart state. The private library uses the existing member auth client and remains disabled in the public research package.
+
+The database limits each owner to 30 account documents and retains 10 revisions per document. An account deletion cascades to its library. Authorization and bounds are tested independently in [the PostgreSQL smoke suite](../tests/pg_canvas_library_smoke.sql). [The mobile Chromium flow](../tests/canvas-account-browser.test.mjs) exercises consent, request fields, revisions, stale writes, owner changes and deletion with the member service mocked. Apply the additive migration before enabling the new account UI on a hosted member deployment.

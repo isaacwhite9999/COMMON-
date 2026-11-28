@@ -6,7 +6,7 @@
   const builder = get('builder');
   const figure = get('figure');
   const status = get('status');
-  let worker, metadata, active, selected, busy = false, plotLibrary;
+  let worker, metadata, active, selected, busy = false, plotLibrary, accountDerived = false;
 
   function report(text) { status.textContent = text; }
   function option(text, value = text) { return new Option(text, value); }
@@ -114,6 +114,7 @@
   async function load(source, name, provenance) {
     get('provenance').hidden = true;
     active = selected = metadata = null;
+    accountDerived = false;
     get('sample').hidden = true;
     get('source').textContent = 'Reading source…';
     window.Plotly?.purge(figure);
@@ -139,10 +140,11 @@
       throw error;
     }
   }
-  async function plot(spec) {
+  async function plot(spec, current = () => true) {
     if (!metadata) throw Error('Load a CSV or workspace dataset first.');
     const { trace, labels, count, excluded, spec: checked } = await workerCall('plot', { spec });
     const Plotly = await library();
+    if (!current()) return;
     const theme = getComputedStyle(document.documentElement);
     const background = theme.getPropertyValue('--panel').trim();
     await Plotly.react(figure, [{ ...trace, hoverlabel: { namelength: 0 } }], {
@@ -153,6 +155,7 @@
         zaxis: { title: labels.z } } } : {}),
       margin: { l: 58, r: 14, t: 60, b: 60 }
     }, { responsive: true, displaylogo: false, modeBarButtonsToRemove: ['sendDataToCloud'] });
+    if (!current()) { Plotly.purge(figure); return; }
     active = { spec: checked, digest: metadata.digest,
       ...(metadata.provenance ? { provenance: metadata.provenance } : {}) };
     showSpec(checked);
@@ -269,4 +272,29 @@
   get('upload').disabled = false;
   void catalog().catch(() => { get('load-library').disabled = true; });
   try { renderSaved(); } catch (error) { report(error.message); }
+  CommonCanvasAccount.mount({
+    activeSnapshot: () => busy ? null : active,
+    async openRevision(revision, current) {
+      if (busy) throw Error('Wait for the current chart operation to finish.');
+      if (metadata?.digest !== revision.source_digest) throw Error('Load the matching source CSV before opening an account revision.');
+      busy = true;
+      accountDerived = true;
+      try {
+        await plot(revision.spec, current);
+        if (current()) selected = null;
+      } finally { busy = false; }
+    },
+    clearAccountView() {
+      if (!accountDerived) return;
+      accountDerived = false;
+      active = selected = null;
+      window.Plotly?.purge(figure);
+      builder.reset();
+      fields();
+      availability();
+      get('spec').value = '';
+      get('sample').hidden = !metadata;
+      report('Account changed. The account chart was cleared.');
+    }
+  });
 })();
