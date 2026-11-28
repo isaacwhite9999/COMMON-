@@ -47,6 +47,8 @@ jobs:
           done
       - name: Verify private member connection requests and recipient consent
         run: psql -X -v ON_ERROR_STOP=1 -f tests/pg_member_connections_smoke.sql
+      - name: Verify direct message privacy and recipient consent
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/pg_message_privacy_smoke.sql
       - name: Verify authorized message deletion and private retention
         run: psql -X -v ON_ERROR_STOP=1 -f tests/pg_chat_deletion_smoke.sql
       - name: Verify followed member access, lists and timelines

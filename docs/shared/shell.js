@@ -8,7 +8,8 @@
     { id: 'workspace', path: 'workspace/#research', label: 'Research', keywords: 'local projects backtest datasets notebooks' },
     { id: 'lab', path: 'lab/', label: 'Research Studio', keywords: 'member projects experiments lessons' },
     { id: 'live', path: 'live/', label: 'Community', keywords: 'feed circles messages profile account sign in' },
-    { id: 'appearance', path: 'settings/appearance/', label: 'Appearance', keywords: 'settings density display' }
+    { id: 'appearance', path: 'settings/appearance/', label: 'Appearance', keywords: 'settings density display' },
+    { id: 'privacy', path: 'live/?settings=privacy', label: 'Privacy', keywords: 'account settings messaging audience connections blocks' }
   ];
   const base = new URL('../', document.currentScript.src);
   const densityKey = 'common.appearance.density.v1';
@@ -99,11 +100,18 @@
 
   const nav = document.createElement('nav');
   nav.setAttribute('aria-label', 'COMMON departments');
-  for (const destination of destinations) {
-    const anchor = link(destination.label, destination.path);
-    if (layout.dataset.commonShell === destination.id) anchor.setAttribute('aria-current', 'location');
-    nav.append(anchor);
+  const departmentLinks = destinations.map(destination => link(destination.label, destination.path));
+  nav.append(...departmentLinks);
+  function markCurrentDepartment() {
+    const active = layout.dataset.commonShell === 'live' &&
+      new URLSearchParams(location.search).get('settings') === 'privacy' ? 'privacy' : layout.dataset.commonShell;
+    departmentLinks.forEach((anchor,index)=>{
+      if (destinations[index].id === active) anchor.setAttribute('aria-current', 'location');
+      else anchor.removeAttribute('aria-current');
+    });
   }
+  markCurrentDepartment();
+  window.addEventListener('common:route-change',markCurrentDepartment);
 
   const open = document.createElement('button');
   open.type = 'button';
