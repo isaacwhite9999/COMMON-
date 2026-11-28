@@ -41,6 +41,7 @@ jobs:
           node tests/canvas-browser.test.mjs
           node tests/lab-browser.test.mjs
           node tests/terminal-browser.test.mjs
+          node tests/capital-statement-browser.test.mjs
   agent:
     runs-on: ubuntu-24.04
     steps:
