@@ -2,13 +2,13 @@
 
 Original audit baseline `aa0f89a` (design branch including integration), plus the messaging and Python control corrections in this audit. This is a source and disposable-test audit. Hosted identity, staging integrations, actual provider credentials, assistive technology, and live money were outside the verification environment.
 
-**Candidate granular totals** 78 verified, 3 unverified, 170 partial, 178 missing, 0 broken, 21 external gate.
+**Candidate granular totals** 82 verified, 3 unverified, 174 partial, 170 missing, 0 broken, 21 external gate.
 
 Verified = fully implemented and verified within the stated feature scope. Unverified = implemented but unverified. Partial = partially implemented. Missing = no matching working path found in the inspected domain. Broken = an existing path demonstrably fails. External gate = blocked by an external dependency or regulatory requirement. A prerequisite or numerical engine alone does not establish feature acceptance.
 
 ## Implementation candidate
 
-The candidate branch `codex/common-feature-integration` starts from PR #18 at `db34bb6`. Git ancestry confirmed that this baseline contains `main`, `common/unified-workspace` and every original PR head #1–18. New feature branches are integrated without replaying the preceding stack. The granular tables preserve existing classifications outside the requirements changed or newly verified here.
+The candidate branch `codex/common-department-build` starts at the verified Canvas PR #30 head `3841d92`, which contains the previous departmental candidate and its preceding PR heads. The original 450 requirements remain individually traceable below. Canvas progress is recorded separately in the [Canvas checklist](CANVAS_ACCEPTANCE.md).
 
 **Verification boundary.** Chromium exercised local workspace persistence and actual Pyodide. Member-facing browser tests used controlled service fixtures. PostgreSQL permissions and invariants were tested independently on disposable databases. No hosted migration, live provider call, actual financial operation or production deployment was performed.
 
@@ -54,6 +54,13 @@ The candidate branch `codex/common-feature-integration` starts from PR #18 at `d
 - **R2** [Portfolio risk model](workspace/risk.js), [known-answer fixtures](../tests/workspace-risk.test.cjs), [Chromium persistence and export](../tests/workspace-browser.test.mjs)
 - **F2** [Draft sync contract](DISCUSSION_DRAFTS.md), [database revision and isolation checks](../tests/pg_discussion_drafts_smoke.sql), [two-device Chromium flow](../tests/publishing-draft-browser.test.mjs)
 
+- **A4** [Durable planning UI](lab/project-runs.js), [run authorization and lease smoke](../tests/pg_project_assistant_runs_smoke.sql), [Chromium approval and cancellation](../tests/project-assistant-browser.test.mjs)
+- **R3** [Portfolio optimizer](workspace/risk.js), [optimization domain fixtures](../tests/workspace-risk.test.cjs), [Chromium frontier and persisted allocation](../tests/workspace-browser.test.mjs), [method and scope](QUANT_DEVELOPMENT_ENVIRONMENT.md)
+- **MSG3** [Notification ownership and event policy](../supabase/migrations/20261128044026_member_notification_inbox.sql), [notification SQL checks](../tests/pg_member_notifications_smoke.sql), [Chromium inbox](../tests/notification-inbox-browser.test.mjs)
+- **MSG4** [Direct message audience policy](../supabase/migrations/20261128044057_member_message_privacy.sql), [privacy policies smoke](../tests/pg_message_privacy_smoke.sql), [Chromium settings journey](../tests/message-privacy-browser.test.mjs)
+- **G2** [Circle governance privacy and independent review](../tests/pg_circle_governance_smoke.sql), [Chromium memo and review workflow](../tests/circle-governance-browser.test.mjs)
+- **FIN2** [Gated statement projection](../supabase/schema-drafts/external-journal.sql), [exact cent SQL and revocation tests](../tests/pg_external_journal_smoke.sql), [Chromium period statement and export](../tests/capital-statement-browser.test.mjs)
+
 ## Individual requirements
 
 ### Quant
@@ -79,12 +86,12 @@ The candidate branch `codex/common-feature-integration` starts from PR #18 at `d
 | QUANT-017 | Independent verification specialist | Missing | A | One-shot assist and local desk; no matching agent/session/tool pipeline |
 | QUANT-018 | Structured tool definitions | Missing | A | One-shot assist and local desk; no matching agent/session/tool pipeline |
 | QUANT-019 | Per-tool permission controls | Missing | A | One-shot assist and local desk; no matching agent/session/tool pipeline |
-| QUANT-020 | Explicit execution approvals | Partial | C | Local execution, inspection, consent, cancel or queue primitives exist; assistant has no corresponding execution integration. |
+| QUANT-020 | Explicit execution approvals | Partial | A4 | Members approve one immutable planning run and its evidence before the gated request. Executable-tool and delegated approval flows remain open. |
 | QUANT-021 | Streaming responses | Missing | A | One-shot assist and local desk; no matching agent/session/tool pipeline |
 | QUANT-022 | Tool execution traces | Missing | A | One-shot assist and local desk; no matching agent/session/tool pipeline |
-| QUANT-023 | Durable long-running sessions | Missing | A | One-shot assist and local desk; no matching agent/session/tool pipeline |
+| QUANT-023 | Durable long-running sessions | Partial | A4 | Planning intent, attempts and successful results persist in private project records. Independent workers and long-running multi-step orchestration remain open. |
 | QUANT-024 | Pause and resume | Missing | A | One-shot assist and local desk; no matching agent/session/tool pipeline |
-| QUANT-025 | Cancel active job | Partial | C | Local execution, inspection, consent, cancel or queue primitives exist; assistant has no corresponding execution integration. |
+| QUANT-025 | Cancel active job | Partial | A4 | Cancellation fences late planning results. Hosted provider interruption and cancellation across background compute jobs remain open. |
 | QUANT-026 | Custom commands | Verified | A3 | Existing device-local templates remain available. Private Studio projects add persistent command templates with create, edit, apply and delete. Explicit review and provider consent remain mandatory. |
 | QUANT-027 | Project memory | Partial | A | Prompt-based drafting/review or local notes/history exist; scoped orchestration and verification are absent. |
 | QUANT-028 | Account memory with consent | Partial | A | Prompt-based drafting/review or local notes/history exist; scoped orchestration and verification are absent. |
@@ -93,7 +100,7 @@ The candidate branch `codex/common-feature-integration` starts from PR #18 at `d
 | QUANT-031 | Model selection | Missing | A | One-shot assist and local desk; no matching agent/session/tool pipeline |
 | QUANT-032 | Token and cost usage accounting | Missing | A | One-shot assist and local desk; no matching agent/session/tool pipeline |
 | QUANT-033 | Citations and uncertainty | Partial | A | Prompt-based drafting/review or local notes/history exist; scoped orchestration and verification are absent. |
-| QUANT-034 | Bounded retries and failure recovery | Partial | C | Local execution, inspection, consent, cancel or queue primitives exist; assistant has no corresponding execution integration. |
+| QUANT-034 | Bounded retries and failure recovery | Partial | A4 | Planning uses a two-attempt ceiling, lease expiry, version checks and explicit reapproval. Automatic worker recovery and broader retry policies remain open. |
 | QUANT-035 | Project creation | Verified | I | Local project/file operations and revisions implemented; model/editor and workspace browser passed. |
 | QUANT-036 | Project list and search | Verified | I1 | Workspace library filters by name and notes and distinguishes active and archived projects. |
 | QUANT-037 | Rename archive restore delete projects | Verified | I1 | Workspace rename and delete, plus non-destructive archive and restore across reload, passed Chromium. |
@@ -228,17 +235,17 @@ The candidate branch `codex/common-feature-integration` starts from PR #18 at `d
 | QUANT-166 | Historical and model-based VaR | Verified | R2 | The browser-local risk lab compares historical and Gaussian 95% one-interval VaR for two to eight long-only assets. Independent numeric fixtures and persisted/exported reports passed. |
 | QUANT-167 | Expected shortfall | Verified | R | Existing analytical workflow within calculator/risk scope; numerical fixtures and Chromium workflows passed. |
 | QUANT-168 | Risk contribution and attribution | Partial | R | Hypothetical model, single analysis or constrained simulation; production breadth and independent validation remain. |
-| QUANT-169 | Portfolio optimization | Missing | R | Historical portfolio risk and calculators; no matching optimizer or analytics workflow |
-| QUANT-170 | Efficient frontier | Missing | R | Historical portfolio risk and calculators; no matching optimizer or analytics workflow |
+| QUANT-169 | Portfolio optimization | Verified | R3 | Browser-local constrained mean-variance optimization computes and persists a selected allocation; known-answer and independent solver comparisons passed. |
+| QUANT-170 | Efficient frontier | Verified | R3 | The browser-local seven-point long-only frontier supports selecting and comparing feasible allocations; validated against an independent solver. |
 | QUANT-171 | Risk parity | Missing | R | Historical portfolio risk and calculators; no matching optimizer or analytics workflow |
 | QUANT-172 | Factor exposure | Missing | R | Historical portfolio risk and calculators; no matching optimizer or analytics workflow |
-| QUANT-173 | Portfolio rebalancing | Partial | R | Hypothetical model, single analysis or constrained simulation; production breadth and independent validation remain. |
+| QUANT-173 | Portfolio rebalancing | Partial | R3 | Compare current simulation weights with target allocations and preview hypothetical weight changes. Costs, sizing rules and broader rebalancing remain open. |
 | QUANT-174 | Benchmark attribution | Missing | R | Historical portfolio risk and calculators; no matching optimizer or analytics workflow |
 | QUANT-175 | Stress testing | Partial | R | Hypothetical model, single analysis or constrained simulation; production breadth and independent validation remain. |
 | QUANT-176 | Scenario analysis | Partial | R | Hypothetical model, single analysis or constrained simulation; production breadth and independent validation remain. |
 | QUANT-177 | Liquidity risk | Missing | R | Historical portfolio risk and calculators; no matching optimizer or analytics workflow |
 | QUANT-178 | Concentration limits | Partial | R | Hypothetical model, single analysis or constrained simulation; production breadth and independent validation remain. |
-| QUANT-179 | Allocation constraints | Partial | R | Hypothetical model, single analysis or constrained simulation; production breadth and independent validation remain. |
+| QUANT-179 | Allocation constraints | Verified | R3 | The optimizer enforces a total allocation of one, long-only uniform bounds, and an optional historical return floor; infeasible cases are rejected. |
 | QUANT-180 | Transaction-cost-aware optimization | Missing | R | Historical portfolio risk and calculators; no matching optimizer or analytics workflow |
 | QUANT-181 | Bond valuation | Verified | R | Existing analytical workflow within calculator/risk scope; numerical fixtures and Chromium workflows passed. |
 | QUANT-182 | Duration convexity and DV01 | Verified | R | Existing analytical workflow within calculator/risk scope; numerical fixtures and Chromium workflows passed. |
@@ -372,10 +379,10 @@ The candidate branch `codex/common-feature-integration` starts from PR #18 at `d
 | SOCIAL-092 | Delete messages | Verified | MSG2 | Authors can delete direct messages they sent and their own circle messages. Current circle moderators can delete within their circle. Authorized deletions hide content from participant reads. Browser and role tests cover cancel, retry, draft retention and inaccessible tombstones. |
 | SOCIAL-093 | Archive conversations | Missing | MSG | Scoped group chat and opt-in one-to-one DMs; no matching communications workflow |
 | SOCIAL-094 | Unread counts | Missing | MSG | Scoped group chat and opt-in one-to-one DMs; no matching communications workflow |
-| SOCIAL-095 | Notification preferences | Missing | MSG | Scoped group chat and opt-in one-to-one DMs; no matching communications workflow |
+| SOCIAL-095 | Notification preferences | Partial | MSG3 | Members control in-app direct-message and connection-event notifications. Broader categories and other delivery channels remain open. |
 | SOCIAL-096 | Push notifications | Missing | MSG | Scoped group chat and opt-in one-to-one DMs; no matching communications workflow |
 | SOCIAL-097 | Email notifications | Missing | MSG | Scoped group chat and opt-in one-to-one DMs; no matching communications workflow |
-| SOCIAL-098 | In-app notification center | Missing | MSG | Scoped group chat and opt-in one-to-one DMs; no matching communications workflow |
+| SOCIAL-098 | In-app notification center | Verified | MSG3 | Recipient-only inbox supports real direct-message and connection events, cursor paging, unread, read/archive/restore and scoped links. SQL and Chromium verify the behavior. |
 | SOCIAL-099 | Optional voice and video integration with approved provider | External gate | MSG | Approved provider and infrastructure for voice/video absent, along with application integration. |
 | SOCIAL-100 | Joint research projects | Partial | H | Circle ownership project, evidence summary or user review exists; collaborative authorization/approval workflow absent. |
 | SOCIAL-101 | Shared workspaces | Missing | H | Linked research records and summary handoff; no matching collaborative workflow |
@@ -395,21 +402,21 @@ The candidate branch `codex/common-feature-integration` starts from PR #18 at `d
 | SOCIAL-115 | Research-to-feed publication approval | Partial | H | Circle ownership project, evidence summary or user review exists; collaborative authorization/approval workflow absent. |
 | SOCIAL-116 | Member opinion polls | Verified | G | Nonbinding member poll flow and abstention verified by research journey and handoff SQL tests. |
 | SOCIAL-117 | Committee voting | Missing | G | Nonbinding opinions and scenario rules; no matching governance workflow |
-| SOCIAL-118 | Investment proposals | Partial | G | Educational poll, scenario assumptions, ownership research or simulation covers a subset; binding lifecycle absent. |
+| SOCIAL-118 | Investment proposals | Partial | G2 | Private proposals can retain a structured research memo and independent nonbinding review. Committee and formal proposal lifecycle remain open. |
 | SOCIAL-119 | Proposal amendments | Missing | G | Nonbinding opinions and scenario rules; no matching governance workflow |
-| SOCIAL-120 | Due diligence | Partial | G | Educational poll, scenario assumptions, ownership research or simulation covers a subset; binding lifecycle absent. |
-| SOCIAL-121 | Investment memo approvals | Missing | G | Nonbinding opinions and scenario rules; no matching governance workflow |
+| SOCIAL-120 | Due diligence | Partial | G2 | Memos record diligence sources, risks and unresolved questions. Diligence assignments, evidence verification and revisions remain open. |
+| SOCIAL-121 | Investment memo approvals | Partial | G2 | Authorized independent moderators can record nonbinding readiness or requested changes. Committee and binding approval remain open. |
 | SOCIAL-122 | Versioned charters | Missing | G | Nonbinding opinions and scenario rules; no matching governance workflow |
 | SOCIAL-123 | Voter eligibility snapshots | Missing | G | Nonbinding opinions and scenario rules; no matching governance workflow |
 | SOCIAL-124 | Quorum | Partial | G | Educational poll, scenario assumptions, ownership research or simulation covers a subset; binding lifecycle absent. |
 | SOCIAL-125 | Voting thresholds | Partial | G | Educational poll, scenario assumptions, ownership research or simulation covers a subset; binding lifecycle absent. |
-| SOCIAL-126 | Conflict disclosures | Partial | G | Educational poll, scenario assumptions, ownership research or simulation covers a subset; binding lifecycle absent. |
+| SOCIAL-126 | Conflict disclosures | Partial | G2 | Memos require a conflict disclosure and reviewers attest independently. Formal conflict registers and policy enforcement remain open. |
 | SOCIAL-127 | Abstention | Verified | G | Nonbinding member poll flow and abstention verified by research journey and handoff SQL tests. |
 | SOCIAL-128 | Binding approval only with legal authority | External gate | FIN | Legal/provider approval and operational controls required for live use; implementation and staged verification also remain. |
-| SOCIAL-129 | Independent signoff | Missing | G | Nonbinding opinions and scenario rules; no matching governance workflow |
+| SOCIAL-129 | Independent signoff | Partial | G2 | The nonbinding memo review prohibits self-review and requires a currently authorized independent moderator. Formal signoff and multi-review thresholds remain open. |
 | SOCIAL-130 | Meeting minutes | Missing | G | Nonbinding opinions and scenario rules; no matching governance workflow |
-| SOCIAL-131 | Decision and execution tracking | Partial | G | Educational poll, scenario assumptions, ownership research or simulation covers a subset; binding lifecycle absent. |
-| SOCIAL-132 | Governance audit | Partial | G | Educational poll, scenario assumptions, ownership research or simulation covers a subset; binding lifecycle absent. |
+| SOCIAL-131 | Decision and execution tracking | Partial | G2 | Memos and review outcomes remain in proposal history. Financial execution tracking remains open. |
+| SOCIAL-132 | Governance audit | Partial | G2 | Immutable attributed research reviews and timestamps are available to current private circle members. A comprehensive governance audit trail remains open. |
 | SOCIAL-133 | Exit rights | Missing | G | Nonbinding opinions and scenario rules; no matching governance workflow |
 | SOCIAL-134 | Official proxy eligibility and ballot records with approved partners | External gate | FIN | Legal/provider approval and operational controls required for live use; implementation and staged verification also remain. |
 | SOCIAL-135 | Financial account lifecycle | Missing | FIN | Gated external journal and simulation; no matching regulated accounting workflow |
@@ -421,8 +428,8 @@ The candidate branch `codex/common-feature-integration` starts from PR #18 at `d
 | SOCIAL-141 | Withdrawal intents | External gate | FIN | Legal/provider approval and operational controls required for live use; implementation and staged verification also remain. |
 | SOCIAL-142 | Recurring contribution intents | External gate | FIN | Legal/provider approval and operational controls required for live use; implementation and staged verification also remain. |
 | SOCIAL-143 | Pooled treasury | External gate | FIN | Legal/provider approval and operational controls required for live use; implementation and staged verification also remain. |
-| SOCIAL-144 | Reconciliation | Partial | FIN | Journal draft and disabled financial dispatch/front-end gates; full provider reconciliation, integrity and activation controls absent. |
-| SOCIAL-145 | Exact double-entry ledger | Partial | FIN | Journal draft and disabled financial dispatch/front-end gates; full provider reconciliation, integrity and activation controls absent. |
+| SOCIAL-144 | Reconciliation | Partial | FIN2 | Compare reported closing cash to a manually supplied external balance in exact minor units. Provider-signed reconciliation and exception lifecycle remain open. |
+| SOCIAL-145 | Exact double-entry ledger | Partial | FIN2 | Gated journal statements reproduce exact double-entry opening, movement and closing calculations with reversal evidence. Financial activation and full entity accounting remain open. |
 | SOCIAL-146 | Verified provider events | External gate | FIN | Legal/provider approval and operational controls required for live use; implementation and staged verification also remain. |
 | SOCIAL-147 | Member ownership accounting | Missing | FIN | Gated external journal and simulation; no matching regulated accounting workflow |
 | SOCIAL-148 | Portfolio positions | Partial | G | Educational poll, scenario assumptions, ownership research or simulation covers a subset; binding lifecycle absent. |
@@ -430,7 +437,7 @@ The candidate branch `codex/common-feature-integration` starts from PR #18 at `d
 | SOCIAL-150 | NAV calculation | Missing | FIN | Gated external journal and simulation; no matching regulated accounting workflow |
 | SOCIAL-151 | Profit distributions | Missing | FIN | Gated external journal and simulation; no matching regulated accounting workflow |
 | SOCIAL-152 | Redemptions | Missing | FIN | Gated external journal and simulation; no matching regulated accounting workflow |
-| SOCIAL-153 | Statements | Missing | FIN | Gated external journal and simulation; no matching regulated accounting workflow |
+| SOCIAL-153 | Statements | Partial | FIN2 | The private gated journal creates and exports aggregate period statements. Per-member ownership statements and provider verification remain open. |
 | SOCIAL-154 | Tax records | Missing | FIN | Gated external journal and simulation; no matching regulated accounting workflow |
 | SOCIAL-155 | Bank and broker connectivity | External gate | FIN | Legal/provider approval and operational controls required for live use; implementation and staged verification also remain. |
 | SOCIAL-156 | Settlement tracking | Missing | FIN | Gated external journal and simulation; no matching regulated accounting workflow |
@@ -457,7 +464,7 @@ The candidate branch `codex/common-feature-integration` starts from PR #18 at `d
 | SOCIAL-177 | Misinformation review | Partial | MOD | Existing reporting/rules/consent cover limited scope; broader controls and operational coverage absent. |
 | SOCIAL-178 | Credibility indicators | Partial | MOD | Existing reporting/rules/consent cover limited scope; broader controls and operational coverage absent. |
 | SOCIAL-179 | Transparent reputation | Missing | MOD | Rule-based moderation and appeals; no matching trust control |
-| SOCIAL-180 | Privacy controls | Partial | MOD | Existing reporting/rules/consent cover limited scope; broader controls and operational coverage absent. |
+| SOCIAL-180 | Privacy controls | Partial | MSG4 | Account privacy controls enforce direct-message audience, shared membership, accepted connections and blocks. Other privacy surfaces remain open. |
 | SOCIAL-181 | Consent management | Partial | MOD | Existing reporting/rules/consent cover limited scope; broader controls and operational coverage absent. |
 | SOCIAL-182 | Financial monitoring under authorized partner rules | External gate | FIN | Legal/provider approval and operational controls required for live use; implementation and staged verification also remain. |
 | SOCIAL-183 | Account security alerts | Missing | MOD | Rule-based moderation and appeals; no matching trust control |
@@ -493,7 +500,7 @@ The candidate branch `codex/common-feature-integration` starts from PR #18 at `d
 | PLATFORM-009 | Interactive chart controls | Partial | UX | Shared shell and responsive presentation are wired; department-specific gaps remain in routes, controls or settings. |
 | PLATFORM-010 | Configurable financial tables | Partial | UX | Shared shell and responsive presentation are wired; department-specific gaps remain in routes, controls or settings. |
 | PLATFORM-011 | Persistent layouts and panels | Partial | UX | Shared shell and responsive presentation are wired; department-specific gaps remain in routes, controls or settings. |
-| PLATFORM-012 | Settings for account security privacy appearance AI data compute portfolio circles integrations notifications billing | Partial | UX | Shared shell and responsive presentation are wired; department-specific gaps remain in routes, controls or settings. |
+| PLATFORM-012 | Settings for account security privacy appearance AI data compute portfolio circles integrations notifications billing | Partial | MSG4 | Shared navigation opens the persisted account-level messaging privacy setting. Broader settings, data controls and billing requirements remain open. |
 | PLATFORM-013 | Accessibility | Partial | UX | Shared shell and responsive presentation are wired; department-specific gaps remain in routes, controls or settings. |
 | PLATFORM-014 | Loading empty error and retry states | Partial | UX | Shared shell and responsive presentation are wired; department-specific gaps remain in routes, controls or settings. |
 | PLATFORM-015 | End-to-end research to circle governance workflow | Partial | H | Browser research to discussion/chat/nonbinding poll verified; legal workflow remains gated. |
