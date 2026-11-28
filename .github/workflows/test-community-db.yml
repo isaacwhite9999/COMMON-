@@ -47,6 +47,8 @@ jobs:
           done
       - name: Verify private notification delivery, preferences and visibility
         run: psql -X -v ON_ERROR_STOP=1 -f tests/pg_member_notifications_smoke.sql
+      - name: Verify private Canvas documents and revisions
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/pg_canvas_library_smoke.sql
       - name: Verify private member connection requests and recipient consent
         run: psql -X -v ON_ERROR_STOP=1 -f tests/pg_member_connections_smoke.sql
       - name: Verify direct message privacy and recipient consent
