@@ -46,6 +46,8 @@ try {
           return query;
         },
         async rpc(name,args){
+          if(name==='available_message_recipients_v1')return {data:args.candidate_ids.filter(id=>id===peer.id)};
+          if(name==='can_send_dm')return {data:args.recipient===peer.id};
           if(name==='delete_chat_message_v1'){
             const table=args.message_kind==='direct'?'direct_messages':'community_messages';
             const row=tables[table].find(item=>item.id===args.message_id&&!item.deleted_at&&

@@ -16,6 +16,8 @@ let blockedMembers=[],bookmarks=[],memberDetail=null,profileSection='identity',m
 const capitalDrafts=new Map();let capitalTab='overview';let ledgerRows=[],ledgerCircle=null,ledgerError='',ledgerLoading=false;let decisionDetail=null,pollRows=[],pollOwn=null;
 const state={directory:'mine',feed:'mine',groupTab:'posts',comments:null,composer:false,groupCreate:false,projectCreate:false,proposalCreate:false,inviteToken:null,showMembers:false};
 let researchReview=null,pollDraft=null,composerDraft=null;
+let messagePrivacy=null,messageRecipients=null;
+const privacyRequested=()=>new URLSearchParams(location.search).get('settings')==='privacy';
 const base=location.pathname.replace(/\/live\/?(?:index.html)?$/,'/live/');
 const groupById=id=>groups.find(x=>x.id===id);
 const joined=id=>memberships.some(x=>x.community_id===id);
@@ -307,10 +309,14 @@ function messageBubble(message,kind,community){
    'data-id="'+e(message.id)+'" data-choice="'+kind+'"')+'</div>':'')+'</div>';
 }
 function chat(){
- const peers=memberDirectory.filter(x=>x.id!==session.user.id&&x.allow_direct_messages&&!isBlocked(x.id));
+ const peers=memberDirectory.filter(member=>messageRecipients?.ids?.has(member.id)&&!isBlocked(member.id));
  return head('Messages','Private conversations are opt-in and limited to members sharing a group.')+
- '<div class="surface" style="padding:22px">'+(profile?.allow_direct_messages?'<p class="small muted">Direct messaging is enabled on your profile.</p>':'<p class="small muted">Direct messages are off by default. Enable them under Profile to receive messages from fellow group members.</p>')+
- '<div class="section-bar"><h3>Members accepting messages</h3></div><div class="stack">'+peers.map(p=>'<div class="space connection-list-row"><div><button class="member-link" data-act="member-profile" data-id="'+p.id+'">'+e(p.display_name)+'</button> <span class="tiny muted">@'+e(p.handle)+'</span></div>'+button('dm-user','Open chat','secondary','data-id="'+p.id+'"')+'</div>').join('')+'</div>'+
+ '<div class="surface" style="padding:22px"><p class="small muted">Manage who can send you messages in <a href="?settings=privacy">Privacy settings</a>.</p>'+
+ '<div class="section-bar"><h3>Members you can message</h3></div>'+
+ (messageRecipients?.error?'<p role="status">Could not check message availability.</p>'+button('retry-message-recipients','Retry availability','secondary'):
+ !messageRecipients?.ids?'<p role="status">Checking message availability…</p>':
+ !peers.length?'<p>No shared-circle members are currently available to message.</p>':'')+
+ '<div class="stack">'+peers.map(p=>'<div class="space connection-list-row"><div><button class="member-link" data-act="member-profile" data-id="'+p.id+'">'+e(p.display_name)+'</button> <span class="tiny muted">@'+e(p.handle)+'</span></div>'+button('dm-user','Open chat','secondary','data-id="'+p.id+'"')+'</div>').join('')+'</div>'+
  (selectedPeer?'<div class="section-bar"><h3 data-chat-focus tabindex="-1">Conversation with '+e(person(selectedPeer))+'</h3>'+button('refresh-dm','Refresh conversation','secondary')+'</div><div data-dm-refresh-status role="status"></div><div data-message-delete-status role="status"></div><div class="chat-messages">'+dm.filter(m=>(m.sender_id===selectedPeer&&m.recipient_id===session.user.id)||(m.sender_id===session.user.id&&m.recipient_id===selectedPeer)).map(m=>messageBubble(m,'direct')).join('')+'</div><form data-form="dm" class="chat-write"><input class="field" name="body" required maxlength="2000" aria-label="Private message" placeholder="Write a private message"><button class="button">Send</button></form>':'')+'</div>';
 }
 function ownership(){
@@ -481,9 +487,47 @@ function followListMarkup(){
 }
 function memberPage(){const p=memberDetail;if(!p)return head('Member profile','Select a member from a circle.');const mine=p.id===session.user.id,shared=memberDirectory.some(x=>x.id===p.id);
 return head(p.display_name,'@'+p.handle)+button('open-groups','Back to circles')+'<div class="surface circle-tools"><div class="space"><span class="avatar">'+e(p.display_name.slice(0,2).toUpperCase())+'</span><span class="pill">Member profile</span></div><p class="post-body">'+e(p.bio||'No public biography provided.')+'</p><p class="muted small">Member-provided profile; not an independently verified investment professional or shareholder.</p><div class="row member-profile-actions">'+(mine?'<button class="button" data-tab="profile">Edit profile</button>':(shared&&p.allow_direct_messages&&!isBlocked(p.id)?button('dm-user','Message','primary','data-id="'+p.id+'"'):'')+followProfileControl(p)+connectionProfileControls(p.id)+button(isBlocked(p.id)?'unblock-member':'block-member',isBlocked(p.id)?'Unblock member':'Block member','secondary','data-id="'+p.id+'"'))+'</div></div><div class="section-bar"><h3>Visible recent research</h3></div>'+discussionPageMarkup(discussionFeed,postCard,'<div class="empty">No visible recent research.</div>');}
+const audienceLabels={off:'Nobody (default)',circles:'Members who share a circle with me',connections:'Accepted connections who share a circle with me'};
+function messagePrivacyMarkup(){
+ const heading='<h3>Direct messages</h3><p class="muted small" id="message-privacy-help">Choose who can send you new messages. A shared circle is required. Blocking prevents direct messages in both directions and takes precedence over this setting.</p>';
+ if(messagePrivacy?.error)return heading+'<p role="status">Could not load your preferences.</p>'+button('retry-message-privacy','Retry preferences','secondary');
+ if(!messagePrivacy?.ready||!profile)return heading+'<p role="status">Loading your preferences…</p>';
+ const audience=profile.allow_direct_messages?(messagePrivacy.connectionsOnly?'connections':'circles'):'off';
+ return heading+'<form data-form="privacy" class="stack"><label><span class="form-label">Who can send you direct messages?</span>'+
+  '<select class="field" name="message_audience" aria-describedby="message-privacy-help">'+Object.entries(audienceLabels).map(([key,label])=>
+   '<option value="'+key+'"'+(key===audience?' selected':'')+'>'+e(label)+'</option>').join('')+'</select></label>'+
+  '<button type="submit" class="button">Save privacy preferences</button></form>';
+}
+function prepareMessagePrivacy(){
+ if(view!=='profile'||profileSection!=='privacy'||messagePrivacy||!profile)return;
+ const owner=session.user.id,read={};
+ messagePrivacy=read;
+ void (async()=>{
+  try{
+   const data=await call(client.from('member_message_privacy').select('connections_only').eq('user_id',owner).maybeSingle());
+   Object.assign(read,{connectionsOnly:data?.connections_only===true,ready:true});
+  }catch{read.error=true;}
+  if(messagePrivacy===read&&session?.user?.id===owner&&view==='profile'&&profileSection==='privacy')render();
+ })();
+}
+function prepareMessageRecipients(){
+ if(view!=='chat'||messageRecipients||!profile)return;
+ const owner=session.user.id,read={};
+ messageRecipients=read;
+ const candidates=memberDirectory.filter(member=>member.id!==owner&&member.allow_direct_messages&&!isBlocked(member.id)).map(member=>member.id);
+ void (async()=>{
+  try{
+   const batches=[];
+   for(let index=0;index<candidates.length;index+=100)batches.push(candidates.slice(index,index+100));
+   const allowed=await Promise.all(batches.map(candidate_ids=>call(client.rpc('available_message_recipients_v1',{candidate_ids}))));
+   read.ids=new Set(allowed.flat());
+  }catch{read.error=true;}
+  if(messageRecipients===read&&session?.user?.id===owner&&view==='chat')render();
+ })();
+}
 function profilePage(){const nav='<div class="feed-tabs">'+[['identity','Profile'],['privacy','Privacy & communication'],['blocked','Blocked members'],['saved','Saved research'],['following','Following'],['followers','Followers'],['connections','Connections']].map(([id,label])=>'<button class="feed-tab '+(profileSection===id?'active':'')+'" data-profile-section="'+id+'" aria-pressed="'+(profileSection===id)+'">'+label+'</button>').join('')+'</div>';let c='';
 if(profileSection==='identity')c='<form data-form="profile" class="stack"><label><span class="form-label">Display name</span><input class="field" name="name" required maxlength="80" minlength="2" value="'+e(profile?.display_name)+'"></label><label><span class="form-label">Biography (public)</span><textarea class="field" maxlength="600" name="bio">'+e(profile?.bio||'')+'</textarea></label><button type="submit" class="button">Save profile</button></form>';
-if(profileSection==='privacy')c='<form data-form="privacy" class="stack"><label class="row"><input type="checkbox" name="allow_dm" '+(profile?.allow_direct_messages?'checked':'')+'> Allow direct messages from members of my communities</label><p class="muted small">Private messaging requires a shared circle and recipient consent. Blocking prevents direct messaging in both directions.</p><button type="submit" class="button">Save privacy preferences</button></form>';
+if(profileSection==='privacy')c=messagePrivacyMarkup();
 if(profileSection==='blocked')c='<p class="muted small">Blocked profiles are hidden from your feed and cannot exchange direct messages with you. This does not remove their public content for other users.</p>'+ (blockedMembers.length?blockedMembers.map(id=>'<div class="space"><span>'+e(person(id))+'</span>'+button('unblock-member','Unblock','secondary','data-id="'+id+'"')+'</div>').join(''):'<p>No blocked members.</p>');
 if(profileSection==='saved')c='<p class="muted small">Bookmarks are saved on this device and account only. Only research you still have permission to read is displayed.</p>'+button('saved-feed','Open saved research')+'<button class="button secondary" data-act="clear-bookmarks">Clear saved research</button>';
 if(Object.hasOwn(followSections,profileSection))c=followListMarkup();
@@ -676,6 +720,15 @@ function render(){
  if(!session?.user){resetDiscussionFeed();auth();return}
  prepareFollowViews();
  prepareDiscussionFeed();
+ prepareMessagePrivacy();
+ prepareMessageRecipients();
+ const privacyOpen=view==='profile'&&profileSection==='privacy';
+ if(privacyOpen!==privacyRequested()){
+  const url=new URL(location.href);
+  if(privacyOpen)url.searchParams.set('settings','privacy');else url.searchParams.delete('settings');
+  history.replaceState(history.state,'',url);
+  window.dispatchEvent(new Event('common:route-change'));
+ }
  const previous=root.querySelector('.common-member-dialog[open]');
  const previousForm=previous?.querySelector('form');
  const values=previousForm&&previousForm.dataset.form!=='post'?new FormData(previousForm):null;
@@ -701,12 +754,14 @@ async function init(){
  if(!client){setup();return}
  checkGoogleProvider().catch(console.error);
  const r=await saved();if(r.error)throw r.error;session=r.data.session;
+ if(privacyRequested()){view='profile';profileSection='privacy';}
  client.auth.onAuthStateChange((evt,next)=>{
   if(session?.user?.id!==next?.user?.id){
-   researchReview=pollDraft=composerDraft=null;view='home';error=info='';
+   researchReview=pollDraft=composerDraft=null;view=privacyRequested()?'profile':'home';error=info='';
+   messagePrivacy=messageRecipients=null;
    profile=null;ledgerRows=[];ledgerCircle=null;ledgerError='';decisionDetail=null;pollRows=[];pollOwn=null;
    capitalDrafts.clear();capitalTab='overview';blockedMembers=[];bookmarks=[];memberDetail=null;memberDirectory=[];
-   profileSection='identity';connectionSection='incoming';state.feed='mine';followProfile=followList=null;mobileMore=false;agentOutput=null;agentInput='';agentMode='review';agentDeskTab='analysis';
+   profileSection=privacyRequested()?'privacy':'identity';connectionSection='incoming';state.feed='mine';followProfile=followList=null;mobileMore=false;agentOutput=null;agentInput='';agentMode='review';agentDeskTab='analysis';
    agentDesk=CommonAgentDesk.initial();agentDeskOwner=null;agentLastRequest=null;
    groups=[];memberships=[];proposals=[];projects=[];watches=[];people={};messages=[];dm=[];memberPoll=[];
    circleMessageRead++;directMessageRead++;
@@ -768,7 +823,7 @@ async function refresh(){
  call(client.from('moderation_appeals').select('id,case_id,appellant_id,statement,appeal_status,created_at').order('created_at',{ascending:false}).limit(100)),
  call(client.from('account_enforcement').select('restriction,reason,expires_at').eq('user_id',uid))
  ]);
- if(session?.user?.id!==uid)return;profile=p;groups=c;memberships=m;proposals=q;projects=o;watches=w;moderationCases=mod;moderationAppeals=appeals;accountRestrictions=restrictions;
+ if(session?.user?.id!==uid)return;messageRecipients=null;profile=p;groups=c;memberships=m;proposals=q;projects=o;watches=w;moderationCases=mod;moderationAppeals=appeals;accountRestrictions=restrictions;
  const memberRows=memberships.length?await call(client.from('memberships').select('user_id').in('community_id',memberships.map(m=>m.community_id)).limit(1000)):[];const blockRows=await call(client.from('member_blocks').select('blocked_id').eq('blocker_id',uid));if(session?.user?.id!==uid)return;blockedMembers=blockRows.map(b=>b.blocked_id);loadBookmarks();const memberIds=new Set(memberRows.map(m=>m.user_id));const ids=[...new Set([uid,...blockedMembers,...memberIds,...projects.map(x=>x.author_id)])];
  if(ids.length){const all=[];for(let i=0;i<ids.length;i+=100){all.push(...await call(client.from('profiles').select('id,display_name,handle,allow_direct_messages').in('id',ids.slice(i,i+100))));}if(session?.user?.id!==uid)return;people=Object.fromEntries(all.map(x=>[x.id,x]));memberDirectory=all.filter(x=>memberIds.has(x.id));}
  if(selectedGroup&&joined(selectedGroup)&&state.groupTab==='chat')await loadMessages();
@@ -1061,7 +1116,15 @@ async function dispatch(action,element){
   }
   return;
  }
- if(action==='dm-user'){if(isBlocked(id)||!memberDirectory.some(x=>x.id===id&&x.allow_direct_messages))throw Error('This member is unavailable for direct messages.');selectedPeer=id;dm=[];view='chat';await loadDM();render();return}
+ if(action==='retry-message-privacy'){messagePrivacy=null;render();return}
+ if(action==='retry-message-recipients'){messageRecipients=null;render();return}
+ if(action==='dm-user'){
+  const owner=session.user.id;
+  const allowed=await call(client.rpc('can_send_dm',{recipient:id}));
+  if(session?.user?.id!==owner)return;
+  if(!allowed){messageRecipients=null;throw Error('This member is unavailable for direct messages.');}
+  selectedPeer=id;dm=[];view='chat';await loadDM();render();return
+ }
  if(action==='appeal-case'){
    const c=moderationCases.find(x=>x.id===id);
    if(!c||c.actor_id!==session.user.id||c.review_status!=='rejected')
@@ -1175,12 +1238,39 @@ async function submitted(form){
  if(type==='project'){await call(client.from('ownership_projects').insert({community_id:f.get('community'),author_id:uid,title:f.get('title'),thesis:f.get('thesis'),category:f.get('category')}));state.projectCreate=false;await refresh();return}
  if(type==='watch'){const symbol=String(f.get('symbol')).toUpperCase().trim();if(!/^[A-Z][A-Z0-9.-]{0,11}$/.test(symbol))throw new Error('Enter a valid stock symbol');await call(client.from('watchlist_items').upsert({user_id:uid,symbol}));await refresh();return}
  if(type==='chat'){await call(client.from('community_messages').insert({community_id:selectedGroup,author_id:uid,body:short(f.get('body'),2000)}));await loadMessages();render();return}
- if(type==='dm'){if(!selectedPeer)throw new Error('Choose a member');await call(client.from('direct_messages').insert({sender_id:uid,recipient_id:selectedPeer,body:short(f.get('body'),2000)}));await loadDM();render();return}
+ if(type==='dm'){
+  const recipient=selectedPeer;
+  if(!recipient)throw Error('Choose a member');
+  try{await call(client.from('direct_messages').insert({sender_id:uid,recipient_id:recipient,body:short(f.get('body'),2000)}));}
+  catch(failure){
+   if(failure.code==='42501'){messageRecipients=null;throw Error('This member is unavailable for direct messages.');}
+   throw failure;
+  }
+  await loadDM();render();return
+ }
  if(type==='profile'){await call(client.from('profiles').update({display_name:String(f.get('name')).trim(),bio:String(f.get('bio')||'').trim().slice(0,600)}).eq('id',uid));await refresh();return}
- if(type==='privacy'){await call(client.from('profiles').update({allow_direct_messages:f.get('allow_dm')==='on'}).eq('id',uid));await refresh();return}
+ if(type==='privacy'){
+  const audience=f.get('message_audience');
+  if(!Object.hasOwn(audienceLabels,audience))throw Error('Choose a valid message audience.');
+  const control=form.querySelector('button[type="submit"]');
+  control.disabled=true;
+  try{
+   const saved=await call(client.rpc('set_message_audience_v1',{audience}));
+   if(session?.user?.id!==uid)return;
+   profile={...profile,allow_direct_messages:saved!=='off'};
+   messagePrivacy={ready:true,connectionsOnly:saved==='connections'};
+   info='Message audience saved to your account.';error='';render();
+  }catch(failure){
+   if(session?.user?.id!==uid)return;
+   handleError(failure);
+   form=root.querySelector('[data-form="privacy"]');
+   if(form)form.elements.message_audience.value=audience;
+  }finally{control.disabled=false;}
+  return
+ }
 }
 document.addEventListener('click',async ev=>{
- const agentTab=ev.target.closest('[data-agent-tab]');if(agentTab){agentDeskTab=agentTab.dataset.agentTab;render();return}const capital=ev.target.closest('[data-capital-tab]');if(capital){if(joined(selectedGroup)){capitalTab=capital.dataset.capitalTab;if(capitalTab==='ledger'){await loadLedger();}render()}return}const prof=ev.target.closest('[data-profile-section]');if(prof){profileSection=prof.dataset.profileSection;render();return}const nav=ev.target.closest('[data-tab]');if(nav){mobileMore=false;if(nav.dataset.tab==='studio'){location.assign(new URL('../lab/',location.href).href);return}view=nav.dataset.tab;selectedGroup=null;error=info='';render();return}
+ const agentTab=ev.target.closest('[data-agent-tab]');if(agentTab){agentDeskTab=agentTab.dataset.agentTab;render();return}const capital=ev.target.closest('[data-capital-tab]');if(capital){if(joined(selectedGroup)){capitalTab=capital.dataset.capitalTab;if(capitalTab==='ledger'){await loadLedger();}render()}return}const prof=ev.target.closest('[data-profile-section]');if(prof){profileSection=prof.dataset.profileSection;render();return}const nav=ev.target.closest('[data-tab]');if(nav){mobileMore=false;if(nav.dataset.tab==='studio'){location.assign(new URL('../lab/',location.href).href);return}view=nav.dataset.tab;if(view==='chat')messageRecipients=null;selectedGroup=null;error=info='';render();return}
  const feed=ev.target.closest('[data-feed]');if(feed){state.feed=feed.dataset.feed;render();return}const dir=ev.target.closest('[data-directory]');if(dir){state.directory=dir.dataset.directory;render();return}const tab=ev.target.closest('[data-group-tab]');if(tab){state.groupTab=tab.dataset.groupTab;try{if(state.groupTab==='chat')await loadMessages();if(state.groupTab==='members'){memberPoll=[];await loadGroupMembers();}}catch(e){handleError(e);return}render();return}
  const btn=ev.target.closest('[data-act]');if(!btn)return;
  if(busy)return;

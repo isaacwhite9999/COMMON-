@@ -6,6 +6,8 @@ on:
       - 'docs/live/**'
       - 'docs/live-community.js'
       - 'tests/discussion-feed-browser.test.mjs'
+      - 'tests/message-privacy-browser.test.mjs'
+      - 'docs/shared/shell.js'
       - 'tests/research-journey.test.mjs'
       - 'tests/publishing-draft-browser.test.mjs'
       - 'tests/project-assistant-browser.test.mjs'
@@ -35,3 +37,5 @@ jobs:
           node tests/research-journey.test.mjs
           node tests/publishing-draft-browser.test.mjs
           node tests/project-assistant-browser.test.mjs
+          node tests/message-privacy-browser.test.mjs
+          COMMON_DESKTOP=1 node tests/message-privacy-browser.test.mjs
