@@ -1,3 +1,4 @@
+import {createRunBoundary} from "./run.ts";
 type Deps={env:(key:string)=>string|undefined,fetch:typeof fetch,bodyTimeoutMs?:number};
 const prompts:Record<string,string>={
  review:"Audit the supplied thesis or backtest for weak assumptions, missing evidence, lookahead, overfitting, transaction costs and alternative explanations. Distinguish reported from independently verified facts.",
@@ -53,6 +54,24 @@ export async function handleResearch(req:Request,d:Deps):Promise<Response>{
  const body=await readPayload(req,d.bodyTimeoutMs??5000);
  if("error" in body)return reply(body.status??400,{error:body.error});
  const {payload}=body;
+ if(payload&&typeof payload==="object"&&Object.hasOwn(payload,"run_id")){
+  if(payload.consent!==true||typeof payload.run_id!=="string"||!uuidPattern.test(payload.run_id)||
+    !Number.isInteger(payload.run_version)||payload.run_version<1)return reply(400,{error:"Invalid run approval"});
+  const serviceKey=d.env("SUPABASE_SERVICE_ROLE_KEY");
+  if(!serviceKey)return reply(503,{error:"Research run service unavailable"});
+  const boundary=createRunBoundary(url,serviceKey,d.fetch);
+  const run=await boundary.claim(payload.run_id,user.id,payload.run_version);
+  if(!run)return reply(409,{error:"Run unavailable or changed. Refresh and review it again."});
+  // Reuse the same authenticated project, quota and provider path as direct planning.
+  const response=await handleResearch(new Request(req.url,{
+   method:"POST",headers:{authorization,origin,"Content-Type":"application/json"},
+   body:JSON.stringify({workspace_id:run.workspace_id,goal:run.goal,input:run.evidence,mode:"plan",consent:true}),
+  }),d);
+  const analysis=response.ok?await response.json():null;
+  const completed=await boundary.finish(payload.run_id,user.id,run.lease_token,analysis?.text??null,analysis?.status??null);
+  if(!completed)return reply(409,{error:"Run cancelled or expired before completion"});
+  return response.ok?reply(200,{state:"succeeded"}):reply(response.status,{error:"Planning attempt failed. Refresh the run before approving a retry."});
+ }
  if(!payload||typeof payload!=="object"||payload.consent!==true||typeof payload.mode!=="string"||!Object.hasOwn(prompts,payload.mode)||typeof payload.input!=="string"||payload.input.trim().length<20||payload.input.length>10000)return reply(400,{error:"Invalid analysis request"});
  const followUp=Object.hasOwn(payload,"previous_draft_id")||Object.hasOwn(payload,"previous_context_consent");
  const projectRequest=followUp||Object.hasOwn(payload,"workspace_id")||Object.hasOwn(payload,"goal");

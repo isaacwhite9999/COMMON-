@@ -46,6 +46,7 @@
         <pre data-draft></pre>
         <button class="lab-button" type="button" data-save>Save to this project</button>
       </section>
+      <section class="lab-card" aria-label="Planning runs" data-project-runs></section>
       <section class="lab-card" aria-label="Project commands" data-project-commands></section>
       <section aria-label="Saved drafts">
         <h3>Saved project drafts</h3>
@@ -276,6 +277,7 @@
     const close = () => { if (dialog.open) dialog.close(); };
     document.body.append(dialog);
     dialog.showModal();
+    CommonProjectRuns.mount(get('[data-project-runs]'), { client, project, owner, active, enabled });
     CommonProjectCommands.mount(get('[data-project-commands]'), {
       client, project, owner, active,
       apply: enabled ? command => {

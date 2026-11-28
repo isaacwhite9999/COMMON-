@@ -19,3 +19,9 @@ The workflow resumes member-reviewed turns on demand. Automatic planning loops, 
 ### Reusable project commands
 
 Open **Reusable project commands** inside the project assistant to save, edit or delete a template. Its goal and evidence live in the owning project's account storage, so they are available when you reopen Studio. Applying a template fills the editable fields and clears prior consent. In a follow-up it fills evidence only, preserving the original goal. Review what the command inserted and consent before sending a request. With the model disabled, you can still manage commands without contacting a provider.
+
+### Planning run approvals
+
+Open **Planning runs and approvals** in a private project to capture a goal and evidence. Preparing a run saves the inputs privately without contacting the model. Approval shows the exact evidence, requires consent, and is tied to the reviewed run version. Only the Edge Function can claim or complete an attempt. A run has at most two member-approved attempts. A failed or expired attempt can be retried after reviewing the current run. Refresh the run to see work started in another browser or recover a timed-out request.
+
+Cancel a run to revoke the lease and discard later model output. A provider request already in transit may continue and count against quota. Results and run state persist across page reloads. The run executes one planning request and has no background worker or executable tools. Operations must provision the platform-managed `SUPABASE_SERVICE_ROLE_KEY` in the Edge Function environment to enable approved runs. Keep it server-side. The existing model, pilot and quota gates also apply.

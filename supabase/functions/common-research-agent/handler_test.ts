@@ -122,3 +122,48 @@ Deno.test("follow-ups require explicit previous-context consent and an owned sav
  assert(completed.status === 200 && (await completed.json()).step_number === 5);
  assert(calls.filter(call => call === "/v1/responses").length === 1);
 });
+
+Deno.test("approved durable run claims once, uses stored data, and rejects completion after cancel", async () => {
+ const runID = "a3000000-0000-4000-8000-000000000001";
+ const ws = "a3000000-0000-4000-8000-000000000002";
+ const lease = "a3000000-0000-4000-8000-000000000003";
+ const input = {run_id:runID,run_version:2,consent:true,input:"Unapproved injected evidence"};
+ let claim = true, cancelled = false, providerCalls=0, claims=0, upstreamOk=true;
+ const deps = {env:(key:string)=>key==="SUPABASE_SERVICE_ROLE_KEY"?"service-key":vars[key],
+  fetch:(async (address:RequestInfo|URL,init?:RequestInit)=>{
+   const url=new URL(String(address));
+   if(url.pathname==="/auth/v1/user")return Response.json({id:"pilot"});
+   if(url.pathname.endsWith("/claim_research_assistant_run")){
+    claims++;
+    assert(new Headers(init?.headers).get("authorization")==="Bearer service-key");
+    const body=JSON.parse(String(init?.body));
+    assert(body.p_owner==="pilot"&&body.p_version===2&&body.p_id===runID);
+    return Response.json(claim?[{workspace_id:ws,goal:"Approved durable research goal",evidence:"Only the fixed evidence is shared.",lease_token:lease}]:[]);
+   }
+   if(url.pathname==="/rest/v1/research_workspaces")return Response.json([{id:ws}]);
+   if(url.hostname==="redis.example")return Response.json({result:1});
+   if(url.hostname==="api.openai.com"){
+    providerCalls++;
+    const body=JSON.parse(String(init?.body));
+    assert(JSON.parse(body.input).supplied_evidence==="Only the fixed evidence is shared.");
+    return upstreamOk?Response.json({status:"completed",output:[{type:"message",content:[{type:"output_text",text:"Draft"}]}]}):
+     Response.json({}, {status:503});
+   }
+   if(url.pathname.endsWith("/finish_research_assistant_run")){
+    const body=JSON.parse(String(init?.body));
+    assert(body.p_id===runID&&body.p_owner==="pilot"&&body.p_lease===lease);
+    assert(body.p_draft===(upstreamOk?"Draft":null)&&body.p_result_status===(upstreamOk?"complete":null));
+    return Response.json(!cancelled);
+   }
+   throw Error("Unexpected request");
+  }) as typeof fetch};
+ assert((await handleResearch(request({...input,consent:false}),deps)).status===400&&claims===0);
+ claim=false;
+ assert((await handleResearch(request(input),deps)).status===409&&providerCalls===0);
+ claim=true;cancelled=true;
+ assert((await handleResearch(request(input),deps)).status===409&&providerCalls===1);
+ cancelled=false;upstreamOk=false;
+ assert((await handleResearch(request(input),deps)).status===502&&providerCalls===2);
+ upstreamOk=true;
+ assert((await handleResearch(request(input),deps)).status===200&&providerCalls===3);
+});

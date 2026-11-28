@@ -39,13 +39,38 @@ try {
           return {data:{text:followUp?${JSON.stringify(nextDraft)}:${JSON.stringify(draft)},status:'partial',step_number:followUp?2:1}};
         }
       };
-      const key=table=>table==='research_assistant_commands'?'fixture-commands':'fixture-history';
+      const key=table=>table==='research_assistant_commands'?'fixture-commands':
+        table==='research_assistant_runs'?'fixture-runs':'fixture-history';
       const read=table=>JSON.parse(sessionStorage.getItem(key(table))||'[]');
       const persist=(table,rows)=>sessionStorage.setItem(key(table),JSON.stringify(rows));
       const client={
         auth:{getSession:async()=>({data:{session:{user:{id:user}}}}),onAuthStateChange(fn){authChanged=fn}},
-        functions:{invoke(name,{body}){
+        async rpc(name,args){
+          if(name!=='cancel_research_assistant_run')throw Error('Unexpected RPC '+name);
+          const table='research_assistant_runs',rows=read(table);
+          const row=rows.find(item=>item.id===args.p_id&&item.version===args.p_version);
+          if(!row)return {data:false};
+          row.state='cancelled';row.version++;
+          persist(table,rows);
+          return {data:true};
+        },
+        functions:{async invoke(name,{body}){
           if(name!=='common-research-agent')throw Error('Unexpected function '+name);
+          if(body.run_id){
+            const table='research_assistant_runs',rows=read(table);
+            const row=rows.find(item=>item.id===body.run_id&&item.version===body.run_version);
+            if(!row||!body.consent)return {error:new Error('Stale approval')};
+            row.state='running';row.version++;row.attempts++;
+            row.lease_expires_at=new Date(Date.now()+120000).toISOString();
+            persist(table,rows);
+            const upstream=await fixture.model(body);
+            const latest=read(table),current=latest.find(item=>item.id===body.run_id);
+            if(current.state==='cancelled')return {error:new Error('Cancelled')};
+            current.state=upstream.error?'failed':'succeeded';current.version++;
+            if(upstream.data){current.draft=upstream.data.text;current.result_status=upstream.data.status;}
+            persist(table,latest);
+            return upstream;
+          }
           return fixture.model(body);
         }},
         from(table){
@@ -57,6 +82,11 @@ try {
             delete(){removing=true;return query}, update(value){updates=value;return query},
             insert(value){
               if(table==='research_assistant_commands'){command=value;return query}
+              if(table==='research_assistant_runs'){
+                persist(table,[...read(table),{...value,id:crypto.randomUUID(),created_at:'2025-01-01T00:00:00Z',
+                  state:'awaiting_approval',version:1,attempts:0}]);
+                return Promise.resolve({error:null});
+              }
               if(table!=='research_assistant_drafts')throw Error('Unexpected write to '+table);
               persist(table,[...read(table),{step_number:1,...value,id:crypto.randomUUID(),created_at:'2025-01-01T00:00:00Z'}]);
               return Promise.resolve({error:null});
@@ -227,8 +257,50 @@ try {
   await initialTurn.locator('summary').click();
   await deleteTurn(initialTurn);
   await dialog.getByText('No drafts saved in this project.').waitFor();
+  await page.goto(new URL('lab/',base).href);
+  dialog = await open();
+  const runs = dialog.getByRole('region',{name:'Planning runs'});
+  await runs.getByText('Planning runs and approvals').click();
+  await runs.getByText('No planning runs yet.').waitFor();
+  const prepareRun = async runGoal => {
+    await runs.getByLabel('Run goal').fill(runGoal);
+    await runs.getByLabel('Run evidence').fill(evidence);
+    await runs.getByRole('button',{name:'Prepare run'}).click();
+    const item = runs.locator('details[data-run]').filter({hasText:runGoal});
+    await item.locator('summary').click();
+    return item;
+  };
+  const run = await prepareRun('Investigate the future holdout window');
+  assert.equal(await page.evaluate(()=>fixture.calls.length),0);
+  assert.equal(await run.getByRole('button',{name:'Approve and run'}).isDisabled(),true);
+  await run.getByRole('checkbox').check();
+  await run.getByRole('button',{name:'Approve and run'}).click();
+  await run.locator('summary').filter({hasText:'Failed'}).waitFor();
+  assert.equal(await run.getByRole('button',{name:'Approve retry'}).isDisabled(),true);
+  await page.evaluate(()=>{fixture.deny=false});
+  await run.getByRole('checkbox').check();
+  await run.getByRole('button',{name:'Approve retry'}).click();
+  await run.getByText('Version 5 · 2 of 2 attempts').waitFor();
+  await run.getByText(draft,{exact:true}).waitFor();
+
+  const pending = await prepareRun('Cancel a running planning request');
+  await page.evaluate(()=>{fixture.defer=true});
+  await pending.getByRole('checkbox').check();
+  await pending.getByRole('button',{name:'Approve and run'}).click();
+  await page.waitForFunction(()=>typeof fixture.release==='function');
+  await runs.getByRole('button',{name:'Refresh runs'}).click();
+  await pending.locator('summary').filter({hasText:'Running'}).waitFor();
+  page.once('dialog', confirm=>confirm.accept());
+  await pending.getByRole('button',{name:'Cancel run'}).click();
+  await pending.locator('summary').filter({hasText:'Cancelled'}).waitFor();
+  await page.evaluate(()=>fixture.release());
+  assert.equal(await pending.getByText(draft,{exact:true}).count(),0);
+  await page.reload();
+  dialog = await open();
+  await dialog.getByText('Planning runs and approvals').click();
+  await dialog.getByText('Cancel a running planning request · Cancelled').waitFor();
   assert.deepEqual(errors,[]);
-  console.log('PASS mobile project research workflow, opt-in, provider failure, private save, reusable commands, resumed follow-up, isolation, sign-out and disabled-provider history');
+  console.log('PASS mobile project research workflow, opt-in, provider failure, private save, reusable commands, resumed follow-up, isolation, sign-out disabled-provider history and durable approvals');
 } finally {
   await browser.close();
 }
