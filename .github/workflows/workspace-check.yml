@@ -39,6 +39,7 @@ jobs:
           node tests/project-portability.test.mjs
           node tests/project-file-search.test.mjs
           node tests/canvas-browser.test.mjs
+          node tests/canvas-account-browser.test.mjs
           node tests/lab-browser.test.mjs
           node tests/terminal-browser.test.mjs
   agent:
