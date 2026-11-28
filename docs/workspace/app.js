@@ -46,12 +46,13 @@ if(t==='backtest')c=section('Backtest configuration',empty('Upload dated histori
 if(t==='runs')c=section('Execution history',p.runs.length?table(['Run','Holdout return','Sharpe','Drawdown',''],p.runs.map((r,i)=>[day(r.at),pct(r.test.totalReturn),r.test.sharpe==null?'—':r.test.sharpe.toFixed(2),pct(r.test.maxDrawdown),b('inspect:'+p.id+':'+i,'Inspect')])):empty('No completed runs.'));
 if(t==='compare')c=section('Holdout comparison',p.runs.length?table(['Run','Strategy return','Benchmark return','Excess return','Sharpe','Drawdown'],p.runs.map((r,i)=>[b('inspect:'+p.id+':'+i,'Run '+(i+1)),pct(r.test.totalReturn),pct(r.baseline.totalReturn),pct(R.compare(r)[0].difference),r.test.sharpe==null?'—':r.test.sharpe.toFixed(2),pct(r.test.maxDrawdown)])):empty('Run a backtest to compare holdout outcomes.'))+section('Interpretation',empty('Compare runs only when datasets, dates, costs and benchmarks are consistent. Selecting the best historical result after observing the holdout can introduce selection bias.'));if(t==='manage')c=section('Project settings',form('rename:'+p.id,field('name','Project name',p.name))+b('export-source-bundle:'+p.id,'Export source bundle')+' '+b('duplicate-project:'+p.id,'Duplicate project')+' '+b('toggle-project-archive:'+p.id,p.archived?'Restore project':'Archive project')+' '+b('export-project:'+p.id,'Export project')+b('delete-project:'+p.id,'Delete project'));
 return head(p.name,'Source notes, reproducible research and execution history.')+a('research','← All projects')+tabs(base,[['notes','Research notes'],['files','Project files'],['notebook','Research notebook'],['python','Python lab'],['backtest','Backtest'],['validation','Validation lab'],['runs','Run history'],['compare','Compare runs'],['manage','Project settings']],t)+c;}
-case 'portfolio':{const t=['positions','orders','risk','manage'].includes(sub)?sub:'positions',al=M.allocation(s);let c='';
+case 'portfolio':{const t=['positions','orders','risk','optimize','manage'].includes(sub)?sub:'positions',al=M.allocation(s);let c='';
 if(t==='positions')c='<div class="grid">'+section('Hypothetical cash','<span class="metric">'+money(s.cash)+'</span>')+section('Scenario equity','<span class="metric">'+money(al.total)+'</span>'+empty('Marked at simulated execution prices, not live quotes.'))+'</div>'+section('Positions',al.rows.length?table(['Symbol','Shares','Scenario value'],al.rows.map(r=>[esc(r.ticker),r.quantity,money(r.value)])):empty('No simulated positions.'));
 if(t==='orders')c=section('Simulated execution ticket',form('trade','<div class="grid">'+field('symbol','Ticker')+select('side','Side',[['buy','Buy'],['sell','Sell']],'buy')+field('quantity','Quantity')+field('price','Hypothetical price (USD)')+'</div>'+empty('Simulated fee: '+s.settings.fee+' bps. No broker connection.'),'Record simulated execution'))+section('Transaction ledger',s.orders.length?table(['Symbol','Side','Quantity','Price','Fee'],s.orders.slice().reverse().map(o=>[esc(o.symbol),esc(o.side),o.quantity,money(o.price),money(o.fee)])):empty('No transactions.'));
 if(t==='risk')c=section('Scenario concentration',al.rows.length?al.rows.map(r=>'<div><div class="row between"><strong>'+esc(r.ticker)+'</strong><span>'+pct(r.weight)+'</span></div><div class="bar"><span style="width:'+Math.min(100,Math.max(0,r.weight*100))+'%"></span></div></div>').join(''):empty('Create positions to calculate weights.'))+section('Methodology',empty('Scenario concentration only. Volatility and VaR require real historical data.'));
+if(t==='optimize')c=allocationDesk(id,detail);
 if(t==='manage')c=section('Simulation account',b('export-ledger','Export ledger')+b('reset-paper','Reset hypothetical cash and orders'));
-return head('Portfolio laboratory','Evaluate hypothetical positions and allocation.')+note+tabs('portfolio',[['positions','Positions'],['orders','Orders & ledger'],['risk','Concentration'],['manage','Account settings']],t)+c;}
+return head('Portfolio laboratory','Evaluate hypothetical positions and allocation.')+note+tabs('portfolio',[['positions','Positions'],['orders','Orders & ledger'],['risk','Concentration'],['optimize','Optimization'],['manage','Account settings']],t)+c;}
 case 'ownership':return head('Shareholder intelligence','Understand who owns a company, how it is governed and what ownership means.')+tabs('ownership',[['filings','Filings'],['rights','Shareholder rights'],['memo','Research memoranda']],sub||'filings')+(sub==='memo'?memos():sub==='rights'?section('Voting and governance',empty('Review record dates, share classes and issuer proxy materials. A community poll is not a legal proxy vote.')+external('https://www.investor.gov/','Investor education')):section('Primary issuer evidence',external('https://www.sec.gov/edgar/search/','Find SEC filings and proxy statements')+empty('DEF 14A, 10-K, 13D/G and 13F are distinct disclosure types.')));
 case 'collectives':return head('Investment collectives','Organize research, collective capital planning and transparent deliberation.')+tabs('collectives',[['groups','Member groups'],['memo','Memorandum drafts'],['rules','Governance principles']],sub||'groups')+(sub==='memo'?memos():sub==='rules'?section('Ownership charter',empty('Disclose conflicts, preserve dissent and exit rights, document mandates and prevent governance capture.')+external('../OWNERSHIP_CHARTER.md','Read COMMON ownership charter')):section('Shared communities',external('../live/','Open authenticated circles and capital planning')+empty('Open a joined circle, then Capital & treasury to model pooled capital and review investment scenarios. No actual deposits or trades are enabled.')));
 case 'social':return head('Member network','Discover real research communities and participate in discussion.')+section('Authenticated community',external('../live/','Open member application')+empty('Shared member data remains in the existing authenticated application.'));
@@ -62,7 +63,87 @@ let datasets=[],dataError='',dataLoaded=false;
 async function refreshDatasets(){try{datasets=await D.all();dataError='';}catch(e){dataError=e.message;}dataLoaded=true;}
 function datasetInput(label){return '<label>Saved dataset<select name="dataset"><option value="">Upload a new CSV</option>'+datasets.map(d=>'<option value="'+esc(d.id)+'">'+esc((d.symbol?d.symbol+' · ':'')+d.name+' · '+d.diagnostics.rows+' rows')+'</option>').join('')+'</select></label><label>'+esc(label)+'<input name="csv" type="file" accept=".csv,text/csv"></label><p class="muted">Choose one saved dataset or upload a CSV, not both. '+a('datasets','Manage datasets')+'</p>';}
 async function resolveSource(d){const hasFile=Boolean(d.csv?.size),hasDataset=Boolean(d.dataset);if(hasFile===hasDataset)throw Error('Choose exactly one saved dataset or upload one CSV.');if(hasDataset){const row=await D.get(d.dataset);if(!row)throw Error('Saved dataset no longer exists.');return {source:row.source,name:row.name};}if(d.csv.size>D.MAX_BYTES)throw Error('CSV exceeds 16 MB.');return {source:await d.csv.text(),name:d.csv.name};}
-function riskDesk(sub,tab){const runs=s.riskRuns||[],r=runs.find(x=>x.id===sub),base='risk/'+sub;if(!r){const choices=datasets.map(d=>'<option value="'+esc(d.id)+'">'+esc((d.symbol?d.symbol+' · ':'')+d.name)+'</option>').join('');const fields=Array.from({length:8},(_,i)=>'<div class="risk-input-row"><label>Asset '+(i+1)+'<select aria-label="Asset '+(i+1)+'" name="asset'+i+'"><option value="">Not selected</option>'+choices+'</select></label><label>Target weight (%)<input aria-label="Target weight for asset '+(i+1)+' (%)" name="weight'+i+'" type="number" min="0" max="100" step="any" value="'+(i<2?'50':'0')+'"></label></div>').join('');return head('Multi-asset risk laboratory','Compare exposures before committing capital.')+section('Historical portfolio model',empty('Select 2–8 saved datasets. The model aligns identical return intervals and estimates historical covariance, correlations and downside risk.')+a('datasets','Manage source data')+(datasets.length>=2?form('risk-run',fields+'<div class="grid">'+field('capital','Hypothetical capital (USD)',100000,'number')+field('fee','Execution cost (bps)',s.settings.fee,'number')+'</div>','Calculate portfolio risk'):empty('Import at least two distinct daily CSV datasets to begin.')))+section('Risk research history',runs.length?table(['Date','Assets','Annual volatility','Historical VaR (95%)',''],runs.slice().reverse().map(x=>[day(x.at),x.assets.length,pct(x.annualVolatility),pct(x.var95),a('risk/'+x.id+'/overview','Inspect')])):empty('No risk reports saved.'));}
+const allocationObjectives=[['minimum-variance','Minimum variance'],['target-return','Target historical return']];
+const covarianceChoices=[['sample','Historical sample covariance'],['shrinkage','20% diagonal shrinkage']];
+const allocationSelect=(name,label,choices,value)=>select(name,label,choices,value).replace('<select ','<select aria-label="'+esc(label)+'" ');
+const allocationLabel=(items,value)=>items.find(([key])=>key===value)?.[1]||value;
+function allocationChart(report,selected){
+ const points=[...report.frontier,report.current,selected],width=560,height=255,pad=54;
+ const xValues=points.map(point=>point.annualVolatility),yValues=points.map(point=>point.annualReturn);
+ const minX=Math.min(...xValues),maxX=Math.max(...xValues),minY=Math.min(...yValues),maxY=Math.max(...yValues);
+ const pos=(value,min,max,span)=>max===min?span/2:(value-min)/(max-min)*span;
+ const x=point=>pad+pos(point.annualVolatility,minX,maxX,width-2*pad);
+ const y=point=>height-pad-pos(point.annualReturn,minY,maxY,height-2*pad);
+ const path=report.frontier.map(point=>x(point)+' '+y(point)).join(' ');
+ const dot=(point,fill)=>'<circle cx="'+x(point)+'" cy="'+y(point)+'" r="5" fill="'+fill+'"/>';
+ return '<figure class="report-chart allocation-chart"><svg viewBox="0 0 '+width+' '+height+'" role="img" aria-label="Historical annual return against annual volatility. Point values are shown in the frontier table.">'+
+  '<path d="M '+pad+' '+pad+' V '+(height-pad)+' H '+(width-pad)+'" fill="none" stroke="var(--muted)"/>'+
+  '<polyline points="'+path+'" fill="none" stroke="var(--accent)" stroke-width="2"/>'+
+  report.frontier.map(point=>dot(point,'var(--accent)')).join('')+dot(report.current,'var(--muted)')+
+  '<circle cx="'+x(selected)+'" cy="'+y(selected)+'" r="8" fill="none" stroke="var(--ink)" stroke-width="2"/>'+
+  '<g fill="var(--muted)" font-size="12"><text x="'+pad+'" y="26">Annual return</text>'+
+  '<text x="'+(width/2)+'" y="'+(height-17)+'" text-anchor="middle">Annual volatility</text>'+
+  '<text x="'+pad+'" y="'+(height-pad+17)+'" text-anchor="start">'+pct(minX)+'</text>'+
+  '<text x="'+(width-pad)+'" y="'+(height-pad+17)+'" text-anchor="end">'+pct(maxX)+'</text>'+
+  '<text x="'+(pad-6)+'" y="'+(pad-10)+'" text-anchor="end">'+pct(maxY)+'</text>'+
+  '<text x="'+(pad-6)+'" y="'+(height-pad)+'" text-anchor="end">'+pct(minY)+'</text></g>'+
+  '</svg><figcaption class="muted">Frontier points · muted point for current weights · ring for the allocation under comparison</figcaption></figure>';
+}
+function allocationDesk(reportId,pointId){
+ const runs=s.allocationRuns||[],report=runs.find(run=>run.id===reportId);
+ const path='portfolio/optimize';
+ if(report){
+  const index=pointId!==undefined&&/^[0-6]$/.test(pointId)?Number(pointId):-1;
+  const selected=report.frontier[index]||report.optimized;
+  const sourceLabel=index>=0&&report.frontier[index]?'Frontier point '+(index+1):allocationLabel(allocationObjectives,report.objective);
+  const turnover=selected.weights.reduce((sum,w,i)=>sum+Math.abs(w-report.current.weights[i]),0)/2;
+  const weightChange=value=>(value>1e-8?'+':'')+pct(Math.abs(value)<1e-8?0:value);
+  return a(path,'← Allocation laboratory')+
+   section('Allocation comparison',empty(sourceLabel+' · in-sample comparison · '+report.observations+' matched return intervals')+
+     table(['Model estimate','Current allocation','Selected allocation'],[
+       ['Historical annual arithmetic return',pct(report.current.annualReturn),pct(selected.annualReturn)],
+       ['Historical annual volatility',pct(report.current.annualVolatility),pct(selected.annualVolatility)],
+     ])+table(['Asset','Current weight','Selected weight','Weight change'],report.assets.map((asset,i)=>[
+       esc(asset.label),pct(report.current.weights[i]),pct(selected.weights[i]),weightChange(selected.weights[i]-report.current.weights[i]),
+     ]))+empty('One-way turnover: '+pct(turnover)+'. Weight changes are a hypothetical rebalance preview. Costs and execution are excluded.'))+
+   section('Historical efficient frontier',allocationChart(report,selected)+
+     table(['Point','Annual volatility','Annual arithmetic return','Allocation'],report.frontier.map((point,i)=>[
+       String(i+1),pct(point.annualVolatility),pct(point.annualReturn),a(path+'/'+report.id+'/'+i,'Compare point '+(i+1)),
+     ]))+a(path+'/'+report.id,'Compare saved objective'))+
+   section('Covariance and provenance',empty(report.first+' to '+report.last+' · '+report.annualization+' intervals per year · '+report.version)+
+     table(['Assumption','Value'],[
+       ['Objective',esc(allocationLabel(allocationObjectives,report.objective))],
+       ['Required historical return',report.target===null?'—':pct(report.target)],
+       ['Weight bounds per asset',pct(report.minimum)+' to '+pct(report.maximum)],
+       ['Covariance',esc(allocationLabel(covarianceChoices,report.covarianceModel))],
+       ['Numerical ridge on each diagonal',esc(report.ridge.toExponential())+' × average asset variance'],
+     ])+table(['Asset',...report.assets.map(asset=>asset.label)],report.covariance.map((row,i)=>[esc(report.assets[i].label),...row.map(value=>esc(value.toExponential(4)))]))+
+     empty('Annualized sample covariance of aligned simple-return intervals in decimal return squared. Missing and nonmatching intervals are omitted. Corporate-action quality depends on the imported CSV. Historical estimates use the same sample for fitting and comparison and do not predict future returns.')+
+     table(['Dataset','Price basis','Excluded intervals','SHA-256'],report.assets.map(asset=>[
+      esc(asset.label),asset.priceBasis==='adjusted-close'?'Adjusted close':asset.priceBasis==='close'?'Close':'Unspecified',
+      String(asset.availableIntervals-report.observations),esc(asset.id),
+     ]))+
+     '<div class="row">'+b('export-allocation:'+report.id,'Export allocation report')+b('delete-allocation:'+report.id,'Delete allocation report')+'</div>');
+ }
+ const pending=activeQuant?.id==='allocation';
+ const choices=[['','Not selected'],...datasets.map(dataset=>[dataset.id,(dataset.symbol?dataset.symbol+' · ':'')+dataset.name])];
+ const assets=Array.from({length:8},(_,i)=>'<div class="risk-input-row">'+allocationSelect('asset'+i,'Optimization asset '+(i+1),choices,'')+
+   '<label>Current weight for asset '+(i+1)+' (%)<input name="weight'+i+'" type="number" min="0" max="100" step="any" value="'+(i<2?50:0)+'"></label></div>');
+ return (reportId?empty('This allocation report could not be found in this browser.'):'')+section('Portfolio allocation optimizer',empty('Select 2–8 daily datasets and enter current long-only weights totaling 100%. Current weights are a scenario for comparison. Optimization assumes the selected assets are fully invested.')+
+   a('datasets','Manage source data')+(dataError?empty(dataError)+b('reload-datasets','Retry'):datasets.length>=2?form('allocation-run',assets.join('')+
+     '<div class="grid">'+allocationSelect('objective','Objective',allocationObjectives,'minimum-variance')+
+     allocationSelect('covarianceModel','Covariance estimate',covarianceChoices,'sample')+
+     '<label>Minimum weight per asset (%)<input name="minimum" type="number" min="0" max="100" step="any" value="0" required></label>'+
+     '<label>Maximum weight per asset (%)<input name="maximum" type="number" min="0" max="100" step="any" value="100" required></label></div>'+
+     '<label data-allocation-target hidden>Required annual historical return (%)<input name="target" type="number" step="any" disabled required></label>'+
+     '<p class="muted">The optimizer uses sample returns and excludes taxes, fees, transaction costs and liquidity constraints.</p>'+
+     (M.allocation(s).rows.length?b('use-simulated-allocation','Use simulated invested weights'):''),
+     'Optimize portfolio')+'<p id="allocation-progress" role="status" class="muted">'+(pending?'Calculating allocation and frontier…':'')+'</p><button type="button" data-act="cancel-quant:allocation" '+(pending?'':'hidden')+'>Cancel optimization</button>':empty('Import at least two distinct daily CSV datasets to begin.')))+
+   section('Saved allocation reports',runs.length?table(['Date','Objective','Annual volatility',''],runs.slice().reverse().map(run=>[
+     day(run.at),esc(allocationLabel(allocationObjectives,run.objective)),pct(run.optimized.annualVolatility),a(path+'/'+run.id,'Inspect allocation'),
+   ])):empty('No allocation reports saved.'));
+}
+function riskDesk(sub,tab){const runs=s.riskRuns||[],r=runs.find(x=>x.id===sub),base='risk/'+sub;if(!r){const choices=datasets.map(d=>'<option value="'+esc(d.id)+'">'+esc((d.symbol?d.symbol+' · ':'')+d.name)+'</option>').join('');const fields=Array.from({length:8},(_,i)=>'<div class="risk-input-row"><label>Asset '+(i+1)+'<select aria-label="Asset '+(i+1)+'" name="asset'+i+'"><option value="">Not selected</option>'+choices+'</select></label><label>Target weight (%)<input aria-label="Target weight for asset '+(i+1)+' (%)" name="weight'+i+'" type="number" min="0" max="100" step="any" value="'+(i<2?'50':'0')+'"></label></div>').join('');return head('Multi-asset risk laboratory','Compare exposures before committing capital.')+section('Historical portfolio model',empty('Select 2–8 saved datasets. The model aligns identical return intervals and estimates historical covariance, correlations and downside risk.')+'<div class="row">'+a('datasets','Manage source data')+a('portfolio/optimize','Optimize allocation')+'</div>'+(datasets.length>=2?form('risk-run',fields+'<div class="grid">'+field('capital','Hypothetical capital (USD)',100000,'number')+field('fee','Execution cost (bps)',s.settings.fee,'number')+'</div>','Calculate portfolio risk'):empty('Import at least two distinct daily CSV datasets to begin.')))+section('Risk research history',runs.length?table(['Date','Assets','Annual volatility','Historical VaR (95%)',''],runs.slice().reverse().map(x=>[day(x.at),x.assets.length,pct(x.annualVolatility),pct(x.var95),a('risk/'+x.id+'/overview','Inspect')])):empty('No risk reports saved.'));}
 const current=['overview','correlation','exposure','downside','method'].includes(tab)?tab:'overview';let c='';if(current==='overview')c=section('Historical risk profile','<div class="report-kpis">'+[['Annual volatility',pct(r.annualVolatility)],['Sharpe',Number.isFinite(r.sharpe)?r.sharpe.toFixed(2):'—'],['Net modeled return',pct(r.netReturn)],['Maximum drawdown',pct(r.maxDrawdown)]].map(([k,v])=>'<div><span class="eyebrow">'+k+'</span><strong>'+v+'</strong></div>').join('')+'</div>'+empty(r.observations+' aligned return intervals · '+r.dates[0]+' to '+r.dates.at(-1))+empty(r.warning));
 if(current==='correlation')c=section('Historical correlation matrix',table(['Asset',...r.assets.map(x=>x.label)],r.correlation.map((row,i)=>[esc(r.assets[i].label),...row.map(x=>x===null?'—':'<span class="corr-cell" style="background:rgba('+(x>=0?'95,151,118,':'189,103,98,')+Math.min(.65,Math.abs(x)*.65)+')">'+x.toFixed(2)+'</span>')]))+empty('Pearson correlations of aligned simple returns. Correlation is not causation or a stable future relationship.'));
 if(current==='exposure')c=section('Target allocation and variance contributions',table(['Asset','Weight','Annual volatility','Share of portfolio variance'],r.assets.map(x=>[esc(x.label),pct(x.weight),pct(x.annualVol),pct(x.riskContribution)]))+empty('Variance contributions may be negative for diversifying assets. They sum to 100% if portfolio variance is positive.'));
@@ -171,7 +252,7 @@ if(current==='regimes')content=section('Historical market regimes',run.regimes?t
 if(current==='trades')content=section('Simulated position changes',run.trades?table(['Execution date','Signal date','Action','Hypothetical close','Cost (bps)','Fold'],run.trades.slice(-200).reverse().map(x=>[esc(x.date),esc(x.signalDate),esc(x.side),x.price.toFixed(4),(x.feeFraction*10000).toFixed(2),x.fold]))+empty('Showing up to 200 latest changes of '+run.trades.length+'. Full ledger in JSON export. Positions are modeled at the preceding close, not actual trades. No forced close at the final date.'):empty('This legacy result does not contain a transaction log.'));
 return a(base,'← Validation history')+tabs(base+'/'+run.id,[['performance','Performance'],['folds','Walk-forward folds'],['parameters','Parameter grid'],['regimes','Market regimes'],['trades','Trade log'],['source','Data & methods']],current)+content;}
 let activeQuant=null;
-function startQuant(source,name,config,id){if(activeQuant)throw Error('An analysis is already running.');return new Promise((resolve,reject)=>{const worker=new Worker('quant-worker.js');const finish=(error,result)=>{if(activeQuant?.worker!==worker)return;clearTimeout(activeQuant.timer);activeQuant=null;worker.terminate();error?reject(Error(error)):resolve(result);};const timer=setTimeout(()=>finish('Analysis exceeded the 60-second compute limit.'),60000);activeQuant={worker,timer,id,cancel:()=>finish('Analysis cancelled.')};worker.onmessage=e=>{const x=e.data;x.ok?finish(null,x.result):finish(x.error||'Analysis failed.');};worker.onerror=()=>finish('Research worker failed.');worker.postMessage({source,name,config});});}
+function startQuant(message,id){if(activeQuant)throw Error('An analysis is already running.');return new Promise((resolve,reject)=>{const worker=new Worker('quant-worker.js');const finish=(error,result)=>{if(activeQuant?.worker!==worker)return;clearTimeout(activeQuant.timer);activeQuant=null;worker.terminate();error?reject(Error(error)):resolve(result);};const timer=setTimeout(()=>finish('Analysis exceeded the 60-second compute limit.'),60000);activeQuant={worker,timer,id,cancel:()=>finish('Analysis cancelled.')};worker.onmessage=e=>{const x=e.data;x.ok?finish(null,x.result):finish(x.error||'Analysis failed.');};worker.onerror=()=>finish('Research worker failed.');worker.postMessage(message);});}
 function memos(){return section('Private investment memoranda',form('memo',field('title','Title')+area('thesis','Evidence, assumptions, risks and conflicts'),'Save draft')+(s.proposals.length?table(['Title','Status',''],s.proposals.map(p=>[esc(p.title),esc(p.status),b('memo:'+p.id,'Open')])):empty('No private drafts.')));}
 function settings(sub){const t=['appearance','research','integrations','data'].includes(sub)?sub:'appearance',v=s.settings;let c='';
 if(t==='appearance')c=form('settings',select('theme','Theme',[['dark','Dark'],['light','Light']],v.theme)+select('density','Density',[['standard','Standard'],['compact','Compact']],v.density));
@@ -270,6 +351,31 @@ document.addEventListener('click',e=>{const el=e.target.closest('[data-act]');if
 case 'menu':document.querySelector('#side').classList.toggle('open');break;
 case 'close':dialog.close();break;
 case 'search':show('Search workspace','<label>Find a section<input id="query" type="search"></label><div id="results">'+routes.map(([k,t])=>a(k,t,'nav')).join('')+'</div>');dialog.querySelector('#query').addEventListener('input',ev=>{dialog.querySelector('#results').innerHTML=routes.filter(r=>r[1].toLowerCase().includes(ev.target.value.toLowerCase())).map(([k,t])=>a(k,t,'nav')).join('');});dialog.querySelector('#query').focus();break;
+case 'use-simulated-allocation':{
+ const allocationForm=el.closest('form'),fields=allocationForm.elements,held=M.allocation(s).rows;
+ const assets=Array.from({length:8},(_,slot)=>({slot,dataset:datasets.find(dataset=>dataset.id===fields['asset'+slot].value)})).filter(asset=>asset.dataset);
+ const symbols=assets.map(asset=>asset.dataset.symbol);
+ if(!assets.length||symbols.some(symbol=>!symbol)||new Set(symbols).size!==symbols.length||!held.length||held.some(position=>!symbols.includes(position.ticker)))
+   throw Error('Choose datasets with distinct symbol labels and include each simulated position.');
+ const total=held.reduce((sum,position)=>sum+position.value,0);
+ for(const asset of assets){
+  const value=held.find(position=>position.ticker===asset.dataset.symbol)?.value||0;
+  fields['weight'+asset.slot].value=100*(value/total);
+ }
+ toast('Simulated weights copied for the invested sleeve. Cash is excluded.');
+ break;
+}
+case 'export-allocation':{
+ const report=(s.allocationRuns||[]).find(run=>run.id===id);
+ if(report)exportData('common-allocation-report.json',report);
+ break;
+}
+case 'delete-allocation':
+ if(confirm('Delete this saved allocation report?')){
+  save({...s,allocationRuns:(s.allocationRuns||[]).filter(run=>run.id!==id)});
+  location.hash='portfolio/optimize';
+ }
+ break;
 case 'export-risk':{const r=(s.riskRuns||[]).find(x=>x.id===id);if(r)exportData('common-risk-report.json',r);break;}
 case 'delete-risk':if(confirm('Delete risk report?')){save({...s,riskRuns:(s.riskRuns||[]).filter(x=>x.id!==id)});location.hash='risk';}break;
 case 'reload-datasets':refreshDatasets().then(render);break;
@@ -324,6 +430,41 @@ dialog.addEventListener('close',()=>{if(!dialog.open)dialog.replaceChildren();})
 dialog.addEventListener('click',e=>{if(e.target.closest('a[href^="#"]'))dialog.close();});
 document.addEventListener('submit',async e=>{const f=e.target.closest('form[data-form]');if(!f)return;e.preventDefault();const [act,id,detail]=f.getAttribute('data-form').split(':'),d=Object.fromEntries(new FormData(f)),submit=f.querySelector('button[type=submit],button.primary');if(submit)submit.disabled=true;try{switch(act){
 case 'handoff':if(CommonResearchDraft.stage({title:d.title.trim().slice(0,160),body:d.body.trim()}))location.assign('../live/');break;
+case 'allocation-run':{
+ if(activeQuant)throw Error('An analysis is already running.');
+ if((s.allocationRuns||[]).length>=10)throw Error('Export and delete an existing allocation report before starting another (limit ten).');
+ const ids=Array.from({length:8},(_,slot)=>d['asset'+slot]).filter(Boolean);
+ if(ids.length<2||new Set(ids).size!==ids.length)throw Error('Choose two to eight distinct datasets.');
+ const assets=[];
+ for(let slot=0;slot<8;slot++){
+  const datasetId=d['asset'+slot];
+  if(!datasetId)continue;
+  const entered=d['weight'+slot];
+  if(entered==='')throw Error('Enter a current weight for each selected asset.');
+  const row=await D.get(datasetId);
+  if(!row)throw Error('Source dataset removed.');
+  assets.push({id:row.id,label:row.symbol||row.name,weight:Number(entered)/100,source:row.source});
+ }
+ if(activeQuant)throw Error('An analysis is already running.');
+ const config={objective:d.objective,covarianceModel:d.covarianceModel,minimum:Number(d.minimum)/100,maximum:Number(d.maximum)/100,
+  target:d.target?.trim()?Number(d.target)/100:null};
+ const progress=document.querySelector('#allocation-progress'),cancel=app.querySelector('[data-act="cancel-quant:allocation"]');
+ if(progress)progress.textContent='Calculating allocation and frontier…';
+ if(cancel)cancel.hidden=false;
+ let result;
+ try{
+  result=await startQuant({operation:'allocation',assets,config},'allocation');
+ }finally{
+  const statusNode=app.querySelector('#allocation-progress'),cancelButton=app.querySelector('[data-act="cancel-quant:allocation"]');
+  if(statusNode)statusNode.textContent='';
+  if(cancelButton)cancelButton.hidden=true;
+ }
+ const report={id:crypto.randomUUID(),at:new Date().toISOString(),...result};
+ if((s.allocationRuns||[]).length>=10)throw Error('Allocation report capacity reached.');
+ save({...s,allocationRuns:[...(s.allocationRuns||[]),report]});
+ location.hash='portfolio/optimize/'+report.id;
+ break;
+}
 case 'risk-run':{if((s.riskRuns||[]).length>=10)throw Error('Export and delete an existing report before adding another (limit ten).');const chosen=[];for(let i=0;i<8;i++){if(!d['asset'+i])continue;const row=await D.get(d['asset'+i]);if(!row)throw Error('Dataset not found.');if(d['weight'+i]==='')throw Error('Enter each selected weight.');chosen.push({id:row.id,label:row.symbol||row.name,weight:Number(d['weight'+i])/100,bars:E.parseCsv(row.source).bars});}const report={id:crypto.randomUUID(),at:new Date().toISOString(),...K.analyze(chosen,{capital:d.capital,fee:d.fee})};save({...s,riskRuns:[...(s.riskRuns||[]),report]});location.hash='risk/'+report.id+'/overview';break;}
 case 'import-dataset':{if(d.csv.size>D.MAX_BYTES)throw Error('CSV exceeds 16 MB.');const row=await D.inspect(await d.csv.text(),d.csv.name,d.symbol,E);const result=await D.put(row);await refreshDatasets();location.hash='datasets/'+result.id+'/overview';render();break;}
 case 'execute-python':{
@@ -352,7 +493,7 @@ case 'execute-python-cell':{
 case 'save-cell':{const p=s.projects.find(x=>x.id===id);if(!p)throw Error('Project not found.');const next=N.write(p,d,detail);update(id,()=>next);location.hash='research/'+id+'/notebook';break;}
 case 'new-file':{const p=s.projects.find(x=>x.id===id);if(!p)throw Error('Project not found.');const next=F.write(p,d.path,d.content);update(id,()=>next);location.hash='research/'+id+'/files/'+next.files.at(-1).id;break;}
 case 'edit-file':update(id,p=>F.write(p,d.path,d.content,detail));break;
-case 'validate':{if(activeQuant)throw Error('An analysis is already running.');if((s.projects.find(p=>p.id===id)?.validations||[]).length>=5)throw Error('Export and delete an existing validation report before starting another (limit five per project).');const {source,name}=await resolveSource(d);const progress=document.querySelector('#quant-progress');if(progress)progress.textContent='Computing parameter grid and walk-forward folds in background worker…';const result=await startQuant(source,name,{fast:d.fast,slow:d.slow,train:d.train,test:d.test,fee:d.fee},id);if(!s.projects.some(p=>p.id===id))throw Error('Project was removed.');update(id,p=>({...p,validations:[...(p.validations||[]),result]}));location.hash='research/'+id+'/validation/'+result.id;break;}
+case 'validate':{if(activeQuant)throw Error('An analysis is already running.');if((s.projects.find(p=>p.id===id)?.validations||[]).length>=5)throw Error('Export and delete an existing validation report before starting another (limit five per project).');const {source,name}=await resolveSource(d);const progress=document.querySelector('#quant-progress');if(progress)progress.textContent='Computing parameter grid and walk-forward folds in background worker…';const result=await startQuant({source,name,config:{fast:d.fast,slow:d.slow,train:d.train,test:d.test,fee:d.fee}},id);if(!s.projects.some(p=>p.id===id))throw Error('Project was removed.');update(id,p=>({...p,validations:[...(p.validations||[]),result]}));location.hash='research/'+id+'/validation/'+result.id;break;}
 case 'watch':{const x=M.symbol(d.symbol);if(s.watch.includes(x))throw Error('Already tracked.');save({...s,watch:[...s.watch,x]});break;}
 case 'import-project':{const file=d.bundle;if(!file?.size||file.size>CommonProjectBundle.MAX_BYTES)throw Error('Choose a project source bundle up to 2 MB.');const p=CommonProjectBundle.restore(CommonProjectBundle.read(await file.text()),M.project);save({...s,projects:[...s.projects,p]});location.hash='research/'+p.id+'/notes';break;}
 case 'project':{const p=M.project(d.name);p.notes=Object.hasOwn(CommonProjectBundle.templates,d.template)?CommonProjectBundle.templates[d.template]:'';save({...s,projects:[...s.projects,p]});location.hash='research/'+p.id+'/notes';break;}
@@ -364,7 +505,13 @@ case 'memo':save({...s,proposals:[...s.proposals,M.proposal(d.title,d.thesis)]})
 case 'edit-memo':save({...s,proposals:s.proposals.map(p=>p.id===id?{...M.proposal(d.title,d.thesis),id}:p)});break;
 case 'settings':save(M.settings(s,d));break;
 }if(dialog.open)dialog.close();toast('Saved to this browser.');}catch(err){const progress=f.getAttribute('data-form').startsWith('validate:')?document.querySelector('#quant-progress'):null;if(progress)progress.textContent=err.message;toast(err.message);}finally{if(submit)submit.disabled=false;}});
-document.addEventListener('change',e=>{const el=e.target.closest('[data-python-file]');if(el)location.hash=el.dataset.pythonFile+(el.value?'/'+el.value:'');
+document.addEventListener('change',e=>{
+const objective=e.target.closest('form[data-form="allocation-run"] select[name="objective"]');
+if(objective){
+ const target=objective.form.querySelector('[data-allocation-target]');
+ target.hidden=target.querySelector('input').disabled=objective.value!=='target-return';
+}
+const el=e.target.closest('[data-python-file]');if(el)location.hash=el.dataset.pythonFile+(el.value?'/'+el.value:'');
 const cellEditor=e.target.closest('form[data-form^="save-cell:"] select[name="kind"]');
 if(cellEditor){
   const f=cellEditor.form,kind=cellEditor.value;
