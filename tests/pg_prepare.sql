@@ -1,6 +1,7 @@
 -- Ephemeral CI database that emulates the minimum Supabase Auth interfaces.
 CREATE ROLE authenticated NOLOGIN;
 CREATE ROLE anon NOLOGIN;
+CREATE ROLE service_role NOLOGIN;
 CREATE SCHEMA extensions;
 CREATE SCHEMA auth;
 CREATE TABLE auth.users (
