@@ -21,3 +21,8 @@ dialog.wide-report{width:min(1000px,calc(100% - 28px));padding:24px}
 .file-search-check input { width: auto; min-height: 0; }
 .file-search-preview { white-space: pre-wrap; overflow-wrap: anywhere; }
 [data-file-replacement] fieldset { min-width: 0; border: 0; padding: 0; }
+
+.allocation-chart{margin:0}
+.allocation-chart svg{max-width:780px}
+.allocation-chart figcaption{padding-top:8px}
+[data-allocation-target][hidden]{display:none}
