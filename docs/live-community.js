@@ -10,11 +10,14 @@ const e=s=>String(s??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&g
 const short=(s,n=80)=>String(s??'').slice(0,n);
 const el=(tag,attrs={},text)=>{const node=document.createElement(tag);for(const [k,v] of Object.entries(attrs))node.setAttribute(k,v);if(text!==undefined)node.textContent=text;return node};
 const icons={
- home:'⌂',groups:'◎',chat:'◉',ownership:'◇',invest:'↗',studio:'⌇',agent:'◇',money:'\u0024',learn:'?',profile:'◍',add:'＋',safety:'⚑'
+ home:'⌂',groups:'◎',chat:'◉',ownership:'◇',invest:'↗',studio:'⌇',agent:'◇',money:'\u0024',learn:'?',profile:'◍',add:'＋',safety:'⚑',notifications:'◈'
 };
-let blockedMembers=[],bookmarks=[],memberDetail=null,profileSection='identity',memberDirectory=[],mobileMore=false;let agentOutput=null,agentInput='',agentMode='review',agentSending=false,agentDeskTab='analysis',agentDesk=CommonAgentDesk.initial(),agentDeskOwner=null,agentLastRequest=null;let client=null,session=null,profile=null,groups=[],memberships=[],posts=[],proposals=[],projects=[],watches=[],people={},likes=[],messages=[],dm=[],selectedGroup=null,selectedPeer=null,view='home',busy=false,search='',error='',info='',pendingInvite=null,memberPoll=[],pollSelection=null,lastAuthView='signin',pollTimer,recovering=false,moderationCases=[],moderationAppeals=[],accountRestrictions=[],googleProviderStatus='checking';
-const capitalDrafts=new Map();let capitalTab='overview';let ledgerRows=[],ledgerCircle=null,ledgerError='',ledgerLoading=false;let decisionDetail=null,pollRows=[],pollOwn=null;
+let blockedMembers=[],bookmarks=[],memberDetail=null,profileSection='identity',memberDirectory=[],mobileMore=false;let agentOutput=null,agentInput='',agentMode='review',agentSending=false,agentDeskTab='analysis',agentDesk=CommonAgentDesk.initial(),agentDeskOwner=null,agentLastRequest=null;let client=null,session=null,profile=null,groups=[],memberships=[],proposals=[],projects=[],watches=[],people={},messages=[],dm=[],selectedGroup=null,selectedPeer=null,view='home',busy=false,search='',error='',info='',pendingInvite=null,memberPoll=[],pollSelection=null,lastAuthView='signin',recovering=false,moderationCases=[],moderationAppeals=[],accountRestrictions=[],googleProviderStatus='checking';
+const capitalDrafts=new Map();let capitalTab='overview';let ledgerRows=[],ledgerCircle=null,ledgerError='',ledgerLoading=false;let decisionDetail=null,pollRows=[],pollOwn=null,governanceMemo=null;let ledgerStatement=null;
 const state={directory:'mine',feed:'mine',groupTab:'posts',comments:null,composer:false,groupCreate:false,projectCreate:false,proposalCreate:false,inviteToken:null,showMembers:false};
+let researchReview=null,pollDraft=null,composerDraft=null;
+let messagePrivacy=null,messageRecipients=null;
+const privacyRequested=()=>new URLSearchParams(location.search).get('settings')==='privacy';
 const base=location.pathname.replace(/\/live\/?(?:index.html)?$/,'/live/');
 const groupById=id=>groups.find(x=>x.id===id);
 const joined=id=>memberships.some(x=>x.community_id===id);
@@ -22,8 +25,8 @@ const own=id=>memberships.some(x=>x.community_id===id&&['owner','moderator'].inc
 const person=id=>people[id]?.display_name||'COMMON member';
 const isBlocked=id=>blockedMembers.includes(id);
 const bookmarkKey=()=>session?.user?.id?'common.bookmarks.'+session.user.id:null;
-function loadBookmarks(){try{const k=bookmarkKey(),v=k?JSON.parse(localStorage.getItem(k)||'[]'):[];bookmarks=Array.isArray(v)?v.filter(x=>typeof x==='string').slice(0,500):[];}catch{bookmarks=[];}}
-function toggleBookmark(id){const k=bookmarkKey();if(!k)throw Error('Sign in required');const next=bookmarks.includes(id)?bookmarks.filter(x=>x!==id):[id,...bookmarks];if(next.length>500)throw Error('Saved research limit reached.');localStorage.setItem(k,JSON.stringify(next));bookmarks=next;render();}
+function loadBookmarks(){try{const k=bookmarkKey(),v=k?JSON.parse(localStorage.getItem(k)||'[]'):[];bookmarks=Array.isArray(v)?v.filter(x=>typeof x==='string'&&/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(x)).slice(0,500):[];}catch{bookmarks=[];}}
+function toggleBookmark(id){const k=bookmarkKey();if(!k)throw Error('Sign in required');const next=bookmarks.includes(id)?bookmarks.filter(x=>x!==id):[id,...bookmarks];if(next.length>500)throw Error('Saved research limit reached.');localStorage.setItem(k,JSON.stringify(next));bookmarks=next;if(state.feed==='saved')resetDiscussionFeed();render();}
 const saved=async () => client.auth.getSession();
 const explainAuthError=err=>{
  const message=err?.message||String(err), code=String(err?.code||'');
@@ -59,7 +62,7 @@ const escAttr=s=>e(s);
 const button=(act,label,kind='secondary',more='')=>'<button class="button '+kind+' small" data-act="'+act+'" '+more+'>'+label+'</button>';
 const researchDisciplines=[["equity_research","Fundamental Equity Research"],["event_driven","Event-Driven & Special Situations"],["macro_rates","Macro & Rates"],["derivatives","Volatility & Derivatives"],["market_structure","Market Microstructure"],["quant_strategies","Systematic Strategies"],["portfolio_risk","Portfolio Construction & Risk"],["shareholder_stewardship","Corporate Governance & Stewardship"],["real_assets","Real Assets & Real Estate"],["private_credit","Private Credit"],["venture_capital","Venture Capital & Growth Equity"],["private_equity","Private Equity & Acquisitions"],["personal_finance","Financial Literacy & Planning"],["markets","Public Markets (Legacy)"],["housing","Housing (Legacy)"],["businesses","Businesses (Legacy)"],["local","Local Ownership (Legacy)"],["education","Education (Legacy)"]];
 const researchCategoryLabel=category=>researchDisciplines.find(([value])=>value===category)?.[1]||category;
-const navs=[['home','Home'],['groups','Research Desks'],['chat','Messages'],['ownership','Ownership'],['invest','Research'],['studio','Studio'],['agent','Research assistant'],['money','Money'],['learn','Learn'],['safety','Safety'],['profile','Profile']];
+const navs=[['home','Home'],['groups','Research Desks'],['chat','Messages'],['ownership','Ownership'],['invest','Research'],['studio','Studio'],['agent','Research assistant'],['money','Money'],['learn','Learn'],['safety','Safety'],['profile','Profile'],['notifications','Notifications']];
 const titleCase=s=>s.charAt(0).toUpperCase()+s.slice(1);
 function logo(){return '<span class="logo"><span class="logo-mark">c</span><span class="logo-word">common<span style="color:#5883fb">.</span></span></span>'}
 function banner(){return (error?'<div class="preview-banner" role="alert" style="border-color:#edc1c1;color:#912b2b">'+e(error)+'</div>':'')+(info?'<div class="preview-banner" role="status">'+e(info)+'</div>':'')}
@@ -84,10 +87,10 @@ function auth(){
  '<div class="auth-notice"><strong>Registration notice:</strong> Public email confirmation is not fully configured. The default Supabase mail sender restricts delivery to project-team addresses. COMMON does not hold deposits, execute trades, or accept pooled investment contributions.</div></div></section></main>';
 }
 function baseNav(){
- const items=navs.map(([id,label])=>'<button class="nav-item '+(view===id?'active':'')+'" data-tab="'+id+'"><span style="font-size:20px;width:21px">'+icons[id]+'</span><span>'+label+'</span></button>').join('');
- return '<div class="app-shell"><aside class="navbar">'+logo()+'<div class="nav-links" style="margin-top:25px">'+items+'</div><a class="nav-item workspace-link" href="../workspace/">Research workspace ↗</a><div class="nav-spacer"></div><div class="nav-person"><button data-tab="profile"><span class="avatar">'+e((profile?.display_name||'?').slice(0,2).toUpperCase())+'</span><span class="details"><strong>'+e(profile?.display_name||'Member')+'</strong><span class="tiny muted">@'+e(profile?.handle||'member')+'</span></span></button></div></aside><div class="main-wrap"><header class="mobile-head">'+logo()+'<button class="icon-btn" data-act="mobile-more" aria-expanded="'+mobileMore+'" aria-label="More navigation">☰</button></header>'+(mobileMore?'<nav class="mobile-more" aria-label="More sections">'+navs.slice(5).map(([id,label])=>'<button class="nav-item" data-tab="'+id+'">'+e(label)+'</button>').join('')+'<a href="../workspace/">Research workspace ↗</a></nav>':'')+'<header class="topbar"><h2>'+e(titleCase(view))+'</h2><div style="margin-left:auto"><span class="pill lime">LIVE COMMUNITY</span></div></header><main class="content">'+banner()+page()+'</main></div><nav class="mobile-nav">'+navs.slice(0,5).map(([id,label])=>'<button data-tab="'+id+'" class="'+(view===id?'active':'')+'"><span style="font-size:21px">'+icons[id]+'</span><span>'+label+'</span></button>').join('')+'</nav></div>';
+ const items=navs.map(([id,label])=>'<button class="nav-item '+(view===id?'active':'')+'" data-tab="'+id+'" aria-label="'+e(label)+'"'+(view===id?' aria-current="location"':'')+'><span aria-hidden="true" style="font-size:20px;width:21px">'+icons[id]+'</span><span>'+label+'</span></button>').join('');
+ return '<div class="app-shell"><aside class="navbar">'+logo()+'<div class="nav-links" style="margin-top:25px">'+items+'</div><a class="nav-item workspace-link" href="../workspace/">Research workspace ↗</a><div class="nav-spacer"></div><div class="nav-person"><button data-tab="profile"><span class="avatar">'+e((profile?.display_name||'?').slice(0,2).toUpperCase())+'</span><span class="details"><strong>'+e(profile?.display_name||'Member')+'</strong><span class="tiny muted">@'+e(profile?.handle||'member')+'</span></span></button></div></aside><div class="main-wrap"><header class="mobile-head">'+logo()+'<button class="icon-btn" data-act="mobile-more" aria-expanded="'+mobileMore+'" aria-label="More navigation">☰</button></header>'+(mobileMore?'<nav class="mobile-more" aria-label="More sections">'+navs.slice(5).map(([id,label])=>'<button class="nav-item" data-tab="'+id+'">'+e(label)+'</button>').join('')+'<a href="../workspace/">Research workspace ↗</a></nav>':'')+'<header class="topbar"><h2>'+e(titleCase(view))+'</h2><div style="margin-left:auto"><span class="pill lime">LIVE COMMUNITY</span></div></header><main class="content">'+banner()+researchDraftNotice()+page()+'</main></div><nav class="mobile-nav">'+navs.slice(0,5).map(([id,label])=>'<button data-tab="'+id+'" class="'+(view===id?'active':'')+'"><span style="font-size:21px">'+icons[id]+'</span><span>'+label+'</span></button>').join('')+'</nav></div>';
 }
-function page(){if(view==='home')return home();if(view==='groups')return selectedGroup?groupDetail():communities();if(view==='chat')return chat();if(view==='ownership')return ownership();if(view==='invest')return research();if(view==='agent')return agentPage();if(view==='member')return memberPage();if(view==='money')return money();if(view==='learn')return learn();if(view==='safety')return safety();return profilePage();}
+function page(){if(view==='notifications')return notificationsPage();if(view==='research-review')return researchReviewPage();if(view==='home')return home();if(view==='groups')return selectedGroup?groupDetail():communities();if(view==='chat')return chat();if(view==='ownership')return ownership();if(view==='invest')return research();if(view==='agent')return agentPage();if(view==='member')return memberPage();if(view==='money')return money();if(view==='learn')return learn();if(view==='safety')return safety();return profilePage();}
 function head(t,s='',extra=''){return '<div class="space" style="align-items:flex-start;margin-bottom:24px"><div><h1 class="page-title">'+e(t)+'</h1><p class="subhead">'+e(s)+'</p></div>'+extra+'</div>'}
 function groupName(id){return groupById(id)?.name||'Community'}
 function contentFlag(kind,id){
@@ -146,20 +149,96 @@ function safety(){
  (mine.length?mine.map(item).join(''):'<div class="empty">No safety flags on your account.</div>')+
  '<p class="small muted" style="margin-top:16px">Confirmed scams may lead to staff-enforced account restrictions. Only trained Trust & Safety staff can review held private-message content. A flagged term alone never suspends an account.</p>';
 }
+// Only the active feed page and open thread are held in memory. Cursor
+// timestamps are opaque strings so PostgreSQL microseconds survive pagination.
+let discussionFeed=null, discussionThread=null;
+function resetDiscussionFeed(){
+ discussionFeed=discussionThread=null;
+ state.comments=null;
+}
+function currentDiscussionScope(){
+ if(view==='home')return {feed_scope:state.feed};
+ if(view==='member'&&memberDetail)return {feed_scope:'member',scope_id:memberDetail.id};
+ if(view==='groups'&&state.groupTab==='posts'&&joined(selectedGroup))return {feed_scope:'circle',scope_id:selectedGroup};
+ return null;
+}
+function prepareDiscussionFeed(){
+ const scope=(!document.hidden&&profile?.id===session?.user?.id)?currentDiscussionScope():null;
+ if(!scope){resetDiscussionFeed();return}
+ const key=[session.user.id,scope.feed_scope,scope.scope_id].join(':');
+ if(discussionFeed?.key===key)return;
+ resetDiscussionFeed();
+ discussionFeed={key,scope,items:[],next:null,cursors:[null],loading:false,error:false};
+ void readDiscussionPage(discussionFeed,{quiet:true,initial:true});
+}
+async function readDiscussionPage(page,{thread=false,quiet=false,focus=false,initial=false}={}){
+ if(!page||page.loading)return;
+ const isCurrent=()=>page===(thread?discussionThread:discussionFeed);
+ page.loading=true;
+ if(!quiet){page.error=false;page.items=[];page.next=null;render()}
+ const cursor=page.cursors.at(-1);
+ let changed=initial||!quiet||page.error;
+ try{
+  const args={...page.scope,...cursor};
+  if(args.feed_scope==='saved')args.saved_ids=bookmarks;
+  const result=await call(client.rpc('discussion_feed_v1',args,{get:false}));
+  if(!isCurrent())return;
+  changed ||= JSON.stringify(page.items)!==JSON.stringify(result.items)||
+   JSON.stringify(page.next)!==JSON.stringify(result.next);
+  page.items=result.items;
+  page.next=result.next;
+  page.error=false;
+  if(!thread&&discussionThread&&!page.items.some(post=>post.id===discussionThread.scope.scope_id)){
+   discussionThread=null;state.comments=null;
+  }
+ }catch{
+  if(!isCurrent())return;
+  changed ||= !page.error;
+  page.items=[];page.next=null;page.error=true;
+  if(!thread){discussionThread=null;state.comments=null}
+ }finally{
+  if(isCurrent()){
+   page.loading=false;if(changed)render();
+   if(focus)document.getElementById(thread?'discussion-thread-items':'discussion-feed-items')?.focus();
+  }
+ }
+}
+function discussionPageMarkup(page,format,empty,thread=false){
+ const name=thread?'discussion-thread':'discussion-feed';
+ const id=name+'-items';
+ if(!page||page.loading&&page.items.length===0)return '<div id="'+id+'" tabindex="-1" role="status">Loading '+(thread?'replies':'discussions')+'…</div>';
+ if(page.error)return '<div id="'+id+'" tabindex="-1"><p role="alert">'+(navigator.onLine?'Discussions could not be loaded.':'You are offline.')+'</p>'+button(name+'-reload','Try again')+'</div>';
+ return '<div id="'+id+'" tabindex="-1">'+(page.items.length?page.items.map(format).join(''):empty)+'</div>'+
+ '<div class="discussion-page-controls" role="group" aria-label="'+(thread?'Reply pages':'Discussion pages')+'">'+
+ (page.cursors.length>1?button(name+'-newer','Newer '+(thread?'replies':'discussions')):'')+
+ (page.next?button(name+'-older','Older '+(thread?'replies':'discussions')):'')+
+ button(name+'-reload','Refresh '+(thread?'replies':'discussions'))+'</div>';
+}
+function pageDiscussionAction(action){
+ const match=/^discussion-(feed|thread)-(older|newer|reload)$/.exec(action);
+ if(!match)return null;
+ const thread=match[1]==='thread',page=thread?discussionThread:discussionFeed;
+ if(!page||page.loading)return Promise.resolve();
+ if(match[2]==='older'&&page.next)page.cursors.push(page.next);
+ if(match[2]==='newer'&&page.cursors.length>1)page.cursors.pop();
+ return readDiscussionPage(page,{thread,focus:true});
+}
+const countLabel=count=>count>=100?'99+':String(count);
 function postCard(p){
- const mine=p.author_id===session.user.id,community=groupName(p.community_id);
- const postLikes=likes.filter(l=>l.discussion_id===p.id);
- const comments=posts.filter(x=>x.parent_id===p.id&&!isBlocked(x.author_id));
- return '<article class="surface post"><div class="post-head"><div class="avatar">'+e(person(p.author_id).slice(0,2).toUpperCase())+'</div><div class="post-meta"><button class="member-link" data-act="member-profile" data-id="'+p.author_id+'">'+e(person(p.author_id))+'</button><p>'+e(community)+' · '+new Date(p.created_at).toLocaleString()+'</p></div>'+safetyLabel('discussion',p.id)+((mine||own(p.community_id))?button('report-post','Report / moderation','ghost','data-id="'+p.id+'"'):'')+'</div>'+
+ const mine=p.author_id===session.user.id,expanded=state.comments===p.id;
+ return '<article class="surface post"><div class="post-head"><div class="avatar">'+e(p.author_name.slice(0,2).toUpperCase())+'</div><div class="post-meta"><button class="member-link" data-act="member-profile" data-id="'+p.author_id+'">'+e(p.author_name)+'</button><p>'+e(p.community_name)+' · '+new Date(p.created_at).toLocaleString()+'</p></div>'+safetyLabel('discussion',p.id)+((mine||own(p.community_id))?button('report-post','Report / moderation','ghost','data-id="'+p.id+'"'):'')+'</div>'+
  (p.title?'<h3 class="post-title">'+e(p.title)+'</h3>':'')+'<p class="post-body">'+e(p.body)+'</p>'+
- '<div class="post-actions"><button data-act="like" data-id="'+p.id+'" class="'+(postLikes.some(l=>l.user_id===session.user.id)?'liked':'')+'">♡ '+postLikes.length+'</button><button data-act="comments" data-id="'+p.id+'">◉ '+comments.length+' replies</button><button data-act="bookmark" data-id="'+p.id+'" aria-pressed="'+bookmarks.includes(p.id)+'">'+(bookmarks.includes(p.id)?'Saved':'Save')+'</button><button data-act="report-post" data-id="'+p.id+'">Report</button></div>'+
- (state.comments===p.id?'<div class="comment-list">'+comments.map(c=>'<div class="comment"><strong>'+e(person(c.author_id))+': </strong>'+e(c.body)+'</div>').join('')+'</div><form class="comment-form" data-form="comment" data-parent="'+p.id+'" data-group="'+p.community_id+'"><input class="field" name="body" maxlength="2000" required placeholder="Reply with something useful"><button type="submit" class="button small">Reply</button></form>':'')+'</article>';
+ '<div class="post-actions"><button data-act="like" data-id="'+p.id+'" class="'+(p.liked?'liked':'')+'" aria-label="Like discussion" aria-pressed="'+p.liked+'">♡ '+countLabel(p.likes_count)+'</button><button data-act="comments" data-id="'+p.id+'" aria-expanded="'+expanded+'">◉ '+countLabel(p.replies_count)+' replies</button><button data-act="bookmark" data-id="'+p.id+'" aria-pressed="'+bookmarks.includes(p.id)+'">'+(bookmarks.includes(p.id)?'Saved':'Save')+'</button><button data-act="report-post" data-id="'+p.id+'">Report</button>'+
+ (view==='groups'&&selectedGroup===p.community_id&&joined(p.community_id)&&!contentFlag('discussion',p.id)?
+   button('poll-from-discussion','Draft circle poll','secondary','data-id="'+e(p.id)+'"'):'')+'</div>'+
+ (expanded?'<div class="comment-list">'+discussionPageMarkup(discussionThread,c=>'<div class="comment"><strong>'+e(c.author_name)+': </strong>'+e(c.body)+'</div>','<p>No visible replies.</p>',true)+'</div>'+
+ (joined(p.community_id)?'<form class="comment-form" data-form="comment" data-parent="'+p.id+'" data-group="'+p.community_id+'"><input class="field" name="body" maxlength="2000" required aria-label="Reply" placeholder="Reply with something useful"><button type="submit" class="button small">Reply</button></form>':''):'')+'</article>';
 }
 function home(){
- const visible=posts.filter(x=>!x.parent_id&&!isBlocked(x.author_id)&&(state.feed==='saved'?bookmarks.includes(x.id):state.feed==='discover'?groupById(x.community_id)?.visibility==='public':joined(x.community_id))).slice(0,70);
+ const empty=state.feed==='following'?'<div class="empty"><h3>No research from members you follow</h3><p>Open a member profile from Discover or a circle and select Follow.</p>'+button('discover-feed','Discover research')+'</div>':state.feed==='saved'?'<div class="empty">No saved discussions are visible.</div>':'<div class="empty"><h3>No discussions yet</h3><p>Join a community and start the first research conversation.</p>'+button('open-groups','Find a community')+'</div>';
  return '<div class="columns"><div><div class="feature-hero"><span class="pill" style="background:#ffffff29;color:white;width:max-content">THE COMMONS</span><h2>Ideas become stronger together.</h2><p>Start conversations with real members and turn community research into meaningful, lawful action.</p>'+button('create-group','Create a community','primary')+'</div>'+
- '<div class="section-bar"><h3>Research feed</h3>'+button('compose','Share research')+'</div><div class="feed-tabs">'+[['mine','My circles'],['discover','Discover'],['saved','Saved research']].map(([k,t])=>'<button class="feed-tab '+(state.feed===k?'active':'')+'" data-feed="'+k+'">'+t+'</button>').join('')+'</div>'+
- (visible.length?visible.map(postCard).join(''):'<div class="empty"><h3>No discussions yet</h3><p>Join a community and start the first research conversation.</p>'+button('open-groups','Find a community')+'</div>')+
+ '<div class="section-bar"><h3>Research feed</h3>'+button('compose','Share research')+'</div><div class="feed-tabs">'+[['mine','My circles'],['following','Following'],['discover','Discover'],['saved','Saved research']].map(([k,t])=>'<button class="feed-tab '+(state.feed===k?'active':'')+'" data-feed="'+k+'" aria-pressed="'+(state.feed===k)+'">'+t+'</button>').join('')+'</div>'+
+ discussionPageMarkup(discussionFeed,postCard,empty)+
  '</div><aside class="rail"><div class="surface rail-box"><h3>Your communities</h3>'+memberships.map(m=>'<button class="rail-link" data-act="open-group" data-id="'+m.community_id+'"><span class="avatar">'+e(groupName(m.community_id).slice(0,1))+'</span><strong>'+e(groupName(m.community_id))+'</strong></button>').join('')+'</div><div class="surface rail-box education-prompt"><h3>Never invested before?</h3><p>Learn about stocks, ownership, funds and legal structures without the jargon.</p>'+button('learn','Explore lessons')+'</div></aside></div>';
 }
 function communities(){
@@ -195,36 +274,341 @@ function capitalDesk(g){
  return '<div class="section-bar"><h3>Collective capital workspace</h3></div>'+notice+nav+body;
 }
 async function loadLedger(){const cid=selectedGroup,uid=session?.user?.id;ledgerRows=[];ledgerCircle=null;ledgerError='';if(config.externalLedgerEnabled!==true||!uid||!joined(cid)||groupById(cid)?.visibility!=='private')return;ledgerLoading=true;try{const rows=[];for(let offset=0;offset<10000;offset+=500){const page=await call(client.from('circle_external_journal').select('id,community_id,author_id,record_date,source_ref,lines,reverses_id,created_at').eq('community_id',cid).order('created_at',{ascending:true}).order('id',{ascending:true}).range(offset,offset+499));rows.push(...page);if(page.length<500)break;if(offset===9500)throw Error('Journal exceeds this reader limit. Export through the authorized administrator before further posting.');}if(session?.user?.id!==uid||selectedGroup!==cid)return;ledgerRows=rows;ledgerCircle=cid;}catch(err){if(session?.user?.id===uid&&selectedGroup===cid)ledgerError=err.message||'Unable to load journal';}finally{ledgerLoading=false;}}
+function externalStatementContext(){
+ const circleId=selectedGroup,userId=session?.user?.id;
+ if(config.externalLedgerEnabled!==true||!userId||!joined(circleId)||groupById(circleId)?.visibility!=='private'||
+   state.groupTab!=='capital'||capitalTab!=='ledger')throw Error('Current private journal access required.');
+ return {circleId,userId};
+}
+function sameStatementContext(context){
+ return session?.user?.id===context.userId&&selectedGroup===context.circleId&&joined(context.circleId)&&
+  groupById(context.circleId)?.visibility==='private'&&state.groupTab==='capital'&&capitalTab==='ledger';
+}
+async function requestExternalStatement(context,period){
+ const result=await call(client.rpc('read_external_journal_statement',{
+  p_circle_id:context.circleId,p_start_date:period.startDate,p_end_date:period.endDate
+ }));
+ return CommonLedger.statementTotals(result,{...context,...period});
+}
+function externalStatement(g){
+ const L=CommonLedger;
+ const selected=ledgerStatement?.circleId===g.id&&ledgerStatement.userId===session?.user?.id?ledgerStatement:null;
+ const today=new Date().toISOString().slice(0,10),start=selected?.report.startDate||today.slice(0,8)+'01',end=selected?.report.endDate||today;
+ let details='';
+ if(selected){
+  const {report,comparison}=selected;
+  const rows=report.accounts.map(row=>'<tr><th scope="row">'+e(L.accounts[row.account])+'</th>'+
+   [row.openingCents,row.debitsCents,row.creditsCents,row.closingCents].map(cents=>'<td>'+e(L.money(cents))+'</td>').join('')+'</tr>').join('');
+  details='<h4 tabindex="-1" id="journal-statement-result">Statement for '+e(report.startDate)+' through '+e(report.endDate)+'</h4>'+
+   '<p class="muted small" role="status">'+e(report.periodEntryCount)+' period entries · '+e(report.evidenceCount)+' total entries through period close</p>'+
+   (report.evidenceCount?'<div class="journal-statement-scroll" role="region" aria-label="Period statement table" tabindex="0">'+
+     '<table class="journal-statement-table"><caption>USD · Opening and closing amounts follow each account’s normal side</caption>'+
+     '<thead><tr><th scope="col">Account</th><th scope="col">Opening</th><th scope="col">Debits</th><th scope="col">Credits</th><th scope="col">Closing</th></tr></thead>'+
+     '<tbody>'+rows+'</tbody><tfoot><tr><th scope="row">Period totals</th><td></td><td>'+e(L.money(report.debitsCents))+
+     '</td><td>'+e(L.money(report.creditsCents))+'</td><td></td></tr></tfoot></table></div>':'<p>No journal evidence through this period.</p>')+
+   '<details><summary>Statement provenance</summary><p>Generated <time datetime="'+e(report.generatedAt)+'">'+e(report.generatedAt)+
+   '</time></p><p>Journal evidence SHA-256 <code>'+e(report.evidenceSha256)+'</code></p></details>'+
+   (report.evidenceCount?'<form data-form="external-statement-compare" class="stack">'+
+    '<label><span class="form-label">Observed closing cash (USD)</span><input class="field" name="observed" inputmode="decimal" maxlength="22" required></label>'+
+    '<p class="muted small">Enter an aggregate amount for this period end from an independent record. Keep bank details and member identifiers out of this form. The amount stays in this view and any explicit export.</p>'+
+    '<button type="submit" class="button secondary">Compare closing cash</button></form>':'')+
+   (comparison?'<section aria-label="Cash reconciliation result" role="status"><h5>'+ (comparison.matches?'Figures match':'Difference to investigate')+
+    '</h5><dl class="circle-facts"><dt>Journal closing cash</dt><dd>'+e(L.money(comparison.recordedCents))+
+    '</dd><dt>Entered closing cash</dt><dd>'+e(L.money(comparison.observedCents))+
+    '</dd><dt>Journal less entered cash</dt><dd>'+e(L.money(comparison.differenceCents))+
+    '</dd></dl><p class="muted small">This comparison uses a manually entered figure. Investigate differences separately.</p></section>':'')+
+   button('export-journal-statement','Export statement','secondary');
+ }
+ return '<section class="surface circle-tools journal-statement"><h3>Period statement and cash comparison</h3>'+
+  '<p class="muted small">Roll up aggregate journal accounts for a period of up to 366 days. Closing amounts are manual book figures. No member ownership or provider verification is inferred.</p>'+
+  '<form data-form="external-statement" class="stack"><div class="capital-form-grid">'+
+  '<label><span class="form-label">Period start</span><input class="field" type="date" name="start" value="'+e(start)+'" required></label>'+
+  '<label><span class="form-label">Period end</span><input class="field" type="date" name="end" value="'+e(end)+'" required></label></div>'+
+  '<button type="submit" class="button secondary">Prepare statement</button></form>'+details+'</section>';
+}
+function downloadExternalStatement(report,comparison){
+ const file={mode:'manual_external_records_unverified',statement:report,cashComparison:comparison};
+ const url=URL.createObjectURL(new Blob([JSON.stringify(file,null,2)],{type:'application/json'}));
+ const anchor=document.createElement('a');
+ anchor.href=url;
+ anchor.download='common-journal-statement-'+report.endDate+'.json';
+ anchor.click();
+ setTimeout(()=>URL.revokeObjectURL(url),500);
+}
 function externalLedger(g){const L=window.CommonLedger,notice='<div class="capital-disclosure"><strong>EXTERNAL RECORDKEEPING · NO CUSTODY</strong><p>Records describe completed activity at an independently authorized financial institution. They are member-entered and not independently reconciled, verified balances or proof of ownership. Never enter account numbers, names, credentials or payment instructions. All current members of this private circle can read these aggregate records.</p></div>';
 if(g.visibility!=='private')return notice+'<div class="empty">External recordkeeping is available only to eligible private circles.</div>';
 if(config.externalLedgerEnabled!==true)return notice+'<div class="empty"><h3>External journal not activated</h3><p>Requires the reviewed database schema and approved recordkeeping pilot. No deposits, transfers or securities orders are available.</p></div>';
-if(ledgerLoading||ledgerCircle!==g.id&&!ledgerError)return notice+'<div class="empty">Loading journal…</div>';
-if(ledgerError)return notice+'<div class="empty">'+e(ledgerError)+'<button class="button" data-act="refresh-ledger">Retry</button></div>';
+const statement=externalStatement(g);
+if(ledgerLoading||ledgerCircle!==g.id&&!ledgerError)return notice+statement+'<div class="empty">Loading journal…</div>';
+if(ledgerError)return notice+statement+'<div class="empty">'+e(ledgerError)+'<button class="button" data-act="refresh-ledger">Retry</button></div>';
 const totals=L.balances(ledgerRows),options=Object.entries(L.accounts).map(([k,v])=>'<option value="'+k+'">'+e(v)+'</option>').join(''),entries=ledgerRows.slice().reverse().map(r=>'<details class="surface circle-project"><summary><span><strong>'+e(r.source_ref)+'</strong><small>'+e(r.record_date)+' · '+e(person(r.author_id))+'</small></span><strong>'+L.money(L.validate(r.lines))+'</strong></summary><dl class="circle-facts">'+r.lines.map(l=>'<dt>'+e(L.accounts[l.account]+' / '+l.side)+'</dt><dd>'+L.money(l.cents)+'</dd>').join('')+'</dl>'+(r.reverses_id?'<p class="muted small">Reversal entry</p>':own(g.id)&&!ledgerRows.some(x=>x.reverses_id===r.id)?button('reverse-external','Reverse entry','secondary','data-id="'+r.id+'"'):'')+'</details>').join('');
-return notice+'<section class="surface circle-tools"><h3>Recorded account totals</h3><dl class="circle-facts">'+Object.entries(totals).map(([k,v])=>'<dt>'+e(L.accounts[k])+'</dt><dd>'+L.money(v)+'</dd>').join('')+'</dl><p class="muted small">Aggregate USD book totals, not current market value or funds available to spend.</p>'+button('refresh-ledger','Refresh')+' '+button('export-ledger','Export journal')+'</section>'+
+return notice+statement+'<section class="surface circle-tools"><h3>Recorded account totals</h3><dl class="circle-facts">'+Object.entries(totals).map(([k,v])=>'<dt>'+e(L.accounts[k])+'</dt><dd>'+L.money(v)+'</dd>').join('')+'</dl><p class="muted small">Aggregate USD book totals, not current market value or funds available to spend.</p>'+button('refresh-ledger','Refresh')+' '+button('export-ledger','Export journal')+'</section>'+
 (own(g.id)?'<section class="surface circle-tools"><h3>Record a completed external event</h3><form data-form="external-entry" class="stack"><label><span class="form-label">Record date</span><input name="date" type="date" class="field" required></label><label><span class="form-label">Internal reference (not a bank reference)</span><input name="reference" class="field" minlength="3" maxlength="80" pattern="[A-Za-z0-9][A-Za-z0-9._\\-]{2,79}" required></label><p class="muted small">Enter balanced debit and credit lines. Leave unused amounts blank.</p>'+Array.from({length:6},(_,i)=>'<div class="ledger-line"><label><span class="form-label">Account '+(i+1)+'</span><select class="field" name="account'+i+'">'+options+'</select></label><label><span class="form-label">Side</span><select class="field" name="side'+i+'"><option value="debit">Debit</option><option value="credit" '+(i===1?'selected':'')+'>Credit</option></select></label><label><span class="form-label">USD</span><input class="field" name="amount'+i+'" type="number" min=".01" max="10000000" step=".01"></label></div>').join('')+'<label class="row"><input type="checkbox" name="ack" required> Completed external activity only; not an instruction to move money.</label><button class="button primary">Record journal entry</button></form></section>':'')+'<div class="section-bar"><h3>Append-only journal</h3></div>'+(entries||'<div class="empty">No external records.</div>');}
-async function loadPoll(id){const p=proposals.find(x=>x.id===id),uid=session?.user?.id,cid=selectedGroup;if(!p||p.community_id!==cid||!joined(cid))throw Error('Circle membership required');const [counts,vote]=await Promise.all([call(client.rpc('proposal_tally',{pid:id})),call(client.from('proposal_votes').select('choice').eq('proposal_id',id).eq('user_id',uid).maybeSingle())]);if(session?.user?.id!==uid||selectedGroup!==cid)return;decisionDetail=id;pollRows=counts;pollOwn=vote?.choice||null;render();}
+async function loadPoll(id){const p=proposals.find(x=>x.id===id),uid=session?.user?.id,cid=selectedGroup;if(!p||p.community_id!==cid||!joined(cid))throw Error('Circle membership required');const [counts,vote]=await Promise.all([call(client.rpc('proposal_tally',{pid:id})),call(client.from('proposal_votes').select('choice').eq('proposal_id',id).eq('user_id',uid).maybeSingle())]);if(session?.user?.id!==uid||selectedGroup!==cid)return;decisionDetail=id;pollRows=counts;pollOwn=vote?.choice||null;render();void loadGovernanceMemo(p);}
+const governanceFields=[
+ ['thesis','Investment thesis',30,3000],
+ ['diligence','Due diligence and sources',30,5000],
+ ['risks','Risks and unresolved questions',20,3000],
+ ['disclosures','Conflict disclosures',4,1000]
+];
+const governanceOutcomes={research_ready:'Research ready',changes_requested:'Changes requested'};
+function sameGovernanceScope(stateAfter){
+ return session?.user?.id===stateAfter.viewer&&selectedGroup===stateAfter.circle&&
+  decisionDetail===stateAfter.proposal&&view==='groups'&&state.groupTab==='decisions'&&joined(stateAfter.circle);
+}
+async function loadGovernanceMemo(proposal){
+ if(groupById(proposal.community_id)?.visibility!=='private')return;
+ const stateAfter={viewer:session?.user?.id,circle:proposal.community_id,proposal:proposal.id,
+  loading:true,error:'',saving:false,input:{},memo:null,reviews:[],reviewed:false};
+ if(!sameGovernanceScope(stateAfter))return;
+ if(governanceMemo&&sameGovernanceScope(governanceMemo)){
+  stateAfter.input=governanceMemo.input;stateAfter.memo=governanceMemo.memo;stateAfter.reviews=governanceMemo.reviews;
+ }
+ governanceMemo=stateAfter;
+ render();
+ try {
+  const [memo,reviews,myReview]=await Promise.all([
+   call(client.from('circle_governance_memos')
+    .select('proposal_id,author_id,thesis,diligence,risks,disclosures,created_at')
+    .eq('proposal_id',proposal.id).maybeSingle()),
+   call(client.from('circle_governance_reviews')
+    .select('author_id,disposition,rationale,created_at,author:profiles!circle_governance_reviews_author_id_fkey(display_name)')
+    .eq('proposal_id',proposal.id).order('created_at',{ascending:false}).order('author_id').limit(50)),
+   own(stateAfter.circle)?call(client.from('circle_governance_reviews').select('author_id')
+    .eq('proposal_id',proposal.id).eq('author_id',stateAfter.viewer).maybeSingle()):null
+  ]);
+  stateAfter.memo=memo;stateAfter.reviews=reviews;stateAfter.reviewed=Boolean(myReview);
+ }catch{
+  stateAfter.memo=null;stateAfter.reviews=[];
+  stateAfter.error='The research memo could not be loaded.';
+ }finally{
+  stateAfter.loading=false;
+  if(governanceMemo===stateAfter&&sameGovernanceScope(stateAfter))render();
+ }
+}
+function governanceMemoSection(circle,proposal){
+ if(circle.visibility!=='private')return '';
+ const current=governanceMemo;
+ const wrap=content=>'<section class="surface circle-tools" aria-label="Investment memo and review">'+
+  '<h3>Investment memo</h3><p class="muted small">Research review only. These records cannot authorize a transaction.</p>'+content+'</section>';
+ if(!current||!sameGovernanceScope(current)||current.loading)return wrap('<p role="status">Loading research memo…</p>');
+ const feedback=current.error?'<p role="alert">'+e(current.error)+'</p>':'';
+ if(current.error&&!current.memo&&!governanceFields.some(([name])=>name in current.input)){
+  return wrap(feedback+button('governance-retry','Retry research memo'));
+ }
+ const fields=governanceFields.map(([name,label,min,max])=>
+  '<label><span class="form-label">'+e(label)+'</span><textarea class="field" name="'+name+'" required minlength="'+min+'" maxlength="'+max+'">'+
+  e(current.input[name]||'')+'</textarea></label>').join('');
+ const submit=(label)=>'<button type="submit" class="button primary" '+(current.saving?'disabled':'')+'>'+label+'</button>';
+ if(!current.memo){
+  const form=proposal.author_id===session.user.id?
+   '<form data-form="governance-memo" class="stack">'+fields+
+   '<p class="muted small">State any relevant interests or write “None declared”. The recorded memo is read-only.</p>'+
+   submit('Record research memo')+'</form>':
+   '<p>The proposal author can record the research memo.</p>';
+  return wrap(feedback+form);
+ }
+ const evidence=governanceFields.map(([name,label])=>'<h4>'+e(label)+'</h4><p class="post-body">'+e(current.memo[name])+'</p>').join('');
+ const reviews=current.reviews.map(review=>{
+  const reviewer=review.author?.display_name||people[review.author_id]?.display_name||'Member '+review.author_id.slice(0,8);
+  return '<article class="circle-tools"><h4>'+e(governanceOutcomes[review.disposition])+'</h4><p class="muted small">'+e(reviewer)+' · '+
+   e(new Date(review.created_at).toLocaleString())+'</p><p class="post-body">'+e(review.rationale)+'</p></article>';
+ }).join('')||'<p>No independent reviews recorded.</p>';
+ const mayReview=own(circle.id)&&current.memo.author_id!==session.user.id&&!current.reviewed;
+ const reviewForm=mayReview?
+  '<form data-form="governance-review" class="stack"><label><span class="form-label">Review outcome</span>'+
+  '<select class="field" name="disposition" required><option value="">Choose outcome</option>'+
+  Object.entries(governanceOutcomes).map(([key,label])=>'<option value="'+key+'" '+(current.input.disposition===key?'selected':'')+'>'+label+'</option>').join('')+
+  '</select></label><label><span class="form-label">Review reasoning</span><textarea class="field" name="rationale" required minlength="15" maxlength="2000">'+
+  e(current.input.rationale||'')+'</textarea></label><label class="row"><input type="checkbox" name="independent" required '+
+  (current.input.independent==='on'?'checked':'')+'> I did not author this memo and have no material conflict in reviewing it.</label>'+
+  submit('Record independent review')+'</form>':'';
+ return wrap(feedback+evidence+'<h3>Independent review history</h3>'+
+  '<p class="muted small">Circle owners and moderators may record one review of another member’s memo.</p>'+
+  reviews+(current.reviews.length===50?'<p class="muted small">Showing the 50 most recent reviews.</p>':'')+reviewForm);
+}
+async function submitGovernance(formData,type){
+ const current=governanceMemo;
+ if(!current||!sameGovernanceScope(current)||current.loading)return;
+ const proposal=proposals.find(p=>p.id===current.proposal);
+ if(!proposal||groupById(current.circle)?.visibility!=='private')return;
+ current.input=Object.fromEntries(formData);
+ current.saving=true;current.error='';
+ const creating=type==='governance-memo';
+ const content=creating?Object.fromEntries(governanceFields.map(([name])=>[name,String(formData.get(name)||'').trim()])):
+  {disposition:formData.get('disposition'),rationale:String(formData.get('rationale')||'').trim(),independent:formData.get('independent')==='on'};
+ const record={proposal_id:proposal.id,author_id:current.viewer,...content};
+ if(creating)record.community_id=current.circle;
+ for(const control of document.querySelector('[data-form="'+type+'"]').elements){
+  control.disabled=true;
+ }
+ try{
+  await call(client.from(creating?'circle_governance_memos':'circle_governance_reviews').insert(record));
+  current.input={};
+  if(governanceMemo===current&&sameGovernanceScope(current))await loadGovernanceMemo(proposal);
+ }catch(err){
+  current.error=err?.code==='23505'?'A record was already submitted. Reload this decision to see it.':
+   err?.code==='23514'?'Review the field lengths and investment safety requirements, then retry.':
+   'This record could not be saved. Confirm your current circle permissions and try again.';
+ }finally{
+  current.saving=false;
+  if(governanceMemo===current&&sameGovernanceScope(current))render();
+ }
+}
 function decisionPage(g){const p=proposals.find(x=>x.id===decisionDetail&&x.community_id===g.id);if(!p)return '<div class="space"><h3>Community decisions</h3>'+button('new-proposal','Start poll','primary')+'</div><p class="muted small">Research and community opinions only; not legal authority to invest or move money.</p>'+(proposals.filter(x=>x.community_id===g.id).map(p=>'<article class="surface circle-tools"><div class="space"><h3>'+e(p.title)+'</h3><span class="pill">'+e(p.status)+'</span></div><p class="post-body">'+e(p.rationale)+'</p>'+button('poll-detail','View decision','secondary','data-id="'+p.id+'"')+'</article>').join('')||'<div class="empty">No community proposals yet.</div>');
 const total=pollRows.reduce((n,x)=>n+Number(x.tally),0),open=p.status==='open'&&(!p.closes_at||new Date(p.closes_at)>new Date());
-return button('poll-list','All decisions')+'<section class="surface circle-tools"><div class="space"><h3>'+e(p.title)+'</h3><span class="pill">'+(open?'Open':'Closed')+'</span></div><p class="muted small">'+e(p.closes_at?'Closes '+new Date(p.closes_at).toLocaleString():'No closing date set')+'</p><p class="post-body">'+e(p.rationale)+'</p><div class="capital-disclosure"><strong>NONBINDING MEMBER OPINION</strong><p>No money movement or securities transaction is authorized.</p></div>'+['support','oppose','abstain'].map(k=>{const n=Number(pollRows.find(x=>x.choice===k)?.tally||0);return '<div class="poll-result"><div class="space"><strong>'+titleCase(k)+'</strong><span>'+n+' / '+total+'</span></div><div class="capital-bar"><span style="width:'+(total?100*n/total:0)+'%;background:#47775a"></span></div></div>'}).join('')+'<p class="muted small">Your vote: '+e(pollOwn||'Not yet voted')+'</p>'+(open?'<div class="row">'+['support','oppose','abstain'].map(k=>button('poll-vote',titleCase(k),k===pollOwn?'primary':'secondary','data-id="'+p.id+'" data-choice="'+k+'"')).join('')+'</div>':'')+'</section>';}
+return button('poll-list','All decisions')+'<section class="surface circle-tools"><div class="space"><h3>'+e(p.title)+'</h3><span class="pill">'+(open?'Open':'Closed')+'</span></div><p class="muted small">'+e(p.closes_at?'Closes '+new Date(p.closes_at).toLocaleString():'No closing date set')+'</p><p class="post-body">'+e(p.rationale)+'</p><div class="capital-disclosure"><strong>NONBINDING MEMBER OPINION</strong><p>No money movement or securities transaction is authorized.</p></div>'+['support','oppose','abstain'].map(k=>{const n=Number(pollRows.find(x=>x.choice===k)?.tally||0);return '<div class="poll-result"><div class="space"><strong>'+titleCase(k)+'</strong><span>'+n+' / '+total+'</span></div><div class="capital-bar"><span style="width:'+(total?100*n/total:0)+'%;background:#47775a"></span></div></div>'}).join('')+'<p class="muted small">Your vote: '+e(pollOwn||'Not yet voted')+'</p>'+(open?'<div class="row">'+['support','oppose','abstain'].map(k=>button('poll-vote',titleCase(k),k===pollOwn?'primary':'secondary','data-id="'+p.id+'" data-choice="'+k+'"')).join('')+'</div>':'')+'</section>'+governanceMemoSection(g,p);}
 function groupBody(g){
  if(state.groupTab==='capital')return capitalDesk(g);
  if(state.groupTab==='research')return '<div class="section-bar"><h3>Shared research library</h3>'+button('new-project','Create research project','primary')+'</div><p class="muted small circle-note">Member-authored research, not independently verified investment recommendations.</p>'+ (projects.filter(p=>p.community_id===g.id).map(p=>'<details class="surface circle-project"><summary><span><strong>'+e(p.title)+'</strong><small>'+e(p.stage)+' · '+e(person(p.author_id))+'</small></span><span class="pill">'+e(p.category)+'</span></summary><p class="post-body">'+e(p.thesis)+'</p><small class="muted">Created '+e(new Date(p.created_at).toLocaleDateString())+'</small></details>').join('')||'<div class="empty">No research projects have been published to this circle.</div>')+'<div class="surface circle-tools"><h3>Research tools</h3><p class="muted small">Run a model privately before sharing your assumptions and evidence.</p><a class="button" href="../workspace/#research">Open research workspace</a> <a class="button secondary" href="../terminal/">Market intelligence</a></div>';
  if(state.groupTab==='about')return '<div class="surface circle-tools"><h3>Coverage mandate</h3><p class="post-body">'+e(g.description)+'</p><dl class="circle-facts"><dt>Discipline</dt><dd>'+e(researchCategoryLabel(g.category))+'</dd><dt>Visibility</dt><dd>'+e(g.visibility)+'</dd><dt>Your role</dt><dd>'+e(memberships.find(m=>m.community_id===g.id)?.role||'Member')+'</dd><dt>Participation</dt><dd>Voluntary; no transfer of ownership or voting rights</dd></dl></div><div class="surface circle-tools"><h3>Trust and accountability</h3><p>Disclose financial interests and assumptions. Verify claims from primary sources. No guaranteed returns, coordinated price manipulation or requests for deposits.</p><a href="../OWNERSHIP_CHARTER.md">Read the ownership charter</a><button class="button secondary" data-tab="safety">Safety and appeals</button></div>';
 
- if(state.groupTab==='chat')return '<div class="surface" style="padding:20px"><h3>Group messages</h3><p class="small muted" style="margin:8px 0 15px">Visible only to group members; refreshes automatically.</p><div id="chat-window" class="chat-messages" style="min-height:240px">'+messages.filter(m=>m.community_id===g.id&&!isBlocked(m.author_id)).map(m=>'<div class="bubble '+(m.author_id===session.user.id?'mine':'')+'"><strong>'+e(person(m.author_id))+': </strong>'+e(m.body)+safetyLabel('community_message',m.id)+'</div>').join('')+'</div><form data-form="chat" class="chat-write"><input class="field" name="body" maxlength="2000" required placeholder="Message your group"><button class="button" type="submit">Send</button></form></div>';
+ if(state.groupTab==='chat')return '<div class="surface" style="padding:20px"><h3 data-chat-focus tabindex="-1">Group messages</h3><div data-message-delete-status role="status"></div><p class="small muted" style="margin:8px 0 15px">Visible only to group members; refreshes automatically.</p><div id="chat-window" class="chat-messages" style="min-height:240px">'+messages.filter(m=>m.community_id===g.id&&!isBlocked(m.author_id)).map(m=>messageBubble(m,'circle',g.id)).join('')+'</div><form data-form="chat" class="chat-write"><input class="field" name="body" maxlength="2000" required aria-label="Group message" placeholder="Message your group"><button class="button" type="submit">Send</button></form></div>';
  if(state.groupTab==='decisions')return decisionPage(g);
  if(state.groupTab==='members')return '<div class="surface" style="padding:22px"><h3>Members</h3><p class="muted small">Member accounts; identity and financial holdings are not independently verified.</p><div class="stack" style="margin-top:15px">'+memberPoll.map(m=>'<div class="space"><div><button class="member-link" data-act="member-profile" data-id="'+m.user_id+'">'+e(person(m.user_id))+'</button> <span class="pill">'+e(m.role)+'</span></div>'+(m.user_id!==session.user.id?button('dm-user','Message','secondary','data-id="'+m.user_id+'"'):'')+'</div>').join('')+'</div></div>';
  if(state.groupTab==='invites')return '<div class="surface" style="padding:22px"><h3>Invite people</h3><p class="muted small" style="margin:10px 0 15px">Secure invitations expire and have limited uses. Community moderators control issuance.</p>'+(own(g.id)?button('make-invite','Create invitation link','primary'):'<p>Ask a moderator for an invitation.</p>')+(state.inviteToken?'<div class="preview-banner"><strong>Invite URL</strong><input class="field" id="invite-url" readonly value="'+e(location.origin+base+'#invite='+state.inviteToken)+'">'+button('copy-invite','Copy URL')+'</div>':'')+'</div>';
  return '<div class="space" style="margin:0 0 12px"><h3>Discussions</h3></div>'+
- (posts.filter(p=>p.community_id===g.id&&!p.parent_id&&!isBlocked(p.author_id)).map(postCard).join('')||'<div class="empty">Be the first to share research here.</div>');
+ discussionPageMarkup(discussionFeed,postCard,'<div class="empty">Be the first to share research here.</div>');
 }
+const notificationSections={all:'Inbox',unread:'Unread',archived:'Archived',preferences:'Preferences'};
+const notificationLabels={
+ direct_message:'sent you a message',
+ connection_request:'requested a connection',
+ connection_accepted:'accepted your connection request'
+};
+let notificationSection='all', notificationView=null;
+
+function setNotificationRoute(destination){
+ if(destination==='notifications')history.replaceState(null,'','#notifications');
+ else if(location.hash==='#notifications')history.replaceState(null,'',location.pathname+location.search);
+}
+function prepareNotifications(){
+ if(view!=='notifications'||document.hidden){notificationView=null;return}
+ const owner=session.user.id;
+ if(notificationView?.owner===owner&&notificationView?.section===notificationSection)return;
+ notificationView={owner,section:notificationSection,cursors:[null],items:[]};
+ void loadNotifications(notificationView);
+}
+async function loadNotifications(current,{quiet=false,focus=false,force=false}={}){
+ if(current.request&&(!force||quiet))return;
+ const request={};current.request=request;
+ if(!quiet){current.loading=true;current.error=false}
+ const previous=JSON.stringify([current.items,current.next,current.unread,current.error]);
+ try{
+  if(current.section==='preferences'){
+   const preferences=await call(client.from('member_notification_preferences').select('direct_messages,connections')
+    .eq('member_id',current.owner).maybeSingle());
+   if(current.request!==request)return;
+   current.preferences=preferences||{direct_messages:true,connections:true};
+  }else{
+   const result=await call(client.rpc('member_notification_page_v1',{
+    inbox_scope:current.section,...current.cursors.at(-1)
+   }));
+   if(current.request!==request)return;
+   current.items=result.items;current.next=result.next;current.unread=result.unread;
+  }
+  current.error=false;
+ }catch{
+  if(current.request!==request)return;
+  current.items=[];current.next=null;current.error=true;
+ }
+ current.request=null;current.loading=false;
+ if(notificationView!==current)return;
+ if(!quiet||previous!==JSON.stringify([current.items,current.next,current.unread,current.error]))render();
+ if(focus)document.getElementById('notification-results')?.focus();
+}
+
+function notificationRow(item){
+ const attribute='data-id="'+e(item.id)+'"';
+ return '<article class="surface notification-row"><div><p>'+(item.is_read?'':'<span class="notification-unread">Unread</span> ')+
+  '<strong>'+e(item.actor_name)+'</strong> '+e(notificationLabels[item.kind])+'</p><time class="small muted" datetime="'+e(item.created_at)+'">'+
+  e(new Date(item.created_at).toLocaleString())+'</time></div><div class="row notification-actions">'+
+  button('notification-open',item.kind==='direct_message'?'Open conversation':'View member','primary',attribute)+
+  button('notification-change',item.is_read?'Mark unread':'Mark read','secondary',attribute+' data-choice="read"')+
+  button('notification-change',item.is_archived?'Restore':'Archive','secondary',attribute+' data-choice="archive"')+
+  '</div></article>';
+}
+
+function notificationsPage(){
+ const current=notificationView;
+ const count=current?.unread;
+ const tabs='<div class="feed-tabs" role="group" aria-label="Notification views">'+Object.entries(notificationSections).map(([id,label])=>
+  button('notification-section',label+(id==='unread'&&count>0?' ('+(count===100?'99+':count)+')':''),
+   notificationSection===id?'primary':'secondary','data-choice="'+id+'" aria-pressed="'+(id===notificationSection)+'"')).join('')+'</div>';
+ let content;
+ if(!current||current.loading)content='<p role="status">Loading notifications…</p>';
+ else if(current.error)content='<p role="alert">'+(navigator.onLine?'Notifications could not be loaded.':'You are offline.')+'</p>'+
+  button('notification-refresh','Try again');
+ else if(current.section==='preferences')content='<form data-form="notification-preferences" class="surface circle-tools stack">'+
+  '<h3>In-app alerts</h3><p class="small muted">Changes apply to new notifications.</p>'+
+  '<label class="row"><input type="checkbox" name="direct_messages" '+(current.preferences.direct_messages?'checked':'')+'> Direct messages</label>'+
+  '<label class="row"><input type="checkbox" name="connections" '+(current.preferences.connections?'checked':'')+'> Connection requests and acceptances</label>'+
+  '<button type="submit" class="button">Save preferences</button></form>';
+ else content=(current.items.length?current.items.map(notificationRow).join(''):'<div class="empty"><p>'+
+   (current.section==='all'?'You have no notifications.':current.section==='unread'?'You have no unread notifications.':'You have no archived notifications.')+'</p></div>')+
+  '<div class="row notification-actions" role="group" aria-label="Notification pages">'+
+  (current.cursors.length>1?button('notification-previous','Newer notifications'):'')+
+  (current.next?button('notification-next','Older notifications'):'')+button('notification-refresh','Refresh notifications')+'</div>';
+ return head('Notifications','Manage your message and connection alerts.')+tabs+
+  '<div id="notification-results" class="stack" tabindex="-1">'+content+'</div>';
+}
+
+async function notificationAction(action,id,choice){
+ const current=notificationView;
+ if(action==='notification-section'&&Object.hasOwn(notificationSections,choice)){
+  notificationSection=choice;error=info='';render();
+  root.querySelector('[data-act="notification-section"][aria-pressed="true"]')?.focus();
+  return;
+ }
+ if(!current)return;
+ if(['notification-previous','notification-next','notification-refresh'].includes(action)){
+  if(action==='notification-next'&&current.next)current.cursors.push(current.next);
+  if(action==='notification-previous'&&current.cursors.length>1)current.cursors.pop();
+  const loading=loadNotifications(current,{focus:true,force:true});render();return loading;
+ }
+ const item=current.items.find(row=>row.id===id);
+ if(!item)return;
+ const opening=action==='notification-open';
+ if(!opening&&action!=='notification-change')return;
+ const update=opening?{is_read:true}:choice==='archive'?{is_archived:!item.is_archived}:{is_read:!item.is_read};
+ const visible=await call(client.from('member_notifications').update(update)
+  .eq('recipient_id',current.owner).eq('id',item.id).select('id').maybeSingle());
+ if(notificationView!==current)return;
+ if(!visible||!opening){
+  if(!visible)info='This notification is no longer available.';
+  return loadNotifications(current,{focus:true,force:true});
+ }
+ setNotificationRoute('member');
+ if(item.kind==='direct_message'){
+  if(!people[item.actor_id])people[item.actor_id]={display_name:item.actor_name};
+  selectedPeer=item.actor_id;dm=[];view='chat';
+  await loadDM();
+  render();
+  root.querySelector('[data-chat-focus]')?.focus();
+ }else await dispatch('member-profile',{dataset:{id:item.actor_id}});
+}
+
+function messageBubble(message,kind,community){
+ const direct=kind==='direct';
+ const ownMessage=session.user.id===(direct?message.sender_id:message.author_id);
+ const mayDelete=ownMessage||(!direct&&own(community));
+ return '<div class="bubble '+(ownMessage?'mine':'')+'">'+
+  (direct?'':'<strong>'+e(person(message.author_id))+': </strong>')+
+  e(message.body)+safetyLabel(direct?'direct_message':'community_message',message.id)+
+  (mayDelete?'<div class="message-actions">'+button('delete-chat-message','Delete message','ghost',
+   'data-id="'+e(message.id)+'" data-choice="'+kind+'"')+'</div>':'')+'</div>';
+}
+const mayMessage=peer=>messageRecipients?.ids?.has(peer)&&!isBlocked(peer);
 function chat(){
- const peers=memberDirectory.filter(x=>x.id!==session.user.id&&x.allow_direct_messages&&!isBlocked(x.id));
+ const peers=memberDirectory.filter(member=>messageRecipients?.ids?.has(member.id)&&!isBlocked(member.id));
  return head('Messages','Private conversations are opt-in and limited to members sharing a group.')+
- '<div class="surface" style="padding:22px">'+(profile?.allow_direct_messages?'<p class="small muted">Direct messaging is enabled on your profile.</p>':'<p class="small muted">Direct messages are off by default. Enable them under Profile to receive messages from fellow group members.</p>')+
- '<div class="section-bar"><h3>Members accepting messages</h3></div><div class="stack">'+peers.map(p=>'<div class="space"><div><button class="member-link" data-act="member-profile" data-id="'+p.id+'">'+e(p.display_name)+'</button> <span class="tiny muted">@'+e(p.handle)+'</span></div>'+button('dm-user','Open chat','secondary','data-id="'+p.id+'"')+'</div>').join('')+'</div>'+
- (selectedPeer?'<div class="section-bar"><h3>Conversation with '+e(person(selectedPeer))+'</h3></div><div class="chat-messages">'+dm.filter(m=>(m.sender_id===selectedPeer&&m.recipient_id===session.user.id)||(m.sender_id===session.user.id&&m.recipient_id===selectedPeer)).map(m=>'<div class="bubble '+(m.sender_id===session.user.id?'mine':'')+'">'+e(m.body)+safetyLabel('direct_message',m.id)+'</div>').join('')+'</div><form data-form="dm" class="chat-write"><input class="field" name="body" required maxlength="2000" placeholder="Write a private message"><button class="button">Send</button></form>':'')+'</div>';
+ '<div class="surface" style="padding:22px"><p class="small muted">Manage who can send you messages in <a href="?settings=privacy">Privacy settings</a>.</p>'+
+ '<div class="section-bar"><h3>Members you can message</h3></div>'+
+ (messageRecipients?.error?'<p role="status">Could not check message availability.</p>'+button('retry-message-recipients','Retry availability','secondary'):
+ !messageRecipients?.ids?'<p role="status">Checking message availability…</p>':
+ !peers.length?'<p>No shared-circle members are currently available to message.</p>':'')+
+ '<div class="stack">'+peers.map(p=>'<div class="space connection-list-row"><div><button class="member-link" data-act="member-profile" data-id="'+p.id+'">'+e(p.display_name)+'</button> <span class="tiny muted">@'+e(p.handle)+'</span></div>'+button('dm-user','Open chat','secondary','data-id="'+p.id+'"')+'</div>').join('')+'</div>'+
+ (selectedPeer?'<div class="section-bar"><h3 data-chat-focus tabindex="-1">Conversation with '+e(person(selectedPeer))+'</h3>'+button('refresh-dm','Refresh conversation','secondary')+'</div><div data-dm-refresh-status role="status"></div><div data-message-delete-status role="status"></div><div class="chat-messages">'+dm.filter(m=>(m.sender_id===selectedPeer&&m.recipient_id===session.user.id)||(m.sender_id===session.user.id&&m.recipient_id===selectedPeer)).map(m=>messageBubble(m,'direct')).join('')+'</div>'+(mayMessage(selectedPeer)?'<form data-form="dm" class="chat-write"><input class="field" name="body" required maxlength="2000" aria-label="Private message" placeholder="Write a private message"><button class="button">Send</button></form>':'<p class="muted small">New messages are unavailable in this conversation.</p>'):'')+'</div>';
 }
 function ownership(){
  return head('Private markets & ownership','Develop documented investment theses for real assets, operating businesses, startup capital and shareholder stewardship.',button('new-project','Propose research project','primary'))+
@@ -236,7 +620,7 @@ function research(){
  '<div class="surface" style="padding:25px;margin-bottom:15px;background:#142335;color:#eef3f8;border:1px solid #314758"><span class="pill" style="background:#d0ee7f;color:#142015">FINANCIAL INTELLIGENCE</span><h3 style="margin-top:14px;color:#eef3f8">COMMON Quantitative Research Terminal</h3><p class="small" style="margin:10px 0 16px;color:#a9bdce">Official Treasury data, discounted cash flow valuation, options Greeks, interest-rate duration, historical strategy validation, and venture dilution models. Each output explains assumptions and sources.</p>'+button('open-terminal','Open Research Terminal','primary')+' '+button('open-studio','Private research workspace','secondary')+'</div>'+
  '<div class="surface" style="padding:25px"><h3>Your tracked symbols</h3><p class="muted small" style="margin:8px 0 16px">Watchlists are saved to your account. They are not brokerage positions or buy recommendations.</p>'+
  '<form class="row" data-form="watch"><input required name="symbol" class="field" maxlength="12" placeholder="Symbol e.g. TSLA" style="max-width:240px"><button class="button" type="submit">Track</button></form>'+
- watches.map(w=>'<div class="account-row"><strong>'+e(w.symbol)+'</strong>'+button('remove-watch','Remove','secondary','data-symbol="'+e(w.symbol)+'"')+'</div>').join('')+
+ watches.map(w=>'<div class="account-row"><strong>'+e(w.symbol)+'</strong><a class="button secondary" href="../lab/?symbol='+encodeURIComponent(w.symbol)+'">Research '+e(w.symbol)+'</a>'+button('remove-watch','Remove','secondary','data-symbol="'+e(w.symbol)+'"')+'</div>').join('')+
  '<p class="small muted" style="margin-top:16px">Use <a href="https://www.sec.gov/edgar/search/" target="_blank" rel="noopener noreferrer" style="color:#275cfa;text-decoration:underline">SEC EDGAR</a> for dated official filings.</p></div>';
 }
 function agentDeskKey(){return session?.user?.id?'common.agent.desk.'+session.user.id:null;}
@@ -263,48 +647,471 @@ function money(){
 }
 function learn(){return head('Understand ownership','Financial concepts explained in plain language.')+
  [['Can my friends buy the same stock?','Yes. Members can discuss and independently decide what to do through their own brokerages. Avoid agreements designed to artificially move prices.'],['What is a pooled investment club?','An actual pooled club needs a lawful structure and external financial accounts. A COMMON group is not automatically a legal fund.'],['Can our group buy housing?','An appropriately structured entity can research and potentially acquire properties using outside legal, banking and financing professionals. COMMON does not offer securities or collect investments.'],['Are community votes legally binding?','No. These opinion polls are not company shareholder votes or investment instructions.'],['What is AUM?','Assets under management is the value a manager oversees. Group size, hypothetical contributions and goal amounts do not count as real AUM.']].map(([q,a])=>'<details class="surface lesson"><summary>'+e(q)+'</summary><p>'+e(a)+'</p></details>').join('');}
-function memberPage(){const p=memberDetail;if(!p)return head('Member profile','Select a member from a circle.');const mine=p.id===session.user.id,shared=memberDirectory.some(x=>x.id===p.id),visible=posts.filter(x=>x.author_id===p.id&&!x.parent_id&&!isBlocked(x.author_id));
-return head(p.display_name,'@'+p.handle)+button('open-groups','Back to circles')+'<div class="surface circle-tools"><div class="space"><span class="avatar">'+e(p.display_name.slice(0,2).toUpperCase())+'</span><span class="pill">Member profile</span></div><p class="post-body">'+e(p.bio||'No public biography provided.')+'</p><p class="muted small">Member-provided profile; not an independently verified investment professional or shareholder.</p><div class="row">'+(mine?'<button class="button" data-tab="profile">Edit profile</button>':(shared&&p.allow_direct_messages&&!isBlocked(p.id)?button('dm-user','Message','primary','data-id="'+p.id+'"'):'')+button(isBlocked(p.id)?'unblock-member':'block-member',isBlocked(p.id)?'Unblock member':'Block member','secondary','data-id="'+p.id+'"'))+'</div></div><div class="section-bar"><h3>Visible recent research</h3></div>'+(visible.length?visible.map(postCard).join(''):'<div class="empty">No visible recent research.</div>');}
-function profilePage(){const nav='<div class="feed-tabs">'+[['identity','Profile'],['privacy','Privacy & communication'],['blocked','Blocked members'],['saved','Saved research']].map(([id,label])=>'<button class="feed-tab '+(profileSection===id?'active':'')+'" data-profile-section="'+id+'">'+label+'</button>').join('')+'</div>';let c='';
+let followProfile=null, followList=null, connectionSection='incoming';
+const followPageSize=25;
+const followSections={following:['follower_id','followed_id'],followers:['followed_id','follower_id']};
+const connectionSections={incoming:'Received',outgoing:'Sent',accepted:'Accepted'};
+const connectionActions={
+ available:[['request','Request connection']],
+ incoming:[['accept','Accept request'],['decline','Decline request']],
+ outgoing:[['withdraw','Withdraw request']],
+ accepted:[['remove','Remove connection']]
+};
+function connectionButtons(peerId,section){
+ return (connectionActions[section]||[]).map(([action,label])=>
+  button('member-connection',label,action==='accept'?'primary':'secondary',
+   'data-id="'+e(peerId)+'" data-choice="'+action+'"')).join('');
+}
+async function loadConnectionProfile(member,quiet=false){
+ if(member.connectionRequest&&quiet)return;
+ const request={};
+ member.connectionRequest=request;
+ const previous=member.connection;
+ let status;
+ try{
+  status=await call(client.rpc('member_connection_state_v1',{peer_id:member.id}));
+ }catch{status='error'}
+ if(member.connectionRequest!==request)return;
+ member.connection=status;
+ member.connectionRequest=null;
+ if(followProfile===member&&(!quiet||previous!==member.connection))render();
+}
+function connectionProfileControls(peerId){
+ if(followProfile?.id!==peerId||isBlocked(peerId))return '';
+ if(followProfile.connection==='error')return button('retry-connection-status','Retry connection status');
+ if(!followProfile.connection)return '<span role="status">Loading connection status…</span>';
+ return connectionButtons(peerId,followProfile.connection);
+}
+function connectionListSection(){
+ return view==='profile'&&profileSection==='connections'?connectionSection:null;
+}
+
+async function loadFollowProfile(member,quiet=false){
+ if(member.requesting)return;
+ member.requesting=true;
+ const {available,following,error:hadError}=member;
+ try{
+  const [blocked,edges]=await Promise.all([
+   call(client.rpc('dm_block_exists',{sender:member.owner,recipient:member.id})),
+   call(client.from('member_follows').select('followed_id').eq('follower_id',member.owner).eq('followed_id',member.id))
+  ]);
+  if(followProfile!==member)return;
+  member.available=!blocked;member.following=edges.length>0;member.error=false;
+ }catch{member.error=true}
+ member.requesting=false;
+ member.loading=false;
+ if(followProfile===member&&(!quiet||available!==member.available||following!==member.following||hadError!==member.error))render();
+}
+function followProfileControl(p){
+ const member=followProfile;
+ if(!member||member.loading)return '<span role="status">Loading follow status…</span>';
+ if(member.error)return button('retry-follow-status','Retry follow status');
+ if(!member.available||isBlocked(p.id))return '';
+ return button('toggle-follow',member.following?'Unfollow':'Follow','secondary','data-id="'+p.id+'"');
+}
+function prepareFollowViews(){
+ if(document.hidden){followProfile=followList=null;return}
+ const owner=session.user.id;
+ const member=view==='member'&&memberDetail?.id!==owner?memberDetail:null;
+ if(!member)followProfile=null;
+ else if(followProfile?.owner!==owner||followProfile.id!==member.id){
+  followProfile={owner,id:member.id,loading:true};
+  void loadFollowProfile(followProfile);
+  void loadConnectionProfile(followProfile);
+ }
+ const section=connectionListSection()||(view==='profile'&&Object.hasOwn(followSections,profileSection)?profileSection:null);
+ if(!section)followList=null;
+ else if(followList?.section!==section||followList.owner!==owner){
+  followList={owner,section,cursors:[null],items:[]};
+  void loadFollowList(followList);
+ }
+}
+async function loadFollowList(list,{focus=false,quiet=false}={}){
+ if(list.requesting)return;
+ list.requesting=true;
+ if(!quiet){list.loading=true;list.error=false;list.items=[];list.next=null}
+ const previous=JSON.stringify([list.items,list.next,list.error]);
+ try{
+  const cursor=list.cursors.at(-1);
+  const columns=followSections[list.section];
+  let items;
+  if(columns){
+   const [ownerColumn,peerColumn]=columns;
+   let query=client.from('member_follows').select(peerColumn+',member:profiles!member_follows_'+peerColumn+'_fkey(id,display_name,handle)')
+    .eq(ownerColumn,list.owner).order(peerColumn,{ascending:true}).limit(followPageSize+1);
+   if(cursor)query=query.gt(peerColumn,cursor);
+   items=(await call(query)).map(row=>row.member);
+  }else{
+   items=await call(client.rpc('member_connection_page_v1',{
+    connection_scope:list.section,after_id:cursor,page_size:followPageSize+1
+   }));
+  }
+  if(followList!==list)return;
+  list.items=items.slice(0,followPageSize);
+  list.next=items.length>followPageSize?list.items.at(-1).id:null;
+  list.error=false;
+ }catch{list.error=true;list.items=[];list.next=null}
+ list.requesting=false;
+ list.loading=false;
+ if(followList===list&&(!quiet||previous!==JSON.stringify([list.items,list.next,list.error]))){
+  render();
+  if(focus)document.getElementById('member-follow-results')?.focus();
+ }
+}
+function followListMarkup(){
+ const list=followList;
+ let content;
+ if(!list||list.loading)content='<p role="status">Loading members…</p>';
+ else if(list.error)content='<p role="alert">Could not load members.</p>'+button('follow-list-refresh','Try again');
+ else{
+  const empty={
+   following:'You have not followed any visible members.', followers:'You have no visible followers.',
+   incoming:'No received requests.', outgoing:'No sent requests.', accepted:'No accepted connections.'
+  };
+  content=list.items.length?list.items.map(p=>'<div class="space connection-list-row"><div><button class="member-link" data-act="member-profile" data-id="'+e(p.id)+'">'+e(p.display_name)+'</button> <span class="muted small">@'+e(p.handle)+'</span></div><div class="row">'+connectionButtons(p.id,list.section)+'</div></div>').join(''):
+   '<p>'+empty[list.section]+'</p>';
+ }
+ return '<div class="stack" id="member-follow-results" tabindex="-1">'+content+'</div>'+
+  (list&&!list.loading&&!list.error?'<div class="row" role="group" aria-label="Member list pages">'+
+   (list.cursors.length>1?button('follow-list-previous','Previous members'):'')+
+   (list.next?button('follow-list-next','More members'):'')+button('follow-list-refresh','Refresh members')+'</div>':'');
+}
+function memberPage(){const p=memberDetail;if(!p)return head('Member profile','Select a member from a circle.');const mine=p.id===session.user.id,shared=memberDirectory.some(x=>x.id===p.id);
+return head(p.display_name,'@'+p.handle)+button('open-groups','Back to circles')+'<div class="surface circle-tools"><div class="space"><span class="avatar">'+e(p.display_name.slice(0,2).toUpperCase())+'</span><span class="pill">Member profile</span></div><p class="post-body">'+e(p.bio||'No public biography provided.')+'</p><p class="muted small">Member-provided profile; not an independently verified investment professional or shareholder.</p><div class="row member-profile-actions">'+(mine?'<button class="button" data-tab="profile">Edit profile</button>':(shared&&p.allow_direct_messages&&!isBlocked(p.id)?button('dm-user','Message','primary','data-id="'+p.id+'"'):'')+followProfileControl(p)+connectionProfileControls(p.id)+button(isBlocked(p.id)?'unblock-member':'block-member',isBlocked(p.id)?'Unblock member':'Block member','secondary','data-id="'+p.id+'"'))+'</div></div><div class="section-bar"><h3>Visible recent research</h3></div>'+discussionPageMarkup(discussionFeed,postCard,'<div class="empty">No visible recent research.</div>');}
+const audienceLabels={off:'Nobody (default)',circles:'Members who share a circle with me',connections:'Accepted connections who share a circle with me'};
+function messagePrivacyMarkup(){
+ const heading='<h3>Direct messages</h3><p class="muted small" id="message-privacy-help">Choose who can send you new messages. A shared circle is required. Blocking prevents direct messages in both directions and takes precedence over this setting.</p>';
+ if(messagePrivacy?.error)return heading+'<p role="status">Could not load your preferences.</p>'+button('retry-message-privacy','Retry preferences','secondary');
+ if(!messagePrivacy?.ready||!profile)return heading+'<p role="status">Loading your preferences…</p>';
+ const audience=profile.allow_direct_messages?(messagePrivacy.connectionsOnly?'connections':'circles'):'off';
+ return heading+'<form data-form="privacy" class="stack"><label><span class="form-label">Who can send you direct messages?</span>'+
+  '<select class="field" name="message_audience" aria-describedby="message-privacy-help">'+Object.entries(audienceLabels).map(([key,label])=>
+   '<option value="'+key+'"'+(key===audience?' selected':'')+'>'+e(label)+'</option>').join('')+'</select></label>'+
+  '<button type="submit" class="button">Save privacy preferences</button></form>';
+}
+function prepareMessagePrivacy(){
+ if(view!=='profile'||profileSection!=='privacy'||messagePrivacy||!profile)return;
+ const owner=session.user.id,read={};
+ messagePrivacy=read;
+ void (async()=>{
+  try{
+   const data=await call(client.from('member_message_privacy').select('connections_only').eq('user_id',owner).maybeSingle());
+   Object.assign(read,{connectionsOnly:data?.connections_only===true,ready:true});
+  }catch{read.error=true;}
+  if(messagePrivacy===read&&session?.user?.id===owner&&view==='profile'&&profileSection==='privacy')render();
+ })();
+}
+function prepareMessageRecipients(){
+ if(view!=='chat'||messageRecipients||!profile)return;
+ const owner=session.user.id,read={};
+ messageRecipients=read;
+ const candidates=memberDirectory.filter(member=>member.id!==owner&&member.allow_direct_messages&&!isBlocked(member.id)).map(member=>member.id);
+ void (async()=>{
+  try{
+   const batches=[];
+   for(let index=0;index<candidates.length;index+=100)batches.push(candidates.slice(index,index+100));
+   const allowed=await Promise.all(batches.map(candidate_ids=>call(client.rpc('available_message_recipients_v1',{candidate_ids}))));
+   read.ids=new Set(allowed.flat());
+  }catch{read.error=true;}
+  if(messageRecipients===read&&session?.user?.id===owner&&view==='chat')render();
+ })();
+}
+function profilePage(){const nav='<div class="feed-tabs">'+[['identity','Profile'],['privacy','Privacy & communication'],['blocked','Blocked members'],['saved','Saved research'],['following','Following'],['followers','Followers'],['connections','Connections']].map(([id,label])=>'<button class="feed-tab '+(profileSection===id?'active':'')+'" data-profile-section="'+id+'" aria-pressed="'+(profileSection===id)+'">'+label+'</button>').join('')+'</div>';let c='';
 if(profileSection==='identity')c='<form data-form="profile" class="stack"><label><span class="form-label">Display name</span><input class="field" name="name" required maxlength="80" minlength="2" value="'+e(profile?.display_name)+'"></label><label><span class="form-label">Biography (public)</span><textarea class="field" maxlength="600" name="bio">'+e(profile?.bio||'')+'</textarea></label><button type="submit" class="button">Save profile</button></form>';
-if(profileSection==='privacy')c='<form data-form="privacy" class="stack"><label class="row"><input type="checkbox" name="allow_dm" '+(profile?.allow_direct_messages?'checked':'')+'> Allow direct messages from members of my communities</label><p class="muted small">Private messaging requires a shared circle and recipient consent. Blocking prevents direct messaging in both directions.</p><button type="submit" class="button">Save privacy preferences</button></form>';
+if(profileSection==='privacy')c=messagePrivacyMarkup();
 if(profileSection==='blocked')c='<p class="muted small">Blocked profiles are hidden from your feed and cannot exchange direct messages with you. This does not remove their public content for other users.</p>'+ (blockedMembers.length?blockedMembers.map(id=>'<div class="space"><span>'+e(person(id))+'</span>'+button('unblock-member','Unblock','secondary','data-id="'+id+'"')+'</div>').join(''):'<p>No blocked members.</p>');
-if(profileSection==='saved')c='<p class="muted small">Bookmarks are saved on this device and account only. Only research still visible in your recent feed is displayed.</p>'+button('saved-feed','Open saved research')+'<button class="button secondary" data-act="clear-bookmarks">Clear saved research</button>';
+if(profileSection==='saved')c='<p class="muted small">Bookmarks are saved on this device and account only. Only research you still have permission to read is displayed.</p>'+button('saved-feed','Open saved research')+'<button class="button secondary" data-act="clear-bookmarks">Clear saved research</button>';
+if(Object.hasOwn(followSections,profileSection))c=followListMarkup();
+if(profileSection==='connections'){
+ c='<div class="feed-tabs" role="group" aria-label="Connection lists">'+Object.entries(connectionSections).map(([id,label])=>
+   button('connection-list',label,connectionSection===id?'primary':'secondary',
+    'data-choice="'+id+'" aria-pressed="'+(connectionSection===id)+'"')).join('')+
+   '</div>'+followListMarkup();
+}
 return head('Your account','Control your identity, communications and privacy.')+nav+'<div class="surface circle-tools"><h3>'+e(profile?.display_name)+'</h3><p class="muted small">@'+e(profile?.handle)+'</p>'+c+'</div><button class="button soft" data-act="signout">Sign out</button>';}
 
+function researchDraftNotice(){
+ if(view==='research-review'||!CommonResearchDraft.forMember(session.user.id))return '';
+ return '<section class="preview-banner"><p>Unpublished research summary from this tab.</p>'+
+  button('review-research','Review research draft')+'</section>';
+}
+function researchReviewPage(){
+ const draft=researchReview;
+ if(!draft||draft.owner!==session.user.id||!CommonResearchDraft.forMember(session.user.id)){
+  return head('Research draft','This draft is unavailable. Return to Research or Research Studio to prepare a new one.');
+ }
+ const circles=groups.filter(group=>group.visibility==='private'&&joined(group.id));
+ const destinations=circles.map(group=>'<option value="'+e(group.id)+'" '+(draft.circle===group.id?'selected':'')+'>'+e(group.name)+'</option>').join('');
+ const fields='<label><span class="form-label">Discussion title</span><input name="title" class="field" required minlength="8" maxlength="160" value="'+e(draft.title)+'"></label>'+
+  '<label><span class="form-label">Research summary</span><textarea name="body" class="field" rows="12" required minlength="3" maxlength="10000">'+e(draft.body)+'</textarea></label>';
+ return head('Review research draft','Review exactly what will be shared. The underlying data and project stay in Research.')+
+  '<form data-form="research-draft" class="surface circle-tools stack">'+fields+
+  (circles.length?'<label><span class="form-label">Private circle</span><select required class="field" name="circle"><option value="">Choose a private circle</option>'+destinations+'</select></label>'+
+    '<button type="submit" class="button">Publish to circle</button>':
+    '<p>Join or create a private circle to publish this draft.</p>'+button('open-groups','Open circles'))+
+  (config.researchAgentEnabled===true?button('review-with-agent','Open in research assistant','secondary'):'')+
+  button('discard-research','Discard draft','secondary')+'</form>';
+}
+
+const postDraftKey=uid=>'common.posts.draft.v1.'+uid;
+const draftText=(value,max)=>typeof value==='string'?value.slice(0,max):'';
+function openPostDraft(uid){
+ if(composerDraft?.owner===uid&&composerDraft.saveError)return;
+ let savedRaw=null,stored=null,saveError='';
+ try{
+  savedRaw=localStorage.getItem(postDraftKey(uid));
+  if(savedRaw!==null)stored=JSON.parse(savedRaw);
+ }catch{
+  saveError='This draft could not be read from device storage.';
+ }
+ composerDraft={
+  owner:uid,savedRaw,saveError,publishError:'',publishing:false,syncing:false,syncMessage:'',conflict:null,deviceConflict:false,
+  revision:Number.isSafeInteger(stored?.revision)&&stored.revision>=0?stored.revision:0,
+  dirty:stored?.dirty??Boolean(stored),
+  submission:typeof stored?.submission==='string'?stored.submission:null,
+  group:typeof stored?.group==='string'?stored.group:(selectedGroup&&joined(selectedGroup)?selectedGroup:''),
+  title:draftText(stored?.title,160),body:draftText(stored?.body,10000)
+ };
+}
+function savePostDraft(draft){
+ if(draft?.owner!==session?.user?.id)return false;
+ const key=postDraftKey(draft.owner);
+ const content=JSON.stringify({
+  group:draft.group,title:draft.title,body:draft.body,revision:draft.revision,
+  dirty:draft.dirty,submission:draft.submission
+ });
+ try{
+  if(localStorage.getItem(key)!==draft.savedRaw){
+   draft.deviceConflict=true;
+   draft.saveError='This draft changed in another tab. Copy your edits before closing.';
+   return false;
+  }
+  if(content!==draft.savedRaw)localStorage.setItem(key,content);
+  draft.savedRaw=content;
+  draft.deviceConflict=false;
+  draft.saveError='';
+  return true;
+ }catch{
+  draft.saveError='Device storage is unavailable. Copy your draft before leaving this page.';
+  return false;
+ }
+}
+function clearPostDraft(draft){
+ const key=postDraftKey(draft.owner);
+ try{
+  if(localStorage.getItem(key)!==draft.savedRaw)return false;
+  localStorage.removeItem(key);
+  return true;
+ }catch{
+  return false;
+ }
+}
+async function requestDiscussionDraft(name,args){
+ const controller=new AbortController();
+ const timer=setTimeout(()=>controller.abort(),8000);
+ try{
+  const query=client.rpc(name,args);
+  return await call(query.abortSignal?query.abortSignal(controller.signal):query);
+ }finally{
+  clearTimeout(timer);
+ }
+}
+function postDraftMessage(draft){
+ return draft.saveError||draft.syncMessage||(draft.savedRaw?'Draft saved on this device.':'');
+}
+function applyAccountDraft(draft,account){
+ Object.assign(draft,{
+  group:account.circle_id||'',title:account.title,body:account.body,revision:account.revision,
+  dirty:false,submission:null,conflict:null,syncMessage:'Account draft loaded.'
+ });
+ savePostDraft(draft);
+}
+async function readAccountDraft(draft){
+ try{
+  const account=await requestDiscussionDraft('read_discussion_draft_v1');
+  if(draft!==composerDraft||session?.user?.id!==draft.owner||account===null)return;
+  if(!Number.isSafeInteger(account.revision)||typeof account.title!=='string'||typeof account.body!=='string'){
+   throw Error('Invalid draft response');
+  }
+  if(draft.submission&&account.last_published_id===draft.submission){
+   applyAccountDraft(draft,account);
+   draft.syncMessage='Previous publication confirmed.';
+  }else if(!draft.submission&&draft.group===(account.circle_id||'')&&draft.title===account.title&&draft.body===account.body){
+   applyAccountDraft(draft,account);
+  }else if(account.revision!==draft.revision&&(draft.dirty||draft.submission)){
+   draft.conflict=account;
+   draft.syncMessage='This account draft changed on another device.';
+  }else if(!draft.dirty&&!draft.submission){
+   applyAccountDraft(draft,account);
+  }
+ }catch{
+  draft.syncMessage='Account draft unavailable. Device edits can still be saved.';
+ }
+}
+async function writeAccountDraft(draft){
+ try{
+  const saved=await requestDiscussionDraft('save_discussion_draft_v1',{
+   expected_revision:draft.revision,target_circle:draft.group||null,draft_title:draft.title,draft_body:draft.body
+  });
+  if(draft!==composerDraft||session?.user?.id!==draft.owner)return false;
+  if(!Number.isSafeInteger(saved.revision))throw Error('Invalid draft response');
+  draft.revision=saved.revision;draft.dirty=false;
+  draft.syncMessage='Draft saved to your account.';
+  savePostDraft(draft);
+  return true;
+ }catch(err){
+  if(err?.code==='40001')await readAccountDraft(draft);
+  else draft.syncMessage='Account sync failed. Your draft can be saved on this device.';
+  return false;
+ }
+}
+function postComposerFields(){
+ const draft=composerDraft;
+ const destinations=memberships.map(m=>'<option value="'+e(m.community_id)+'"'+
+  (m.community_id===draft.group?' selected':'')+'>'+e(groupName(m.community_id))+'</option>').join('');
+ return '<p class="muted small">Save draft to resume it on another device. Edits are also saved in this browser.</p>'+
+  '<label><span class="form-label">Community</span><select required class="field" name="group">'+
+  '<option value="">Choose a community</option>'+destinations+'</select></label>'+
+  (destinations?'':'<p>Join a circle before publishing. You can save the draft meanwhile.</p>')+
+  '<label><span class="form-label">Title</span><input required minlength="8" maxlength="160" class="field" name="title" value="'+e(draft.title)+'"></label>'+
+  '<label><span class="form-label">Your research or question</span><textarea required minlength="3" maxlength="10000" class="field" name="body">'+e(draft.body)+'</textarea></label>'+
+  '<p data-post-draft-status role="status">'+e(postDraftMessage(draft))+'</p>'+
+  (draft.publishError?'<p role="alert">'+e(draft.publishError)+'</p>':'')+
+  (draft.conflict?'<div class="preview-banner"><p>Choose which draft to keep before syncing or publishing.</p>'+
+   '<button type="button" class="button secondary" data-act="use-account-post-draft">Use account draft</button> '+
+   '<button type="button" class="button secondary" data-act="keep-device-post-draft">Keep this device’s draft</button></div>':'')+
+  '<div class="row"><button type="button" class="button secondary" data-act="keep-post-draft">Save draft</button>'+
+  '<button type="button" class="button secondary" data-act="discard-post-draft">Discard draft</button></div>';
+}
 function dialog(){
  if(!state.composer&&!state.groupCreate&&!state.projectCreate&&!state.proposalCreate)return '';
  let title='',fields='',form='';
- if(state.composer){title='Share research';form='post';fields='<label><span class="form-label">Community</span><select required class="field" name="group">'+memberships.map(m=>'<option value="'+m.community_id+'" '+(m.community_id===selectedGroup?'selected':'')+'>'+e(groupName(m.community_id))+'</option>').join('')+'</select></label><label><span class="form-label">Title</span><input required minlength="8" maxlength="160" class="field" name="title"></label><label><span class="form-label">Your research or question</span><textarea required minlength="3" maxlength="10000" class="field" name="body"></textarea></label>';}
+ if(state.composer){title='Share research';form='post';fields=postComposerFields();}
  else if(state.groupCreate){title='Establish a research desk';form='group';fields='<label><span class="form-label">Research desk name</span><input class="field" name="name" required minlength="4" maxlength="100" placeholder="e.g. Industrials Fundamental Research"></label><label><span class="form-label">Mandate and methodology</span><textarea class="field" name="description" maxlength="2500" required placeholder="Define your research universe, analytical method, sources and intended deliverables."></textarea></label><label><span class="form-label">Coverage discipline</span><select class="field" name="category">'+researchDisciplines.map(([key,label])=>'<option value="'+key+'">'+e(label)+'</option>').join('')+'</select></label><label><span class="form-label">Membership visibility</span><select name="visibility" class="field"><option value="private">Private, invitation only</option><option value="public">Public research desk</option></select></label><div class="preview-banner">Research collaboration and shareholder education only. Do not use a desk to coordinate market manipulation, solicit unregistered securities, or pool money without an authorized structure.</div>';}
  else if(state.projectCreate){title='Research a project';form='project';fields='<label><span class="form-label">Linked community</span><select name="community" class="field">'+memberships.map(m=>'<option value="'+m.community_id+'" '+(m.community_id===selectedGroup?'selected':'')+'>'+e(groupName(m.community_id))+'</option>').join('')+'</select></label><label><span class="form-label">Project title</span><input name="title" class="field" required minlength="8" maxlength="160"></label><label><span class="form-label">Rationale</span><textarea name="thesis" class="field" required minlength="30" maxlength="12000"></textarea></label><label><span class="form-label">Focus</span><select name="category" class="field"><option value="public_company">Public company</option><option value="housing">Housing</option><option value="local_business">Business</option><option value="community_land">Community land</option><option value="other">Other</option></select></label>';}
- else{title='Start a discussion poll';form='proposal';fields='<input type="hidden" name="community" value="'+e(selectedGroup)+'"><label><span class="form-label">Question</span><input class="field" name="title" required minlength="8" maxlength="160"></label><label><span class="form-label">What members should consider</span><textarea class="field" name="rationale" required minlength="30" maxlength="15000"></textarea></label>';}
- return '<div class="modal-backdrop"><div class="modal" role="dialog" aria-modal="true"><div class="space"><h2>'+title+'</h2><button class="icon-btn" data-act="close-dialog">✕</button></div><p class="muted small" style="margin:10px 0 16px">This is a live community contribution, not a request to collect investment money.</p><form data-form="'+form+'" class="stack">'+fields+'<button type="submit" class="button full">Publish</button></form></div></div>';
+ else{title='Start a discussion poll';form='proposal';fields='<input type="hidden" name="community" value="'+e(selectedGroup)+'"><label><span class="form-label">Question</span><input class="field" name="title" required minlength="8" maxlength="160" value="'+e(pollDraft?.title||'')+'"></label><label><span class="form-label">What members should consider</span><textarea class="field" name="rationale" required minlength="30" maxlength="15000">'+e(pollDraft?.rationale||'')+'</textarea></label>';}
+ return '<dialog class="modal common-member-dialog" aria-labelledby="member-dialog-title"><div class="space"><h2 id="member-dialog-title">'+title+'</h2><button type="button" class="icon-btn" aria-label="Close dialog" data-act="close-dialog">✕</button></div><p class="muted small" style="margin:10px 0 16px">This is a live community contribution, not a request to collect investment money.</p><form data-form="'+form+'" class="stack">'+fields+'<button type="submit" class="button full" '+
+  (form==='post'&&(!memberships.length||composerDraft.publishing||composerDraft.conflict)?'disabled':'')+'>'+
+  (form==='post'&&composerDraft.publishing?'Publishing…':'Publish')+'</button></form></dialog>';
 }
 function recoveryPage(){
  root.innerHTML='<main class="auth-shell"><section class="auth-left">'+logo()+'<div class="auth-feature"><h1>Secure your<br><em>account.</em></h1><p>Choose a new password to regain access to your community.</p></div></section><section class="auth-right"><div class="auth-form-wrap"><h2>Reset your password</h2>'+banner()+'<form id="password-change-form" class="stack"><label><span class="form-label">New password</span><input class="field" name="password" required type="password" minlength="8" autocomplete="new-password"></label><button type="submit" class="button full">Save new password</button></form></div></section></main>';
 }
-function render(){if(!client){setup();return}if(recovering){recoveryPage();return}if(!session?.user){auth();return}root.innerHTML=baseNav()+dialog()}
+let modalTrigger=null;
+function closeMemberDialog(){
+ pollDraft=null;state.composer=state.groupCreate=state.projectCreate=state.proposalCreate=false;
+ render();
+ const trigger=modalTrigger&&root.querySelector('[data-act="'+CSS.escape(modalTrigger)+'"]');
+ trigger?.focus();
+ modalTrigger=null;
+}
+function render(){
+ if(!client){setup();return}
+ if(recovering){resetDiscussionFeed();recoveryPage();return}
+ if(!session?.user){resetDiscussionFeed();auth();return}
+ prepareFollowViews();
+ prepareDiscussionFeed();
+ prepareNotifications();
+ prepareMessagePrivacy();
+ prepareMessageRecipients();
+ const privacyOpen=view==='profile'&&profileSection==='privacy';
+ if(privacyOpen!==privacyRequested()){
+  const url=new URL(location.href);
+  if(privacyOpen)url.searchParams.set('settings','privacy');else url.searchParams.delete('settings');
+  history.replaceState(history.state,'',url);
+  window.dispatchEvent(new Event('common:route-change'));
+ }
+ const previous=root.querySelector('.common-member-dialog[open]');
+ const previousForm=previous?.querySelector('form');
+ const values=previousForm&&previousForm.dataset.form!=='post'?new FormData(previousForm):null;
+ root.innerHTML=baseNav()+dialog();
+ const modal=root.querySelector('.common-member-dialog');
+ if(!modal)return;
+ const form=modal.querySelector('form');
+ if(form.dataset.form==='post'&&(composerDraft.publishing||composerDraft.syncing)){
+  for(const control of form.elements)control.disabled=true;
+ }
+ if(values&&previousForm.dataset.form===form.dataset.form){
+  for(const [name,value] of values){
+   const control=form.elements.namedItem(name);
+   if(control&&control.type!=='hidden')control.value=value;
+  }
+ }
+ form.querySelector('input:not([type=hidden]), textarea, select')?.setAttribute('autofocus','');
+ modal.addEventListener('cancel',event=>{event.preventDefault();if(!busy)closeMemberDialog();});
+ modal.showModal();
+}
 async function init(){
- if(!config.supabaseUrl||!config.supabaseAnonKey||config.communityBackendReady!==true||!window.supabase?.createClient){setup();return}
- client=window.supabase.createClient(config.supabaseUrl,config.supabaseAnonKey,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
+ client=window.CommonSession.memberClient();
+ if(!client){setup();return}
  checkGoogleProvider().catch(console.error);
  const r=await saved();if(r.error)throw r.error;session=r.data.session;
- client.auth.onAuthStateChange((evt,next)=>{session=next;if(evt==='PASSWORD_RECOVERY'){recovering=true;render();return}if(next&&!recovering){setTimeout(()=>refresh().catch(handleError),0)}else if(!next){profile=null;ledgerRows=[];ledgerCircle=null;ledgerError='';decisionDetail=null;pollRows=[];pollOwn=null;capitalDrafts.clear();capitalTab='overview';blockedMembers=[];bookmarks=[];memberDetail=null;memberDirectory=[];profileSection='identity';mobileMore=false;agentOutput=null;agentInput='';agentMode='review';agentDeskTab='analysis';agentDesk=CommonAgentDesk.initial();agentDeskOwner=null;agentLastRequest=null;groups=[];memberships=[];posts=[];proposals=[];projects=[];watches=[];people={};likes=[];messages=[];dm=[];memberPoll=[];selectedGroup=null;selectedPeer=null;state.inviteToken=null;state.comments=null;state.composer=state.groupCreate=state.projectCreate=state.proposalCreate=false;recovering=false;render()}});
+ if(location.hash==='#notifications')view='notifications';
+ else if(privacyRequested()){view='profile';profileSection='privacy';}
+ client.auth.onAuthStateChange((evt,next)=>{
+  if(session?.user?.id!==next?.user?.id){
+   researchReview=pollDraft=composerDraft=null;view=location.hash==='#notifications'?'notifications':privacyRequested()?'profile':'home';error=info='';
+   messagePrivacy=messageRecipients=null;notificationView=null;notificationSection='all';
+   profile=null;ledgerRows=[];ledgerCircle=null;ledgerError='';ledgerStatement=null;decisionDetail=null;pollRows=[];pollOwn=null;governanceMemo=null;
+   capitalDrafts.clear();capitalTab='overview';blockedMembers=[];bookmarks=[];memberDetail=null;memberDirectory=[];
+   profileSection=privacyRequested()?'privacy':'identity';connectionSection='incoming';state.feed='mine';followProfile=followList=null;mobileMore=false;agentOutput=null;agentInput='';agentMode='review';agentDeskTab='analysis';
+   agentDesk=CommonAgentDesk.initial();agentDeskOwner=null;agentLastRequest=null;
+   groups=[];memberships=[];proposals=[];projects=[];watches=[];people={};messages=[];dm=[];memberPoll=[];
+   circleMessageRead++;directMessageRead++;
+   moderationCases=[];moderationAppeals=[];accountRestrictions=[];selectedGroup=selectedPeer=null;
+   state.inviteToken=null;state.comments=null;state.composer=state.groupCreate=state.projectCreate=state.proposalCreate=false;
+   recovering=false;resetDiscussionFeed();
+  }
+  session=next;
+  if(evt==='PASSWORD_RECOVERY'){recovering=true;render();return}
+  if(!next){render();return}
+  if(!recovering&&evt!=='INITIAL_SESSION'&&evt!=='TOKEN_REFRESHED'){
+   render();
+   setTimeout(()=>refresh().catch(handleError),0);
+  }
+ });
  if(session)await refresh();else render();
  const fragment=location.hash.match(/^#invite=([a-f0-9]{48})$/);
  if(fragment)pendingInvite=fragment[1];
  if(!pendingInvite){try{const savedInvite=sessionStorage.getItem('common.pendingInvite');if(/^[a-f0-9]{48}$/.test(savedInvite||''))pendingInvite=savedInvite;}catch{}}
  if(pendingInvite&&session)await acceptInvite(pendingInvite);
- pollTimer=setInterval(()=>{if(session&&!busy)refresh(false).then(()=>{if(view==='groups'&&state.groupTab==='chat'&&!document.activeElement?.matches('input,textarea'))render()}).catch(console.error)},25000);
+ // Refresh only the current visible resource, never the full member bootstrap.
+ let refreshingView=false;
+ setInterval(async()=>{
+  if(!session?.user||document.hidden||busy||refreshingView||document.activeElement?.matches('input,textarea,select'))return;
+  refreshingView=true;
+  try{
+   if(view==='groups'&&state.groupTab==='chat'&&selectedGroup){await loadMessages();if(view==='groups'&&state.groupTab==='chat')render()}
+   else if(discussionFeed){
+    await readDiscussionPage(discussionFeed,{quiet:true});
+    if(discussionThread)await readDiscussionPage(discussionThread,{thread:true,quiet:true});
+   }
+   if(followProfile&&!followProfile.loading)await loadFollowProfile(followProfile,true);
+   if(followProfile)await loadConnectionProfile(followProfile,true);
+   if(followList&&!followList.loading)await loadFollowList(followList,{quiet:true});
+   if(notificationView&&notificationView.section!=='preferences')await loadNotifications(notificationView,{quiet:true});
+  }catch(err){console.error(err)}finally{refreshingView=false}
+ },25000);
+ document.addEventListener('visibilitychange',()=>{
+  if(view==='notifications'){notificationView=null;render();return}
+  if(!currentDiscussionScope()&&!connectionListSection()&&!(view==='profile'&&Object.hasOwn(followSections,profileSection)))return;
+  resetDiscussionFeed();followProfile=followList=null;render();
+ });
+ window.addEventListener('online',()=>{
+  if(discussionFeed?.error)void readDiscussionPage(discussionFeed);
+  else if(discussionThread?.error)void readDiscussionPage(discussionThread,{thread:true});
+  if(followProfile?.error)void loadFollowProfile(followProfile,true);
+  if(followProfile?.connection==='error')void loadConnectionProfile(followProfile,true);
+  if(followList?.error)void loadFollowList(followList,{quiet:true});
+  if(notificationView?.error)void loadNotifications(notificationView);
+ });
 }
-async function refresh(redraw=true){
+async function refresh(){
  if(!session?.user)return;const uid=session.user.id;loadAgentDesk();
- const [p,c,m,d,q,o,w,mod,appeals,restrictions]=await Promise.all([
+ const [p,c,m,q,o,w,mod,appeals,restrictions]=await Promise.all([
  call(client.from('profiles').select('*').eq('id',uid).single()),
  call(client.from('communities').select('*').order('created_at',{ascending:false}).limit(200)),
  call(client.from('memberships').select('community_id,user_id,role').eq('user_id',uid)),
- call(client.from('discussions').select('*').is('deleted_at',null).order('created_at',{ascending:false}).limit(200)),
  call(client.from('proposals').select('*').order('created_at',{ascending:false}).limit(80)),
  call(client.from('ownership_projects').select('*').order('created_at',{ascending:false}).limit(100)),
  call(client.from('watchlist_items').select('*').eq('user_id',uid)),
@@ -312,20 +1119,44 @@ async function refresh(redraw=true){
  call(client.from('moderation_appeals').select('id,case_id,appellant_id,statement,appeal_status,created_at').order('created_at',{ascending:false}).limit(100)),
  call(client.from('account_enforcement').select('restriction,reason,expires_at').eq('user_id',uid))
  ]);
- if(session?.user?.id!==uid)return;profile=p;groups=c;memberships=m;posts=d;proposals=q;projects=o;watches=w;moderationCases=mod;moderationAppeals=appeals;accountRestrictions=restrictions;
- const memberRows=memberships.length?await call(client.from('memberships').select('user_id').in('community_id',memberships.map(m=>m.community_id)).limit(1000)):[];const blockRows=await call(client.from('member_blocks').select('blocked_id').eq('blocker_id',uid));if(session?.user?.id!==uid)return;blockedMembers=blockRows.map(b=>b.blocked_id);loadBookmarks();const memberIds=new Set(memberRows.map(m=>m.user_id));const ids=[...new Set([uid,...blockedMembers,...memberIds,...posts.map(x=>x.author_id),...projects.map(x=>x.author_id)])];
+ if(session?.user?.id!==uid)return;messageRecipients=null;profile=p;groups=c;memberships=m;proposals=q;projects=o;watches=w;moderationCases=mod;moderationAppeals=appeals;accountRestrictions=restrictions;
+ const memberRows=memberships.length?await call(client.from('memberships').select('user_id').in('community_id',memberships.map(m=>m.community_id)).limit(1000)):[];const blockRows=await call(client.from('member_blocks').select('blocked_id').eq('blocker_id',uid));if(session?.user?.id!==uid)return;blockedMembers=blockRows.map(b=>b.blocked_id);loadBookmarks();const memberIds=new Set(memberRows.map(m=>m.user_id));const ids=[...new Set([uid,...blockedMembers,...memberIds,...projects.map(x=>x.author_id)])];
  if(ids.length){const all=[];for(let i=0;i<ids.length;i+=100){all.push(...await call(client.from('profiles').select('id,display_name,handle,allow_direct_messages').in('id',ids.slice(i,i+100))));}if(session?.user?.id!==uid)return;people=Object.fromEntries(all.map(x=>[x.id,x]));memberDirectory=all.filter(x=>memberIds.has(x.id));}
- const postIds=posts.map(x=>x.id);
- likes=postIds.length?await call(client.from('discussion_likes').select('discussion_id,user_id').in('discussion_id',postIds)):[];
  if(selectedGroup&&joined(selectedGroup)&&state.groupTab==='chat')await loadMessages();
- if(redraw)render();
+ resetDiscussionFeed();render();
 }
-async function loadMessages(){const cid=selectedGroup,uid=session?.user?.id;if(!cid||!uid||!joined(cid))return;const rows=await call(client.from('community_messages').select('*').eq('community_id',cid).is('deleted_at',null).order('created_at',{ascending:false}).limit(100));if(selectedGroup!==cid||session?.user?.id!==uid)return;messages=rows.reverse();const ids=[...new Set(messages.map(x=>x.author_id).filter(id=>!people[id]))];if(ids.length){const p=await call(client.from('profiles').select('id,display_name,handle,allow_direct_messages').in('id',ids));if(selectedGroup===cid&&session?.user?.id===uid)for(const x of p)people[x.id]=x;}}
+let circleMessageRead=0, directMessageRead=0;
+async function loadMessages(){
+ const cid=selectedGroup, uid=session?.user?.id;
+ if(!cid||!uid||!joined(cid))return;
+ const read=++circleMessageRead;
+ const stillOpen=()=>read===circleMessageRead&&selectedGroup===cid&&session?.user?.id===uid;
+ const rows=await call(client.from('community_messages').select('*').eq('community_id',cid)
+  .is('deleted_at',null).order('created_at',{ascending:false}).limit(100));
+ if(!stillOpen())return;
+ messages=rows.reverse();
+ const ids=[...new Set(messages.map(x=>x.author_id).filter(id=>!people[id]))];
+ if(ids.length){
+  const profiles=await call(client.from('profiles').select('id,display_name,handle,allow_direct_messages').in('id',ids));
+  if(stillOpen())for(const p of profiles)people[p.id]=p;
+ }
+}
 async function loadGroupMembers(){const cid=selectedGroup,uid=session?.user?.id;if(!cid||!uid||!joined(cid))return;const rows=await call(client.from('memberships').select('user_id,role').eq('community_id',cid).limit(150));if(selectedGroup!==cid||session?.user?.id!==uid)return;memberPoll=rows;const ids=rows.map(x=>x.user_id).filter(id=>!people[id]);if(ids.length){const p=await call(client.from('profiles').select('id,display_name,handle,allow_direct_messages').in('id',ids));if(selectedGroup===cid&&session?.user?.id===uid)for(const x of p)people[x.id]=x;}}
-async function loadDM(){const peer=selectedPeer,uid=session?.user?.id;if(!peer||!uid)return;const [incoming,outgoing]=await Promise.all([call(client.from('direct_messages').select('*').eq('sender_id',peer).eq('recipient_id',uid).order('created_at',{ascending:false}).limit(100)),call(client.from('direct_messages').select('*').eq('sender_id',uid).eq('recipient_id',peer).order('created_at',{ascending:false}).limit(100))]);if(selectedPeer===peer&&session?.user?.id===uid)dm=[...incoming,...outgoing].sort((a,b)=>a.created_at.localeCompare(b.created_at));}
+async function loadDM(){
+ const peer=selectedPeer, uid=session?.user?.id;
+ if(!peer||!uid)return;
+ const read=++directMessageRead;
+ const readDirection=(sender,recipient)=>call(client.from('direct_messages').select('*')
+  .eq('sender_id',sender).eq('recipient_id',recipient).order('created_at',{ascending:false}).limit(100));
+ const [incoming,outgoing]=await Promise.all([readDirection(peer,uid),readDirection(uid,peer)]);
+ if(read===directMessageRead&&selectedPeer===peer&&session?.user?.id===uid){
+  dm=[...incoming,...outgoing].sort((a,b)=>a.created_at.localeCompare(b.created_at));
+ }
+}
 async function acceptInvite(token){await call(client.rpc('accept_private_invite',{token}));pendingInvite=null;try{sessionStorage.removeItem('common.pendingInvite')}catch{}history.replaceState(null,'',base);await refresh();status('Joined the private community.');}
 async function dispatch(action,element){
  const id=element.dataset.id, choice=element.dataset.choice;
+ if(action.startsWith('notification-'))return notificationAction(action,id,choice);
  if(action==='google-auth'){
    if(googleProviderStatus!=='enabled'){
      status('Google sign-in has not been activated in Supabase yet. An OAuth client ID and secret from Google Cloud are required.');
@@ -343,19 +1174,149 @@ async function dispatch(action,element){
  }
  if(action==='export-capital'){const draft=capitalDrafts.get(selectedGroup);if(!draft||!joined(selectedGroup))throw Error('No scenario available');const url=URL.createObjectURL(new Blob([JSON.stringify({notice:'HYPOTHETICAL ONLY — NO FUNDS OR COMMITMENTS',...draft.result},null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='common-capital-scenario.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),500);return}
  if(action==='mobile-more'){mobileMore=!mobileMore;render();return}
- if(action==='bookmark'){if(!posts.some(p=>p.id===id))throw Error('Research no longer visible');toggleBookmark(id);return}
+ const pageAction=pageDiscussionAction(action);if(pageAction)return pageAction;
+ if(action==='bookmark'){if(!discussionFeed?.items.some(p=>p.id===id))throw Error('Research no longer visible');toggleBookmark(id);return}
  if(action==='saved-feed'){view='home';state.feed='saved';render();return}
- if(action==='clear-bookmarks'){if(confirm('Clear all saved research on this device?')){localStorage.removeItem(bookmarkKey());bookmarks=[];render()}return}
+ if(action==='clear-bookmarks'){if(confirm('Clear all saved research on this device?')){localStorage.removeItem(bookmarkKey());bookmarks=[];resetDiscussionFeed();render()}return}
+ if(action==='discover-feed'){view='home';state.feed='discover';render();return}
+ if(action==='connection-list'&&Object.hasOwn(connectionSections,choice)){
+  connectionSection=choice;render();document.querySelector('[data-act="connection-list"][aria-pressed="true"]')?.focus();return;
+ }
+ if(action==='retry-connection-status'&&followProfile)return loadConnectionProfile(followProfile);
+ if(action==='member-connection'){
+  const member=followProfile?.id===id?followProfile:null;
+  const list=followList?.items.some(peer=>peer.id===id)&&connectionListSection()?followList:null;
+  const section=member?.connection||list?.section;
+  if(!connectionActions[section]?.some(([decision])=>decision===choice))return;
+  if(choice==='remove'&&!confirm('Remove this connection?'))return;
+  if(choice==='request')await call(client.rpc('request_member_connection_v1',{peer_id:id}));
+  else await call(client.rpc('respond_member_connection_v1',{peer_id:id,decision:choice}));
+  if(member&&followProfile===member){
+   await loadConnectionProfile(member);
+   document.querySelector('[data-act="member-connection"],[data-act="retry-connection-status"]')?.focus();
+  }
+  if(list&&followList===list){
+   followList={owner:list.owner,section:list.section,cursors:list.cursors,items:[]};
+   const loaded=loadFollowList(followList,{focus:true});
+   render();
+   await loaded;
+  }
+  return;
+ }
+ if(action==='retry-follow-status'&&followProfile&&!followProfile.requesting){
+  followProfile.loading=true;render();return loadFollowProfile(followProfile);
+ }
+ if(action==='toggle-follow'){
+  const member=followProfile;
+  if(!member||member.id!==id||member.requesting||member.loading||!member.available)return;
+  member.loading=true;render();
+  try{
+   const edge={follower_id:member.owner,followed_id:member.id};
+   if(member.following)await call(client.from('member_follows').delete().eq('follower_id',edge.follower_id).eq('followed_id',edge.followed_id));
+   else await call(client.from('member_follows').upsert(edge,{onConflict:'follower_id,followed_id',ignoreDuplicates:true}));
+  }catch{
+   if(followProfile!==member)return;
+   member.loading=false;render();document.querySelector('[data-act="toggle-follow"]')?.focus();
+   throw Error('Could not update follow status. Please try again.');
+  }
+  if(followProfile===member){
+   await loadFollowProfile(member);
+   document.querySelector('[data-act="toggle-follow"],[data-act="retry-follow-status"]')?.focus();
+  }
+  return;
+ }
+ if(action.startsWith('follow-list-')){
+  const list=followList;
+  if(!list||list.requesting)return;
+  if(action==='follow-list-next'&&list.next)list.cursors.push(list.next);
+  if(action==='follow-list-previous'&&list.cursors.length>1)list.cursors.pop();
+  const loaded=loadFollowList(list,{focus:true});render();return loaded;
+ }
  if(action==='member-profile'){const uid=session.user.id,p=await call(client.from('profiles').select('id,display_name,handle,bio,allow_direct_messages').eq('id',id).single());if(session?.user?.id!==uid)return;memberDetail=p;view='member';render();return}
- if(action==='block-member'||action==='unblock-member'){if(id===session.user.id)throw Error('Cannot block yourself');if(action==='block-member'){if(!confirm('Block this member? Direct messaging will be disabled.'))return;await call(client.from('member_blocks').insert({blocker_id:session.user.id,blocked_id:id}));if(selectedPeer===id){selectedPeer=null;dm=[]}}else await call(client.from('member_blocks').delete().eq('blocker_id',session.user.id).eq('blocked_id',id));await refresh();return}
+ if(action==='block-member'||action==='unblock-member'){if(id===session.user.id)throw Error('Cannot block yourself');if(action==='block-member'){if(!confirm('Block this member? Direct messaging will be disabled.'))return;await call(client.from('member_blocks').insert({blocker_id:session.user.id,blocked_id:id}));if(selectedPeer===id){selectedPeer=null;dm=[]}}else await call(client.from('member_blocks').delete().eq('blocker_id',session.user.id).eq('blocked_id',id));followProfile=null;await refresh();return}
  if(action==='auth-mode'){lastAuthView=element.dataset.mode;info=error='';render();return}
  if(action==='signout'){await client.auth.signOut();return}
  if(action==='open-groups'){selectedGroup=null;messages=[];memberPoll=[];state.inviteToken=null;view='groups';state.groupTab='posts';render();return}
- if(action==='open-group'){capitalTab='overview';decisionDetail=null;pollRows=[];pollOwn=null;ledgerRows=[];ledgerCircle=null;ledgerError='';selectedGroup=id;messages=[];memberPoll=[];state.inviteToken=null;state.comments=null;view='groups';state.groupTab='posts';render();return}
+ if(action==='open-group'){capitalTab='overview';decisionDetail=null;pollRows=[];pollOwn=null;ledgerRows=[];ledgerCircle=null;ledgerError='';ledgerStatement=null;selectedGroup=id;messages=[];memberPoll=[];state.inviteToken=null;state.comments=null;view='groups';state.groupTab='posts';render();return}
  if(action==='join-group'){await call(client.rpc('join_public_community',{cid:id}));await refresh();return}
  if(action==='create-group'){state.groupCreate=true;render();return}
- if(action==='compose'){state.composer=true;render();return}
- if(action==='close-dialog'){state.composer=state.groupCreate=state.projectCreate=state.proposalCreate=false;render();return}
+ if(action==='compose'){
+  openPostDraft(session.user.id);
+  const draft=composerDraft;
+  await readAccountDraft(draft);
+  if(composerDraft===draft&&session?.user?.id===draft.owner){state.composer=true;render()}
+  return;
+ }
+ if(action==='use-account-post-draft'){
+  if(composerDraft.conflict){applyAccountDraft(composerDraft,composerDraft.conflict);render()}
+  return;
+ }
+ if(action==='keep-device-post-draft'){
+  if(composerDraft.conflict){
+   composerDraft.revision=composerDraft.conflict.revision;
+   composerDraft.conflict=null;composerDraft.dirty=true;composerDraft.submission=null;
+   composerDraft.syncMessage='Device draft kept. Save draft to sync it to your account.';
+   savePostDraft(composerDraft);render();
+  }
+  return;
+ }
+ if(action==='keep-post-draft'){
+  const draft=composerDraft;
+  if(draft.conflict){render();return}
+  const savedOnDevice=savePostDraft(draft);
+  if(draft.deviceConflict){render();return}
+  draft.syncing=true;render();
+  const synced=(!draft.dirty&&draft.revision>0)||await writeAccountDraft(draft);
+  draft.syncing=false;
+  if(draft!==composerDraft)return;
+  if(synced||savedOnDevice&&!draft.conflict){
+   if(!synced)info='Draft saved on this device. Reopen it to retry account sync.';
+   closeMemberDialog();
+  }else render();
+  return;
+ }
+ if(action==='discard-post-draft'){
+  const draft=composerDraft;
+  if(draft.conflict||draft.deviceConflict||!confirm('Discard this unpublished draft?'))return;
+  const empty={group:'',title:'',body:''};
+  draft.syncing=true;render();
+  // Leave local text intact if the account write fails; a later retry can finish.
+  try{
+   await requestDiscussionDraft('save_discussion_draft_v1',{
+    expected_revision:draft.revision,target_circle:null,draft_title:'',draft_body:''
+   });
+  }catch(err){
+   if(err?.code==='40001')await readAccountDraft(draft);
+   else draft.syncMessage='Account draft could not be discarded. Try again when connected.';
+   draft.syncing=false;
+   if(composerDraft===draft)render();
+   return;
+  }
+  draft.syncing=false;
+  if(!clearPostDraft(draft)){
+   Object.assign(draft,empty,{saveError:'The account draft was discarded, but device storage could not be cleared.'});
+   if(composerDraft===draft)render();
+   return;
+  }
+  if(composerDraft===draft){composerDraft=null;closeMemberDialog()}
+  return;
+ }
+ if(action==='review-research'){
+  const draft=CommonResearchDraft.claim(session.user.id);
+  if(!draft)throw Error('Research draft unavailable.');
+  researchReview=researchReview?.id===draft.id?researchReview:{...draft,circle:''};
+  view='research-review';error=info='';render();return;
+ }
+ if(action==='discard-research'){
+  if(researchReview?.owner!==session.user.id)return;
+  CommonResearchDraft.clear(researchReview.id);researchReview=null;view='home';error=info='';render();return;
+ }
+ if(action==='review-with-agent'){
+  if(config.researchAgentEnabled!==true||researchReview?.owner!==session.user.id)return;
+  agentMode='review';agentInput=researchReview.body;agentOutput=null;agentLastRequest=null;
+  agentDeskTab='analysis';view='agent';error=info='';render();return;
+ }
+ if(action==='close-dialog'){closeMemberDialog();return}
  if(action==='use-agent-command'){const c=agentDesk.commands.find(x=>x.id===id);if(!c)throw Error('Command not found.');agentInput=c.template;agentMode=c.mode;agentDeskTab='analysis';render();return}
  if(action==='save-agent-output'){if(!agentLastRequest||!agentOutput)throw Error('No completed analysis.');if(agentDesk.history.length>=20)throw Error('Delete an old analysis before saving another.');if(confirm('Save the submitted evidence and AI output locally on this device?'))saveAgentDesk({...agentDesk,history:[CommonAgentDesk.record(agentLastRequest.mode,agentLastRequest.input,agentOutput,agentLastRequest.status),...agentDesk.history]});return}
  if(['delete-agent-command','delete-agent-memory','delete-agent-history'].includes(action)){const k=action==='delete-agent-command'?'commands':action==='delete-agent-memory'?'memory':'history';if(confirm('Delete this local research item?'))saveAgentDesk({...agentDesk,[k]:agentDesk[k].filter(x=>x.id!==id)});return}
@@ -364,20 +1325,117 @@ async function dispatch(action,element){
  if(action==='open-terminal'){location.assign(new URL('../terminal/',location.href).href);return}
  if(action==='open-studio'){location.assign(new URL('../lab/',location.href).href);return}
  if(action==='learn'){view='learn';render();return}
- if(action==='comments'){state.comments=state.comments===id?null:id;render();return}
- if(action==='like'){const target=likes.find(x=>x.discussion_id===id&&x.user_id===session.user.id);if(target)await call(client.from('discussion_likes').delete().eq('discussion_id',id).eq('user_id',session.user.id));else await call(client.from('discussion_likes').insert({discussion_id:id,user_id:session.user.id}));await refresh();return}
- if(action==='new-proposal'){state.proposalCreate=true;render();return}
+ if(action==='comments'){
+  if(state.comments===id){state.comments=null;discussionThread=null;render();return}
+  if(!discussionFeed?.items.some(post=>post.id===id))return;
+  state.comments=id;
+  discussionThread={scope:{feed_scope:'replies',scope_id:id},items:[],next:null,cursors:[null],loading:false,error:false};
+  await readDiscussionPage(discussionThread,{thread:true,focus:true});return;
+ }
+ if(action==='like'){
+  const post=discussionFeed?.items.find(item=>item.id===id);if(!post)return;
+  if(post.liked)await call(client.from('discussion_likes').delete().eq('discussion_id',id).eq('user_id',session.user.id));
+  else await call(client.from('discussion_likes').upsert({discussion_id:id,user_id:session.user.id},{ignoreDuplicates:true,onConflict:'discussion_id,user_id'}));
+  await readDiscussionPage(discussionFeed,{quiet:true});return;
+ }
+ if(action==='new-proposal'){pollDraft=null;state.proposalCreate=true;render();return}
+ if(action==='poll-from-discussion'){
+  const post=discussionFeed?.items.find(item=>item.id===id);
+  if(!post||post.community_id!==selectedGroup||!joined(selectedGroup)||contentFlag('discussion',id)){
+   throw Error('The discussion is unavailable in this circle.');
+  }
+  pollDraft={title:('Review: '+(post.title||'Circle discussion')).slice(0,160),
+    rationale:'Evidence from circle discussion '+post.id+'\n\n'+post.body};
+  state.proposalCreate=true;render();return;
+ }
  if(action==='new-project'){state.projectCreate=true;render();return}
  if(action==='remove-watch'){await call(client.from('watchlist_items').delete().eq('symbol',element.dataset.symbol).eq('user_id',session.user.id));await refresh();return}
  if(action==='poll-detail'){await loadPoll(id);return}
- if(action==='poll-list'){decisionDetail=null;pollRows=[];pollOwn=null;render();return}
+ if(action==='governance-retry'){
+  const proposal=proposals.find(p=>p.id===decisionDetail&&p.community_id===selectedGroup);
+  if(proposal)await loadGovernanceMemo(proposal);
+  return;
+ }
+ if(action==='poll-list'){decisionDetail=null;pollRows=[];pollOwn=null;governanceMemo=null;render();return}
  if(action==='poll-vote'){const p=proposals.find(x=>x.id===id);if(!p||p.community_id!==selectedGroup||!joined(selectedGroup))throw Error('Circle membership required');await call(client.from('proposal_votes').upsert({proposal_id:id,user_id:session.user.id,choice},{onConflict:'proposal_id,user_id'}));await loadPoll(id);status('Your nonbinding member opinion was recorded. No transaction is authorized.');return}
  if(action==='refresh-ledger'){await loadLedger();render();return}
+ if(action==='export-journal-statement'){
+  const context=externalStatementContext(),selected=ledgerStatement;
+  if(selected?.userId!==context.userId||selected.circleId!==context.circleId)throw Error('Prepare a statement before exporting.');
+  const latest=await requestExternalStatement(context,selected.report);
+  if(!sameStatementContext(context))return;
+  if(latest.evidenceSha256!==selected.report.evidenceSha256)
+   throw Error('Journal evidence changed. Prepare the statement again before exporting.');
+  downloadExternalStatement(selected.report,selected.comparison);return;
+ }
  if(action==='export-ledger'){if(config.externalLedgerEnabled!==true||ledgerCircle!==selectedGroup||!joined(selectedGroup))throw Error('Journal unavailable');const url=URL.createObjectURL(new Blob([JSON.stringify({mode:'manual_external_records_unverified',entries:ledgerRows},null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='common-external-journal.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),500);return}
  if(action==='reverse-external'){const g=groupById(selectedGroup),original=ledgerRows.find(x=>x.id===id);if(config.externalLedgerEnabled!==true||!g||g.visibility!=='private'||!own(g.id)||ledgerCircle!==g.id||!original||original.reverses_id)throw Error('Reversal unavailable');if(!confirm('Append a reversing entry? Original records remain unchanged.'))return;await call(client.from('circle_external_journal').insert({community_id:g.id,record_date:new Date().toISOString().slice(0,10),source_ref:'rev-'+crypto.randomUUID(),lines:CommonLedger.reverse(original.lines),reverses_id:id}));await loadLedger();render();return}
  if(action==='make-invite'){const token=await call(client.rpc('create_private_invite',{cid:selectedGroup,permitted_uses:10}));state.inviteToken=token;render();return}
  if(action==='copy-invite'){const input=document.getElementById('invite-url');if(input){await navigator.clipboard.writeText(input.value);status('Invitation link copied.')}return}
- if(action==='dm-user'){if(isBlocked(id)||!memberDirectory.some(x=>x.id===id&&x.allow_direct_messages))throw Error('This member is unavailable for direct messages.');selectedPeer=id;dm=[];view='chat';await loadDM();render();return}
+ if(action==='delete-chat-message'){
+  const uid=session.user.id, direct=choice==='direct', peer=selectedPeer, circle=selectedGroup;
+  const stillOpen=()=>uid===session?.user?.id&&(direct?
+   view==='chat'&&selectedPeer===peer:view==='groups'&&selectedGroup===circle&&state.groupTab==='chat');
+  const visible=(direct?dm:messages).some(m=>m.id===id&&(direct?
+   m.sender_id===uid&&m.recipient_id===peer:m.community_id===circle&&(m.author_id===uid||own(circle))));
+  if(!stillOpen()||!visible||!confirm('Remove this message from the conversation for everyone?'))return;
+  let deleted;
+  try{
+   deleted=await call(client.rpc('delete_chat_message_v1',{message_kind:choice,message_id:id}));
+  }catch{
+   const message=stillOpen()&&root.querySelector('[data-message-delete-status]');
+   if(message)message.textContent='Could not delete the message. Try again.';
+   return;
+  }
+  if(!stillOpen())return;
+  if(!deleted){
+   const message=root.querySelector('[data-message-delete-status]');
+   if(message)message.textContent='This message may have already been deleted or you no longer have permission.';
+   return;
+  }
+  const inputSelector='[data-form="'+(direct?'dm':'chat')+'"] input[name="body"]';
+  const draft=root.querySelector(inputSelector)?.value;
+  if(direct){
+   directMessageRead++;
+   dm=dm.filter(m=>m.id!==id);
+  }else{
+   circleMessageRead++;
+   messages=messages.filter(m=>m.id!==id);
+  }
+  render();
+  const input=root.querySelector(inputSelector);
+  if(input&&draft!==undefined)input.value=draft;
+  const message=root.querySelector('[data-message-delete-status]');
+  if(message)message.textContent='Message deleted.';
+  root.querySelector('[data-chat-focus]')?.focus();
+  return;
+ }
+ if(action==='refresh-dm'){
+  const peer=selectedPeer,uid=session.user.id;
+  const stillOpen=()=>view==='chat'&&selectedPeer===peer&&session?.user?.id===uid;
+  try{await loadDM();}catch{
+   const message=stillOpen()&&root.querySelector('[data-dm-refresh-status]');
+   if(message)message.textContent='Conversation could not refresh. Try again.';
+   return;
+  }
+  if(stillOpen()){
+   const draft=root.querySelector('[data-form="dm"] input')?.value||'';
+   render();
+   const input=root.querySelector('[data-form="dm"] input');
+   if(input)input.value=draft;
+   root.querySelector('[data-act="refresh-dm"]')?.focus();
+  }
+  return;
+ }
+ if(action==='retry-message-privacy'){messagePrivacy=null;render();return}
+ if(action==='retry-message-recipients'){messageRecipients=null;render();return}
+ if(action==='dm-user'){
+  const owner=session.user.id;
+  const allowed=await call(client.rpc('can_send_dm',{recipient:id}));
+  if(session?.user?.id!==owner)return;
+  if(!allowed){messageRecipients=null;throw Error('This member is unavailable for direct messages.');}
+  selectedPeer=id;dm=[];view='chat';await loadDM();render();return
+ }
  if(action==='appeal-case'){
    const c=moderationCases.find(x=>x.id===id);
    if(!c||c.actor_id!==session.user.id||c.review_status!=='rejected')
@@ -419,35 +1477,164 @@ async function dispatch(action,element){
    status(approved?'Educational content released after review.':'Content remains hidden. A review record was saved.');
    return;
  }
- if(action==='report-post'){const post=posts.find(x=>x.id===id);if(!post)return;const reason=window.prompt('Report this discussion: spam, harassment, fraud, misinformation, other');if(!reason)return;const normalized=reason.toLowerCase().trim();if(!['spam','harassment','fraud','misinformation','other'].includes(normalized)){status('Choose one of the listed reasons.');return}await call(client.from('content_reports').insert({reporter_id:session.user.id,community_id:post.community_id,discussion_id:post.id,reason:normalized}));status('Report submitted for moderator review.');return}
+ if(action==='report-post'){const post=discussionFeed?.items.find(x=>x.id===id);if(!post)return;const reason=window.prompt('Report this discussion: spam, harassment, fraud, misinformation, other');if(!reason)return;const normalized=reason.toLowerCase().trim();if(!['spam','harassment','fraud','misinformation','other'].includes(normalized)){status('Choose one of the listed reasons.');return}await call(client.from('content_reports').insert({reporter_id:session.user.id,community_id:post.community_id,discussion_id:post.id,reason:normalized}));status('Report submitted for moderator review.');return}
 }
 async function submitted(form){
  const f=new FormData(form),type=form.getAttribute('data-form'),uid=session.user.id;
+ if(type==='governance-memo'||type==='governance-review'){await submitGovernance(f,type);return}
+ if(type==='external-statement'){
+  const context=externalStatementContext(),period={startDate:f.get('start'),endDate:f.get('end')};
+  const submit=form.querySelector('button[type="submit"]');
+  submit.disabled=true;submit.textContent='Preparing statement…';
+  try{
+   const result=await requestExternalStatement(context,period);
+   if(!sameStatementContext(context))return;
+   ledgerStatement={...context,report:result,comparison:null};
+   render();document.getElementById('journal-statement-result')?.focus();
+  }finally{
+   submit.disabled=false;submit.textContent='Prepare statement';
+  }
+  return;
+ }
+ if(type==='external-statement-compare'){
+  const context=externalStatementContext(),selected=ledgerStatement;
+  if(selected?.userId!==context.userId||selected.circleId!==context.circleId||!selected.report.evidenceCount)
+   throw Error('Prepare a statement with journal evidence before comparing.');
+  selected.comparison=CommonLedger.reconcileCash(selected.report,String(f.get('observed')||''));
+  render();return;
+ }
  if(type==='external-entry'){const g=groupById(selectedGroup);if(config.externalLedgerEnabled!==true||!g||g.visibility!=='private'||!own(g.id)||ledgerCircle!==g.id||f.get('ack')!=='on')throw Error('Authorized private recordkeeping required');const lines=[];for(let i=0;i<6;i++){const v=f.get('amount'+i);if(v!=='')lines.push({account:f.get('account'+i),side:f.get('side'+i),cents:CommonLedger.amount(v)});}CommonLedger.validate(lines);await call(client.from('circle_external_journal').insert({community_id:g.id,record_date:f.get('date'),source_ref:String(f.get('reference')).trim(),lines}));await loadLedger();render();return}
  if(type==='capital-plan'){const g=groupById(selectedGroup);if(!g||!joined(g.id))throw Error('Circle membership required.');const input=Object.fromEntries(f),result=CommonCapital.plan(input);capitalDrafts.set(g.id,{input,result});capitalTab='review';render();return}
  if(type==='capital-share'){const g=groupById(selectedGroup),draft=capitalDrafts.get(selectedGroup),title=String(f.get('title')||'').trim();if(!g||g.visibility!=='private'||!joined(g.id)||!draft||f.get('confirm')!=='on'||title.length<8||title.length>120)throw Error('Private circle membership, valid title and explicit confirmation required.');await call(client.from('proposals').insert({community_id:g.id,author_id:uid,title:'Scenario: '+title,rationale:CommonCapital.summary(draft.result)}));if(session?.user?.id===uid){state.groupTab='decisions';await refresh();status('Hypothetical research poll published. No funds or commitments were collected.');}return}
  if(type==='agent-command'){saveAgentDesk({...agentDesk,commands:[...agentDesk.commands,CommonAgentDesk.command(Object.fromEntries(f),agentDesk.commands)]});return}
  if(type==='agent-memory'){saveAgentDesk({...agentDesk,memory:[...agentDesk.memory,CommonAgentDesk.note(Object.fromEntries(f),agentDesk.memory)]});return}
  if(type==='research-agent'){if(config.researchAgentEnabled!==true||f.get('consent')!=='on')throw Error('Research assistant unavailable or consent missing.');agentInput=String(f.get('input')||'');agentMode=String(f.get('mode')||'review');const selected=f.getAll('memory'),requestInput=CommonAgentDesk.compose(agentInput,agentDesk.memory.filter(n=>selected.includes(n.id)));agentOutput=null;agentLastRequest=null;agentSending=true;render();try{const {data,error:failure}=await client.functions.invoke('common-research-agent',{body:{mode:agentMode,input:requestInput,consent:true}});if(failure)throw failure;if(session?.user?.id!==uid)return;if(typeof data?.text!=='string')throw Error('Invalid research response');agentOutput=data.text;agentLastRequest={mode:agentMode,input:requestInput,status:data.status};}finally{agentSending=false;render()}return}
- if(type==='post'){await call(client.from('discussions').insert({community_id:f.get('group'),author_id:uid,title:short(f.get('title'),160),body:short(f.get('body'),10000)}));state.composer=false;await refresh();return}
- if(type==='comment'){await call(client.from('discussions').insert({community_id:form.dataset.group,author_id:uid,parent_id:form.dataset.parent,body:short(f.get('body'),2000)}));await refresh();return}
+ if(type==='research-draft'){
+  const draft=researchReview,circle=f.get('circle'),title=String(f.get('title')||'').trim(),body=String(f.get('body')||'').trim();
+  if(draft?.owner!==uid||CommonResearchDraft.forMember(uid)?.id!==draft.id||!joined(circle)||groupById(circle)?.visibility!=='private'){
+   throw Error('An active research draft and current private circle membership are required.');
+  }
+  CommonResearchDraft.update(uid,draft.id,title,body);
+  await call(client.rpc('publish_research_draft_v1',{draft_id:draft.id,circle_id:circle,discussion_title:title,discussion_body:body}));
+  CommonResearchDraft.clear(draft.id);
+  if(session?.user?.id!==uid)return;
+  researchReview=null;selectedGroup=circle;decisionDetail=null;pollRows=[];pollOwn=null;capitalTab='overview';state.groupTab='posts';state.comments=null;view='groups';
+  resetDiscussionFeed();status('Research submitted to your circle. Community moderation applies.');return;
+ }
+ if(type==='post'){
+  const draft=composerDraft;
+  if(draft?.owner!==uid||draft.conflict)return;
+  const group=f.get('group'),title=String(f.get('title')||'').trim(),body=String(f.get('body')||'').trim();
+  if(!group||!joined(group)||title.length<8||title.length>160||body.length<3||body.length>10000){
+   draft.publishError='Choose a current community and enter a title of 8–160 characters and a discussion of 3–10,000 characters.';
+   render();return;
+  }
+  if(draft.group!==group||draft.title!==title||draft.body!==body){
+   draft.dirty=true;draft.submission=null;
+  }
+  Object.assign(draft,{group,title,body,publishError:'',publishing:true});
+  savePostDraft(draft);
+  if(draft.deviceConflict){draft.publishing=false;render();return}
+  render();
+  try{
+   if((draft.dirty||draft.revision===0)&&!await writeAccountDraft(draft))return;
+   if(draft!==composerDraft||session?.user?.id!==uid)return;
+   draft.submission??=crypto.randomUUID();
+   savePostDraft(draft);
+   await requestDiscussionDraft('publish_discussion_draft_v1',{
+    expected_revision:draft.revision,submission_id:draft.submission
+   });
+  }catch(err){
+   if(err?.code==='40001')await readAccountDraft(draft);
+   draft.publishError='The discussion could not be published. Check your connection or circle access and try again.';
+   return;
+  }finally{
+   draft.publishing=false;
+   if(composerDraft===draft&&session?.user?.id===uid)render();
+  }
+  const cleared=clearPostDraft(draft);
+  if(session?.user?.id!==uid||composerDraft!==draft)return;
+  composerDraft=null;resetDiscussionFeed();
+  info=cleared?'Discussion submitted. Community moderation applies.':'Discussion submitted. Device storage still contains a draft.';
+  error='';closeMemberDialog();return;
+ }
+ if(type==='comment'){await call(client.from('discussions').insert({community_id:form.dataset.group,author_id:uid,parent_id:form.dataset.parent,body:short(f.get('body'),2000)}));if(discussionThread){discussionThread.cursors=[null];await readDiscussionPage(discussionThread,{thread:true,focus:true})}await readDiscussionPage(discussionFeed,{quiet:true});return}
  if(type==='group'){const name=String(f.get('name')).trim(),slug=name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,40)+'-'+Math.random().toString(36).slice(2,10);const result=await call(client.from('communities').insert({name,slug,description:f.get('description'),visibility:f.get('visibility'),category:f.get('category'),created_by:uid}).select('id').single());selectedGroup=result.id;view='groups';state.groupCreate=false;await refresh();return}
- if(type==='proposal'){await call(client.from('proposals').insert({community_id:f.get('community'),author_id:uid,title:f.get('title'),rationale:f.get('rationale')}));state.proposalCreate=false;await refresh();return}
+ if(type==='proposal'){
+  const circle=f.get('community');
+  if(!joined(circle)||circle!==selectedGroup)throw Error('Current circle membership required.');
+  await call(client.from('proposals').insert({community_id:circle,author_id:uid,title:f.get('title'),rationale:f.get('rationale')}));
+  if(session?.user?.id!==uid)return;
+  pollDraft=null;state.proposalCreate=false;state.groupTab='decisions';await refresh();
+  status('Nonbinding research poll published. No transaction is authorized.');return;
+ }
  if(type==='project'){await call(client.from('ownership_projects').insert({community_id:f.get('community'),author_id:uid,title:f.get('title'),thesis:f.get('thesis'),category:f.get('category')}));state.projectCreate=false;await refresh();return}
  if(type==='watch'){const symbol=String(f.get('symbol')).toUpperCase().trim();if(!/^[A-Z][A-Z0-9.-]{0,11}$/.test(symbol))throw new Error('Enter a valid stock symbol');await call(client.from('watchlist_items').upsert({user_id:uid,symbol}));await refresh();return}
  if(type==='chat'){await call(client.from('community_messages').insert({community_id:selectedGroup,author_id:uid,body:short(f.get('body'),2000)}));await loadMessages();render();return}
- if(type==='dm'){if(!selectedPeer)throw new Error('Choose a member');await call(client.from('direct_messages').insert({sender_id:uid,recipient_id:selectedPeer,body:short(f.get('body'),2000)}));await loadDM();render();return}
+ if(type==='notification-preferences'){
+  const current=notificationView;
+  await call(client.rpc('set_member_notification_preferences_v1',{
+   show_messages:f.get('direct_messages')==='on',show_connections:f.get('connections')==='on'
+  }));
+  if(notificationView!==current||!current)return;
+  info='Notification preferences saved.';
+  await loadNotifications(current,{force:true});
+  return;
+ }
+ if(type==='dm'){
+  const recipient=selectedPeer;
+  if(!recipient)throw Error('Choose a member');
+  try{await call(client.from('direct_messages').insert({sender_id:uid,recipient_id:recipient,body:short(f.get('body'),2000)}));}
+  catch(failure){
+   if(failure.code==='42501'){messageRecipients=null;throw Error('This member is unavailable for direct messages.');}
+   throw failure;
+  }
+  await loadDM();render();return
+ }
  if(type==='profile'){await call(client.from('profiles').update({display_name:String(f.get('name')).trim(),bio:String(f.get('bio')||'').trim().slice(0,600)}).eq('id',uid));await refresh();return}
- if(type==='privacy'){await call(client.from('profiles').update({allow_direct_messages:f.get('allow_dm')==='on'}).eq('id',uid));await refresh();return}
+ if(type==='privacy'){
+  const audience=f.get('message_audience');
+  if(!Object.hasOwn(audienceLabels,audience))throw Error('Choose a valid message audience.');
+  const control=form.querySelector('button[type="submit"]');
+  control.disabled=true;
+  try{
+   const saved=await call(client.rpc('set_message_audience_v1',{audience}));
+   if(session?.user?.id!==uid)return;
+   profile={...profile,allow_direct_messages:saved!=='off'};
+   messagePrivacy={ready:true,connectionsOnly:saved==='connections'};
+   info='Message audience saved to your account.';error='';render();
+  }catch(failure){
+   if(session?.user?.id!==uid)return;
+   handleError(failure);
+   form=root.querySelector('[data-form="privacy"]');
+   if(form)form.elements.message_audience.value=audience;
+  }finally{control.disabled=false;}
+  return
+ }
 }
 document.addEventListener('click',async ev=>{
- const agentTab=ev.target.closest('[data-agent-tab]');if(agentTab){agentDeskTab=agentTab.dataset.agentTab;render();return}const capital=ev.target.closest('[data-capital-tab]');if(capital){if(joined(selectedGroup)){capitalTab=capital.dataset.capitalTab;if(capitalTab==='ledger'){await loadLedger();}render()}return}const prof=ev.target.closest('[data-profile-section]');if(prof){profileSection=prof.dataset.profileSection;render();return}const nav=ev.target.closest('[data-tab]');if(nav){mobileMore=false;if(nav.dataset.tab==='studio'){location.assign(new URL('../lab/',location.href).href);return}view=nav.dataset.tab;selectedGroup=null;error=info='';render();return}
- const feed=ev.target.closest('[data-feed]');if(feed){state.feed=feed.dataset.feed;render();return}const dir=ev.target.closest('[data-directory]');if(dir){state.directory=dir.dataset.directory;render();return}const tab=ev.target.closest('[data-group-tab]');if(tab){state.groupTab=tab.dataset.groupTab;try{if(state.groupTab==='chat')await loadMessages();if(state.groupTab==='members'){memberPoll=[];await loadGroupMembers();}}catch(e){handleError(e);return}render();return}
+ const agentTab=ev.target.closest('[data-agent-tab]');if(agentTab){agentDeskTab=agentTab.dataset.agentTab;render();return}const capital=ev.target.closest('[data-capital-tab]');if(capital){if(joined(selectedGroup)){capitalTab=capital.dataset.capitalTab;if(capitalTab==='ledger'){await loadLedger();}render()}return}const prof=ev.target.closest('[data-profile-section]');if(prof){profileSection=prof.dataset.profileSection;render();return}const nav=ev.target.closest('[data-tab]');if(nav){mobileMore=false;if(nav.dataset.tab==='studio'){location.assign(new URL('../lab/',location.href).href);return}view=nav.dataset.tab;setNotificationRoute(view);if(view==='chat')messageRecipients=null;selectedGroup=null;error=info='';render();return}
+ const feed=ev.target.closest('[data-feed]');if(feed){state.feed=feed.dataset.feed;render();return}const dir=ev.target.closest('[data-directory]');if(dir){state.directory=dir.dataset.directory;render();return}const tab=ev.target.closest('[data-group-tab]');if(tab){state.groupTab=tab.dataset.groupTab;try{if(state.groupTab==='decisions'&&decisionDetail)await loadPoll(decisionDetail);if(state.groupTab==='chat')await loadMessages();if(state.groupTab==='members'){memberPoll=[];await loadGroupMembers();}}catch(e){handleError(e);return}render();return}
  const btn=ev.target.closest('[data-act]');if(!btn)return;
- if(busy)return;busy=true;try{await dispatch(btn.dataset.act,btn)}catch(err){handleError(err)}finally{busy=false}
+ if(busy)return;
+ if(['compose','create-group','new-project','new-proposal','poll-from-discussion'].includes(btn.dataset.act))modalTrigger=btn.dataset.act;
+ busy=true;try{await dispatch(btn.dataset.act,btn)}catch(err){handleError(err)}finally{busy=false}
 });
 document.addEventListener('change',ev=>{const node=ev.target.closest('[data-agent-command]');if(node){const cmd=agentDesk.commands.find(x=>x.id===node.value);if(cmd){const form=node.closest('form');form.elements.mode.value=cmd.mode;form.elements.input.value=cmd.template;}}});
-document.addEventListener('input',ev=>{if(ev.target.id==='group-search'){search=ev.target.value;const active=document.activeElement;const start=active.selectionStart;render();const input=document.getElementById('group-search');input?.focus();if(start!==null)input?.setSelectionRange(start,start)}});
+document.addEventListener('input',ev=>{
+ const input=ev.target;
+ const form=input.closest('[data-form="post"]');
+ if(form&&composerDraft?.owner===session?.user?.id&&!composerDraft.publishing&&!composerDraft.syncing&&['group','title','body'].includes(input.name)){
+  composerDraft[input.name]=input.value;
+  composerDraft.dirty=true;composerDraft.submission=null;
+  composerDraft.syncMessage=composerDraft.conflict?'This account draft changed on another device.':'';
+  savePostDraft(composerDraft);
+  const statusNode=form.querySelector('[data-post-draft-status]');
+  const message=postDraftMessage(composerDraft);
+  if(statusNode.textContent!==message)statusNode.textContent=message;
+  return;
+ }
+ if(researchReview?.owner===session?.user?.id&&researchReview&&input.closest('[data-form="research-draft"]')&&['title','body','circle'].includes(input.name)){researchReview[input.name]=input.value;return}if(ev.target.id==='group-search'){search=ev.target.value;const active=document.activeElement;const start=active.selectionStart;render();const input=document.getElementById('group-search');input?.focus();if(start!==null)input?.setSelectionRange(start,start)}});
 document.addEventListener('submit',async ev=>{
  const form=ev.target;if(form.id!=='auth-form'&&form.id!=='password-change-form'&&!form.dataset.form)return;ev.preventDefault();if(busy)return;busy=true;
  try{
@@ -462,6 +1649,6 @@ document.addEventListener('submit',async ev=>{
  await submitted(form);
  }catch(err){handleError(err)}finally{busy=false}
 });
-window.addEventListener('hashchange',()=>{const m=location.hash.match(/^#invite=([a-f0-9]{48})$/);if(m){pendingInvite=m[1];if(session)acceptInvite(pendingInvite).catch(handleError);else{lastAuthView='signup';auth()}}});
+window.addEventListener('hashchange',()=>{if(location.hash==='#notifications'){view='notifications';render();return}const m=location.hash.match(/^#invite=([a-f0-9]{48})$/);if(m){pendingInvite=m[1];if(session)acceptInvite(pendingInvite).catch(handleError);else{lastAuthView='signup';auth()}}});
 init().catch(handleError);
 })();

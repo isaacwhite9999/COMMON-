@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>COMMON Canvas</title>
+<link rel="stylesheet" href="../../shared/shell.css">
+<link rel="stylesheet" href="../style.css">
+<link rel="stylesheet" href="canvas.css">
+<script defer src="../../config.js"></script>
+<script defer src="../../shared/session.js"></script>
+<script defer src="account.js"></script>
+<script defer src="../../shared/shell.js"></script>
+<script defer src="../datasets.js"></script>
+<script defer src="engine.js"></script>
+<script defer src="sources.js"></script>
+<script defer src="app.js"></script>
+</head>
+<body>
+<header class="common-shell" data-common-shell="workspace"></header>
+<main id="main" class="main canvas">
+<nav class="canvas-path" aria-label="Research navigation"><a href="../#research">Research workspace</a><span aria-current="page">Canvas</span></nav>
+<h1>COMMON Canvas</h1>
+<div class="canvas-layout">
+<section class="panel">
+<h2>Data source</h2>
+<label>Upload CSV<input id="upload" type="file" disabled accept=".csv,text/csv"></label>
+<form id="library-form">
+<label>Workspace dataset<select id="library"></select></label>
+<button type="submit" id="load-library">Load dataset</button>
+</form>
+<button type="button" id="treasury">Load public Treasury bill rates</button>
+<p id="source" class="muted">Load your own CSV or a saved workspace dataset.</p>
+<p id="provenance" class="muted" hidden></p>
+<h2>Chart builder</h2>
+<form id="builder">
+<label>Chart title<input name="title" required maxlength="120"></label>
+<label>Chart type<select name="chart"></select></label>
+<div id="fields"></div>
+<details id="cutoff-controls">
+<summary>Historical availability cutoff</summary>
+<label>Publication timestamp column<select id="availability"></select></label>
+<label>As of UTC<input id="cutoff" maxlength="24" placeholder="2025-01-31T15:00:00Z"></label>
+<p class="muted">Use the timestamp when each row became available, rather than the date it describes. Canvas checks the cutoff against supplied timestamps.</p>
+</details>
+<button class="primary" type="submit">Render chart</button>
+</form>
+<details>
+<summary>Draft from a text instruction</summary>
+<form id="intent-form">
+<label>Chart instruction<input name="intent" maxlength="120" required placeholder="line Close by Date"></label>
+<button type="submit">Draft chart</button>
+</form>
+<p class="muted">Uses a local chart grammar and exact field names. Review the field mapping before rendering.</p>
+</details>
+<details>
+<summary>Programmatic specification</summary>
+<label>Specification JSON<textarea id="spec" rows="10" maxlength="3000" spellcheck="false"></textarea></label>
+<button type="button" id="apply">Render specification</button>
+</details>
+</section>
+<div class="canvas-output">
+<section class="panel">
+<h2>Visualization</h2>
+<p id="status" role="status" aria-live="polite">Ready for a data source.</p>
+<div id="figure" aria-label="Interactive visualization"></div>
+<details id="sample" hidden><summary>Unfiltered source preview</summary><div class="tablewrap" id="rows"></div></details>
+</section>
+<section class="panel">
+<h2>Saved specifications</h2>
+<p class="muted">Saved on this device. Reopen with the exact source CSV. Exports contain field mappings and source fingerprint; they contain no data rows.</p>
+<div class="canvas-actions">
+<button type="button" id="save">Save revision</button>
+<button type="button" id="duplicate">Duplicate</button>
+<button type="button" id="export">Export JSON</button>
+</div>
+<div id="saved"></div>
+</section>
+<section class="panel">
+<h2>Private account library</h2>
+<p id="account-status" role="status">Checking account session…</p>
+<p><a href="../../live/">Community sign-in</a></p>
+<fieldset id="account-controls" disabled>
+<legend>Account specification actions</legend>
+<label class="canvas-consent"><input id="account-consent" type="checkbox"> Save this specification, including its title and field mappings, and its source fingerprint to my account.</label>
+<div class="canvas-actions"><button type="button" id="account-create">Save new account document</button>
+<button type="button" id="account-update">Append account revision</button>
+<button type="button" id="account-refresh">Refresh account library</button></div>
+</fieldset>
+<div id="account-documents"></div>
+</section>
+</div>
+</div>
+</main>
+</body>
+</html>

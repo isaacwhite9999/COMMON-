@@ -1,0 +1,16 @@
+.canvas { max-width: 1450px; margin: auto; }
+.canvas h1 { margin: 12px 0 24px; font-size: clamp(1.6rem,4vw,2.5rem); }
+.canvas h2 { margin: 4px 0 14px; }
+.canvas-path, .canvas-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.canvas-layout { display: grid; grid-template-columns: minmax(240px,300px) minmax(0,1fr); gap: 14px; align-items: start; }
+.canvas-output { min-width: 0; }
+.canvas-layout form, .canvas-layout details { margin-bottom: 12px; }
+.canvas-layout summary { cursor: pointer; }
+.canvas-layout #figure { width: 100%; overflow: hidden; }
+.canvas-layout #source { overflow-wrap: anywhere; }
+.canvas-layout #saved > div { border-top: 1px solid var(--line); padding-block: 12px; }
+@media(max-width: 740px) { .canvas-layout { grid-template-columns: minmax(0,1fr); } }
+.canvas-consent { display: flex; align-items: baseline; gap: .5rem; }
+.canvas-consent input { width: auto; min-height: 0; }
+#account-controls { min-width: 0; border: 1px solid var(--line); margin-bottom: 1rem; }
+#account-documents > div { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin-bottom: .5rem; }

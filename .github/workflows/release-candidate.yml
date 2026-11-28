@@ -1,0 +1,61 @@
+name: Build COMMON public research candidate
+
+on:
+  pull_request:
+    paths:
+      - 'docs/**'
+      - 'scripts/release*'
+      - 'tests/test_release_candidate.py'
+      - 'tests/foundation-browser.test.mjs'
+      - '.github/workflows/release-candidate.yml'
+      - '.github/workflows/publish-showcase.yml'
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  candidate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Check packaging and promotion controls
+        run: python -m unittest discover -s tests -p test_release_candidate.py
+      - name: Build and compare deterministic artifacts
+        run: |
+          python scripts/release_candidate.py build --commit "$GITHUB_SHA" --output "${RUNNER_TEMP}/common-candidate"
+          python scripts/release_candidate.py build --commit "$GITHUB_SHA" --output "${RUNNER_TEMP}/common-repeat"
+          cmp "${RUNNER_TEMP}/common-candidate/public-research.zip" "${RUNNER_TEMP}/common-repeat/public-research.zip"
+          digest="$(cut -d ' ' -f1 "${RUNNER_TEMP}/common-candidate/public-research.sha256")"
+          {
+            printf '### Public research candidate\n\n'
+            printf 'Source commit `%s`\n\n' "$GITHUB_SHA"
+            printf 'ZIP SHA-256 `%s`\n' "$digest"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-save --no-package-lock playwright@1.56.1
+      - run: npx playwright install chromium --only-shell
+      - name: Smoke test the packaged site in Chromium
+        run: |
+          python -m http.server 8765 --bind 127.0.0.1 --directory "${RUNNER_TEMP}/common-candidate/site" > "${RUNNER_TEMP}/candidate-http.log" 2>&1 &
+          trap 'kill $!' EXIT
+          curl --fail --silent --show-error --retry 10 --retry-connrefused --retry-delay 1 http://127.0.0.1:8765/ > /dev/null
+          node tests/foundation-browser.test.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: common-public-research-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/common-candidate/public-research.zip
+            ${{ runner.temp }}/common-candidate/public-research.sha256
+          if-no-files-found: error
+          retention-days: 14
