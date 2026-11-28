@@ -5,6 +5,7 @@ on:
     paths:
       - 'supabase/migrations/**'
       - 'tests/pg_jobs_integration.py'
+      - 'scripts/queue_health.py'
       - '.github/workflows/test-durable-jobs.yml'
 
 permissions:

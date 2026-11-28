@@ -1,10 +1,14 @@
 """Exercise the durable queue against a fresh disposable PostgreSQL database."""
+import json
+import sys
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
+import json
 from os import environ
 from pathlib import Path
 from statistics import median
+from subprocess import run
 from threading import Barrier
 from time import perf_counter
 from uuid import uuid4
@@ -238,12 +242,106 @@ def test_claim_plan(db):
     print("\n".join(plan))
 
 
+def test_queue_health(db):
+    kind = "data_normalization"
+    expired = enqueue(db, "observer-expired", kind=kind)
+    assert claim(db, kind)["id"] == expired
+    cancelling = enqueue(db, "observer-cancelling", kind=kind)
+    cancelling_lease = claim(db, kind)
+    assert cancelling_lease["id"] == cancelling
+    assert scalar(db, "select common_jobs.heartbeat(%s,%s,0,120)", (cancelling, cancelling_lease["lease_token"]))
+    assert scalar(db, "select common_jobs.cancel(%s,%s)", (OWNER, cancelling))
+
+    succeeded = enqueue(db, "observer-succeeded", kind=kind)
+    success_lease = claim(db, kind)
+    assert finish(db, succeeded, success_lease["lease_token"])
+    failed = enqueue(db, "observer-failed", kind=kind)
+    failed_lease = claim(db, kind)
+    assert finish(db, failed, failed_lease["lease_token"], "dead", error="fixture_failure")
+    cancelled = enqueue(db, "observer-cancelled", kind=kind)
+    assert scalar(db, "select common_jobs.cancel(%s,%s)", (OWNER, cancelled))
+    historical = enqueue(db, "observer-historical", kind=kind)
+    assert scalar(db, "select common_jobs.cancel(%s,%s)", (OWNER, historical))
+    db.execute("update common_jobs.jobs set completed_at=now()-interval '2 hours' where id=%s", (historical,))
+
+    ready = enqueue(db, "observer-ready", kind=kind)
+    available_at = scalar(db, """
+        update common_jobs.jobs set available_at=now()-interval '2 minutes'
+        where id=%s returning available_at
+    """, (ready,))
+    enqueue(db, "observer-future", kind=kind, scheduled=datetime.now(timezone.utc)+timedelta(hours=1))
+    db.execute("update common_jobs.jobs set lease_expires_at=now()-interval '1 second' where id=%s", (expired,))
+
+    for role in ("anon", "authenticated", "common_jobs_producer", "common_jobs_worker"):
+        with_role(db, role)
+        rejects(lambda: db.execute("select * from common_jobs.queue_health()"), errors.InsufficientPrivilege)
+        db.execute("reset role")
+
+    with_role(db, "common_jobs_observer")
+    snapshot = {row["kind"]: row for row in db.execute("select * from common_jobs.queue_health()")}
+    health = snapshot[kind]
+    assert set(health) == {
+        "observed_at", "kind", "enabled", "admission_limit", "ready", "delayed", "running",
+        "expired_leases", "cancellations_pending", "oldest_ready_seconds", "succeeded_last_hour",
+        "dead_last_hour", "cancelled_last_hour", "terminal_sample_capped",
+    }
+    assert health["enabled"] and health["admission_limit"] > 4
+    assert (health["ready"], health["delayed"], health["running"]) == (1, 1, 2)
+    assert health["expired_leases"] == health["cancellations_pending"] == 1
+    assert health["oldest_ready_seconds"] == int((health["observed_at"] - available_at).total_seconds())
+    assert health["oldest_ready_seconds"] >= 120
+    assert health["succeeded_last_hour"] == health["dead_last_hour"] == health["cancelled_last_hour"] == 1
+    assert not health["terminal_sample_capped"]
+    assert snapshot["statement_generation"]["enabled"] is False
+    assert snapshot["statement_generation"]["oldest_ready_seconds"] is None
+    assert snapshot["backtest"]["succeeded_last_hour"] == 1000
+    assert snapshot["backtest"]["terminal_sample_capped"]
+    rejects(lambda: db.execute("select payload from common_jobs.jobs"), errors.InsufficientPrivilege)
+    rejects(lambda: db.execute("select * from common_jobs.queue_limits"), errors.InsufficientPrivilege)
+    rejects(lambda: db.execute("select common_jobs.reap_expired(%s)", (kind,)), errors.InsufficientPrivilege)
+    rejects(lambda: enqueue(db, "observer-mutation", kind=kind), errors.InsufficientPrivilege)
+    db.execute("reset role")
+
+    with_role(db, "common_jobs_worker")
+    assert scalar(db, "select common_jobs.reap_expired(%s,1)", (kind,)) == 1
+    db.execute("reset role")
+    with_role(db, "common_jobs_observer")
+    recovered = db.execute("select * from common_jobs.queue_health() where kind=%s", (kind,)).fetchone()
+    assert recovered["expired_leases"] == 0 and recovered["running"] == 1
+    assert recovered["delayed"] == 2
+    db.execute("reset role")
+
+    cli_env = dict(environ, PGHOST="127.0.0.1", PGDATABASE="common_jobs_test",
+                   PGOPTIONS="-c role=common_jobs_observer")
+    command = [sys.executable, str(ROOT / "scripts/queue_health.py")]
+    output = run(command, env=cli_env, check=True, capture_output=True, text=True, timeout=10)
+    health = {row["kind"]: row for row in json.loads(output.stdout)}[kind]
+    assert health["expired_leases"] == 0 and health["dead_last_hour"] == 1
+    cli_env["PGOPTIONS"] = "-c role=authenticated"
+    denied = run(command, env=cli_env, capture_output=True, text=True, timeout=10)
+    assert denied.returncode == 1 and not denied.stdout and "42501" in denied.stderr
+
+    plan = [
+        next(iter(row.values())) for row in db.execute("""
+            explain (analyze, buffers)
+            select j.state from common_jobs.jobs j where j.kind='backtest'
+              and j.completed_at>statement_timestamp()-interval '1 hour'
+              and j.completed_at<=statement_timestamp()
+            order by j.completed_at desc,j.id desc limit 1000
+        """)
+    ]
+    assert any("jobs_terminal_recent" in line for line in plan), "\n".join(plan)
+    print("\n".join(plan))
+
+
 def main():
     with connect() as db:
         db.execute((ROOT / "tests/pg_prepare.sql").read_text())
-        migration, = (ROOT / "supabase/migrations").glob("*_durable_job_queue.sql")
-        db.execute(migration.read_text())
-        for test in (test_lifecycle, test_recovery, test_roles, test_concurrent_admission_and_claim, test_claim_plan):
+        for suffix in ("*_durable_job_queue.sql", "*_durable_queue_health_snapshot.sql"):
+            migration, = (ROOT / "supabase/migrations").glob(suffix)
+            db.execute(migration.read_text())
+        for test in (test_lifecycle, test_recovery, test_roles, test_concurrent_admission_and_claim,
+                     test_claim_plan, test_queue_health):
             test(db)
             print(f"PASS {test.__name__}")
 

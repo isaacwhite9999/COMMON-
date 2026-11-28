@@ -132,7 +132,7 @@ API operations evidence for X01.05 and X01.06 is recorded in [isolated API stagi
 - [ ] X01.02 **Remaining** — Unified session, navigation, shared component system and responsive institutional UX; accessible dense data and beginner progressive disclosure
 - [ ] X01.03 **Remaining** — Deep nested settings: account/security/privacy, appearance/density, AI/model/memory/commands, data/entitlements, compute, portfolio, circles/governance, integrations/API, notifications, billing/usage
 - [ ] X01.04 **Remaining** — Mobile iOS/Android strategy, offline/recovery where appropriate, notification permissions
-- [ ] X01.05 **Remaining** — Typed service boundaries, queues, persistence, storage, pagination, cache, migration strategy, monitoring, backups, disaster recovery, secrets, audit, environment separation and cost limits
+- [ ] X01.05 **Partial / implemented in branch** — Durable PostgreSQL queue and read-only operator health snapshots. Broader typed service boundaries, persistence, storage, pagination, cache, migration strategy, monitoring, backups, disaster recovery, secrets, audit, environment separation and cost limits remain under implementation.
 - [ ] X01.06 **Remaining** — Unit/integration/browser/mobile/security/financial verification, accessibility, load and visual tests; staging smoke and deployment/rollback gates
 - [ ] X01.07 **Remaining** — End-to-end flow: individual research -> evidence artifact -> permitted sharing -> circle discussion -> decision -> legally authorized financial workflow -> accounting/audit; preserve individual choice
 
