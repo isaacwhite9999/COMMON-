@@ -113,7 +113,7 @@ Expanded from the prior product discussions and the grouped acceptance backlog. 
 - [ ] SOCIAL-095 — Notification preferences
 - [ ] SOCIAL-096 — Push notifications
 - [ ] SOCIAL-097 — Email notifications
-- [ ] SOCIAL-098 — In-app notification center
+- [x] SOCIAL-098 — In-app notification center
 - [ ] SOCIAL-099 — Optional voice and video integration with approved provider
 
 ## Collaborative research — workstream 07 / parent S02

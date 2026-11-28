@@ -102,7 +102,7 @@ Q04.01 browser metadata, source isolation, and upgrade evidence are recorded in 
 - [ ] S03.02 **Remaining** — Requests, custom roles and granular permissions, committees, subgroups, private/discussion/research/announcement channels, pinned resources
 - [ ] S03.03 **Remaining** — Member removal/suspension, ownership transfer, archive/restore, audit trail and circle branding
 - [ ] S03.04 **Remaining** — Real-time delivery, group DMs, unread counters, read receipts, replies, reactions, presence/typing, search, edit/delete, archives, attachments and notification settings
-- [ ] S03.05 **Remaining** — In-app/email/push notifications, secure mobile messaging, optional voice/video via appropriately reviewed integrations
+- [ ] S03.05 **Partial / implemented in branch** — Private in-app inbox for direct messages and connection requests and acceptances, with unread filters, archive/restore and per-type preferences. Additional source categories, email, push and optional voice/video remain open.
 
 ### S04 — Governance and financial operations (workstream 09)
 

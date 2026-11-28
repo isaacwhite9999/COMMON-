@@ -7,6 +7,7 @@ on:
       - 'docs/live-community.js'
       - 'tests/discussion-feed-browser.test.mjs'
       - 'tests/research-journey.test.mjs'
+      - 'tests/notification-inbox-browser.test.mjs'
       - 'tests/publishing-draft-browser.test.mjs'
       - 'tests/project-assistant-browser.test.mjs'
       - 'docs/shared/research-draft.js'
@@ -33,5 +34,6 @@ jobs:
           node tests/discussion-feed-browser.test.mjs
           COMMON_DESKTOP=1 node tests/discussion-feed-browser.test.mjs
           node tests/research-journey.test.mjs
+          node tests/notification-inbox-browser.test.mjs
           node tests/publishing-draft-browser.test.mjs
           node tests/project-assistant-browser.test.mjs
