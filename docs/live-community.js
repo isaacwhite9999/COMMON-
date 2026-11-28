@@ -13,7 +13,7 @@ const icons={
  home:'⌂',groups:'◎',chat:'◉',ownership:'◇',invest:'↗',studio:'⌇',agent:'◇',money:'\u0024',learn:'?',profile:'◍',add:'＋',safety:'⚑',notifications:'◈'
 };
 let blockedMembers=[],bookmarks=[],memberDetail=null,profileSection='identity',memberDirectory=[],mobileMore=false;let agentOutput=null,agentInput='',agentMode='review',agentSending=false,agentDeskTab='analysis',agentDesk=CommonAgentDesk.initial(),agentDeskOwner=null,agentLastRequest=null;let client=null,session=null,profile=null,groups=[],memberships=[],proposals=[],projects=[],watches=[],people={},messages=[],dm=[],selectedGroup=null,selectedPeer=null,view='home',busy=false,search='',error='',info='',pendingInvite=null,memberPoll=[],pollSelection=null,lastAuthView='signin',recovering=false,moderationCases=[],moderationAppeals=[],accountRestrictions=[],googleProviderStatus='checking';
-const capitalDrafts=new Map();let capitalTab='overview';let ledgerRows=[],ledgerCircle=null,ledgerError='',ledgerLoading=false;let decisionDetail=null,pollRows=[],pollOwn=null;
+const capitalDrafts=new Map();let capitalTab='overview';let ledgerRows=[],ledgerCircle=null,ledgerError='',ledgerLoading=false;let decisionDetail=null,pollRows=[],pollOwn=null,governanceMemo=null;
 const state={directory:'mine',feed:'mine',groupTab:'posts',comments:null,composer:false,groupCreate:false,projectCreate:false,proposalCreate:false,inviteToken:null,showMembers:false};
 let researchReview=null,pollDraft=null,composerDraft=null;
 const base=location.pathname.replace(/\/live\/?(?:index.html)?$/,'/live/');
@@ -280,10 +280,120 @@ if(ledgerError)return notice+'<div class="empty">'+e(ledgerError)+'<button class
 const totals=L.balances(ledgerRows),options=Object.entries(L.accounts).map(([k,v])=>'<option value="'+k+'">'+e(v)+'</option>').join(''),entries=ledgerRows.slice().reverse().map(r=>'<details class="surface circle-project"><summary><span><strong>'+e(r.source_ref)+'</strong><small>'+e(r.record_date)+' · '+e(person(r.author_id))+'</small></span><strong>'+L.money(L.validate(r.lines))+'</strong></summary><dl class="circle-facts">'+r.lines.map(l=>'<dt>'+e(L.accounts[l.account]+' / '+l.side)+'</dt><dd>'+L.money(l.cents)+'</dd>').join('')+'</dl>'+(r.reverses_id?'<p class="muted small">Reversal entry</p>':own(g.id)&&!ledgerRows.some(x=>x.reverses_id===r.id)?button('reverse-external','Reverse entry','secondary','data-id="'+r.id+'"'):'')+'</details>').join('');
 return notice+'<section class="surface circle-tools"><h3>Recorded account totals</h3><dl class="circle-facts">'+Object.entries(totals).map(([k,v])=>'<dt>'+e(L.accounts[k])+'</dt><dd>'+L.money(v)+'</dd>').join('')+'</dl><p class="muted small">Aggregate USD book totals, not current market value or funds available to spend.</p>'+button('refresh-ledger','Refresh')+' '+button('export-ledger','Export journal')+'</section>'+
 (own(g.id)?'<section class="surface circle-tools"><h3>Record a completed external event</h3><form data-form="external-entry" class="stack"><label><span class="form-label">Record date</span><input name="date" type="date" class="field" required></label><label><span class="form-label">Internal reference (not a bank reference)</span><input name="reference" class="field" minlength="3" maxlength="80" pattern="[A-Za-z0-9][A-Za-z0-9._\\-]{2,79}" required></label><p class="muted small">Enter balanced debit and credit lines. Leave unused amounts blank.</p>'+Array.from({length:6},(_,i)=>'<div class="ledger-line"><label><span class="form-label">Account '+(i+1)+'</span><select class="field" name="account'+i+'">'+options+'</select></label><label><span class="form-label">Side</span><select class="field" name="side'+i+'"><option value="debit">Debit</option><option value="credit" '+(i===1?'selected':'')+'>Credit</option></select></label><label><span class="form-label">USD</span><input class="field" name="amount'+i+'" type="number" min=".01" max="10000000" step=".01"></label></div>').join('')+'<label class="row"><input type="checkbox" name="ack" required> Completed external activity only; not an instruction to move money.</label><button class="button primary">Record journal entry</button></form></section>':'')+'<div class="section-bar"><h3>Append-only journal</h3></div>'+(entries||'<div class="empty">No external records.</div>');}
-async function loadPoll(id){const p=proposals.find(x=>x.id===id),uid=session?.user?.id,cid=selectedGroup;if(!p||p.community_id!==cid||!joined(cid))throw Error('Circle membership required');const [counts,vote]=await Promise.all([call(client.rpc('proposal_tally',{pid:id})),call(client.from('proposal_votes').select('choice').eq('proposal_id',id).eq('user_id',uid).maybeSingle())]);if(session?.user?.id!==uid||selectedGroup!==cid)return;decisionDetail=id;pollRows=counts;pollOwn=vote?.choice||null;render();}
+async function loadPoll(id){const p=proposals.find(x=>x.id===id),uid=session?.user?.id,cid=selectedGroup;if(!p||p.community_id!==cid||!joined(cid))throw Error('Circle membership required');const [counts,vote]=await Promise.all([call(client.rpc('proposal_tally',{pid:id})),call(client.from('proposal_votes').select('choice').eq('proposal_id',id).eq('user_id',uid).maybeSingle())]);if(session?.user?.id!==uid||selectedGroup!==cid)return;decisionDetail=id;pollRows=counts;pollOwn=vote?.choice||null;render();void loadGovernanceMemo(p);}
+const governanceFields=[
+ ['thesis','Investment thesis',30,3000],
+ ['diligence','Due diligence and sources',30,5000],
+ ['risks','Risks and unresolved questions',20,3000],
+ ['disclosures','Conflict disclosures',4,1000]
+];
+const governanceOutcomes={research_ready:'Research ready',changes_requested:'Changes requested'};
+function sameGovernanceScope(stateAfter){
+ return session?.user?.id===stateAfter.viewer&&selectedGroup===stateAfter.circle&&
+  decisionDetail===stateAfter.proposal&&view==='groups'&&state.groupTab==='decisions'&&joined(stateAfter.circle);
+}
+async function loadGovernanceMemo(proposal){
+ if(groupById(proposal.community_id)?.visibility!=='private')return;
+ const stateAfter={viewer:session?.user?.id,circle:proposal.community_id,proposal:proposal.id,
+  loading:true,error:'',saving:false,input:{},memo:null,reviews:[],reviewed:false};
+ if(!sameGovernanceScope(stateAfter))return;
+ if(governanceMemo&&sameGovernanceScope(governanceMemo)){
+  stateAfter.input=governanceMemo.input;stateAfter.memo=governanceMemo.memo;stateAfter.reviews=governanceMemo.reviews;
+ }
+ governanceMemo=stateAfter;
+ render();
+ try {
+  const [memo,reviews,myReview]=await Promise.all([
+   call(client.from('circle_governance_memos')
+    .select('proposal_id,author_id,thesis,diligence,risks,disclosures,created_at')
+    .eq('proposal_id',proposal.id).maybeSingle()),
+   call(client.from('circle_governance_reviews')
+    .select('author_id,disposition,rationale,created_at,author:profiles!circle_governance_reviews_author_id_fkey(display_name)')
+    .eq('proposal_id',proposal.id).order('created_at',{ascending:false}).order('author_id').limit(50)),
+   own(stateAfter.circle)?call(client.from('circle_governance_reviews').select('author_id')
+    .eq('proposal_id',proposal.id).eq('author_id',stateAfter.viewer).maybeSingle()):null
+  ]);
+  stateAfter.memo=memo;stateAfter.reviews=reviews;stateAfter.reviewed=Boolean(myReview);
+ }catch{
+  stateAfter.memo=null;stateAfter.reviews=[];
+  stateAfter.error='The research memo could not be loaded.';
+ }finally{
+  stateAfter.loading=false;
+  if(governanceMemo===stateAfter&&sameGovernanceScope(stateAfter))render();
+ }
+}
+function governanceMemoSection(circle,proposal){
+ if(circle.visibility!=='private')return '';
+ const current=governanceMemo;
+ const wrap=content=>'<section class="surface circle-tools" aria-label="Investment memo and review">'+
+  '<h3>Investment memo</h3><p class="muted small">Research review only. These records cannot authorize a transaction.</p>'+content+'</section>';
+ if(!current||!sameGovernanceScope(current)||current.loading)return wrap('<p role="status">Loading research memo…</p>');
+ const feedback=current.error?'<p role="alert">'+e(current.error)+'</p>':'';
+ if(current.error&&!current.memo&&!governanceFields.some(([name])=>name in current.input)){
+  return wrap(feedback+button('governance-retry','Retry research memo'));
+ }
+ const fields=governanceFields.map(([name,label,min,max])=>
+  '<label><span class="form-label">'+e(label)+'</span><textarea class="field" name="'+name+'" required minlength="'+min+'" maxlength="'+max+'">'+
+  e(current.input[name]||'')+'</textarea></label>').join('');
+ const submit=(label)=>'<button type="submit" class="button primary" '+(current.saving?'disabled':'')+'>'+label+'</button>';
+ if(!current.memo){
+  const form=proposal.author_id===session.user.id?
+   '<form data-form="governance-memo" class="stack">'+fields+
+   '<p class="muted small">State any relevant interests or write “None declared”. The recorded memo is read-only.</p>'+
+   submit('Record research memo')+'</form>':
+   '<p>The proposal author can record the research memo.</p>';
+  return wrap(feedback+form);
+ }
+ const evidence=governanceFields.map(([name,label])=>'<h4>'+e(label)+'</h4><p class="post-body">'+e(current.memo[name])+'</p>').join('');
+ const reviews=current.reviews.map(review=>{
+  const reviewer=review.author?.display_name||people[review.author_id]?.display_name||'Member '+review.author_id.slice(0,8);
+  return '<article class="circle-tools"><h4>'+e(governanceOutcomes[review.disposition])+'</h4><p class="muted small">'+e(reviewer)+' · '+
+   e(new Date(review.created_at).toLocaleString())+'</p><p class="post-body">'+e(review.rationale)+'</p></article>';
+ }).join('')||'<p>No independent reviews recorded.</p>';
+ const mayReview=own(circle.id)&&current.memo.author_id!==session.user.id&&!current.reviewed;
+ const reviewForm=mayReview?
+  '<form data-form="governance-review" class="stack"><label><span class="form-label">Review outcome</span>'+
+  '<select class="field" name="disposition" required><option value="">Choose outcome</option>'+
+  Object.entries(governanceOutcomes).map(([key,label])=>'<option value="'+key+'" '+(current.input.disposition===key?'selected':'')+'>'+label+'</option>').join('')+
+  '</select></label><label><span class="form-label">Review reasoning</span><textarea class="field" name="rationale" required minlength="15" maxlength="2000">'+
+  e(current.input.rationale||'')+'</textarea></label><label class="row"><input type="checkbox" name="independent" required '+
+  (current.input.independent==='on'?'checked':'')+'> I did not author this memo and have no material conflict in reviewing it.</label>'+
+  submit('Record independent review')+'</form>':'';
+ return wrap(feedback+evidence+'<h3>Independent review history</h3>'+
+  '<p class="muted small">Circle owners and moderators may record one review of another member’s memo.</p>'+
+  reviews+(current.reviews.length===50?'<p class="muted small">Showing the 50 most recent reviews.</p>':'')+reviewForm);
+}
+async function submitGovernance(formData,type){
+ const current=governanceMemo;
+ if(!current||!sameGovernanceScope(current)||current.loading)return;
+ const proposal=proposals.find(p=>p.id===current.proposal);
+ if(!proposal||groupById(current.circle)?.visibility!=='private')return;
+ current.input=Object.fromEntries(formData);
+ current.saving=true;current.error='';
+ const creating=type==='governance-memo';
+ const content=creating?Object.fromEntries(governanceFields.map(([name])=>[name,String(formData.get(name)||'').trim()])):
+  {disposition:formData.get('disposition'),rationale:String(formData.get('rationale')||'').trim(),independent:formData.get('independent')==='on'};
+ const record={proposal_id:proposal.id,author_id:current.viewer,...content};
+ if(creating)record.community_id=current.circle;
+ for(const control of document.querySelector('[data-form="'+type+'"]').elements){
+  control.disabled=true;
+ }
+ try{
+  await call(client.from(creating?'circle_governance_memos':'circle_governance_reviews').insert(record));
+  current.input={};
+  if(governanceMemo===current&&sameGovernanceScope(current))await loadGovernanceMemo(proposal);
+ }catch(err){
+  current.error=err?.code==='23505'?'A record was already submitted. Reload this decision to see it.':
+   err?.code==='23514'?'Review the field lengths and investment safety requirements, then retry.':
+   'This record could not be saved. Confirm your current circle permissions and try again.';
+ }finally{
+  current.saving=false;
+  if(governanceMemo===current&&sameGovernanceScope(current))render();
+ }
+}
 function decisionPage(g){const p=proposals.find(x=>x.id===decisionDetail&&x.community_id===g.id);if(!p)return '<div class="space"><h3>Community decisions</h3>'+button('new-proposal','Start poll','primary')+'</div><p class="muted small">Research and community opinions only; not legal authority to invest or move money.</p>'+(proposals.filter(x=>x.community_id===g.id).map(p=>'<article class="surface circle-tools"><div class="space"><h3>'+e(p.title)+'</h3><span class="pill">'+e(p.status)+'</span></div><p class="post-body">'+e(p.rationale)+'</p>'+button('poll-detail','View decision','secondary','data-id="'+p.id+'"')+'</article>').join('')||'<div class="empty">No community proposals yet.</div>');
 const total=pollRows.reduce((n,x)=>n+Number(x.tally),0),open=p.status==='open'&&(!p.closes_at||new Date(p.closes_at)>new Date());
-return button('poll-list','All decisions')+'<section class="surface circle-tools"><div class="space"><h3>'+e(p.title)+'</h3><span class="pill">'+(open?'Open':'Closed')+'</span></div><p class="muted small">'+e(p.closes_at?'Closes '+new Date(p.closes_at).toLocaleString():'No closing date set')+'</p><p class="post-body">'+e(p.rationale)+'</p><div class="capital-disclosure"><strong>NONBINDING MEMBER OPINION</strong><p>No money movement or securities transaction is authorized.</p></div>'+['support','oppose','abstain'].map(k=>{const n=Number(pollRows.find(x=>x.choice===k)?.tally||0);return '<div class="poll-result"><div class="space"><strong>'+titleCase(k)+'</strong><span>'+n+' / '+total+'</span></div><div class="capital-bar"><span style="width:'+(total?100*n/total:0)+'%;background:#47775a"></span></div></div>'}).join('')+'<p class="muted small">Your vote: '+e(pollOwn||'Not yet voted')+'</p>'+(open?'<div class="row">'+['support','oppose','abstain'].map(k=>button('poll-vote',titleCase(k),k===pollOwn?'primary':'secondary','data-id="'+p.id+'" data-choice="'+k+'"')).join('')+'</div>':'')+'</section>';}
+return button('poll-list','All decisions')+'<section class="surface circle-tools"><div class="space"><h3>'+e(p.title)+'</h3><span class="pill">'+(open?'Open':'Closed')+'</span></div><p class="muted small">'+e(p.closes_at?'Closes '+new Date(p.closes_at).toLocaleString():'No closing date set')+'</p><p class="post-body">'+e(p.rationale)+'</p><div class="capital-disclosure"><strong>NONBINDING MEMBER OPINION</strong><p>No money movement or securities transaction is authorized.</p></div>'+['support','oppose','abstain'].map(k=>{const n=Number(pollRows.find(x=>x.choice===k)?.tally||0);return '<div class="poll-result"><div class="space"><strong>'+titleCase(k)+'</strong><span>'+n+' / '+total+'</span></div><div class="capital-bar"><span style="width:'+(total?100*n/total:0)+'%;background:#47775a"></span></div></div>'}).join('')+'<p class="muted small">Your vote: '+e(pollOwn||'Not yet voted')+'</p>'+(open?'<div class="row">'+['support','oppose','abstain'].map(k=>button('poll-vote',titleCase(k),k===pollOwn?'primary':'secondary','data-id="'+p.id+'" data-choice="'+k+'"')).join('')+'</div>':'')+'</section>'+governanceMemoSection(g,p);}
 function groupBody(g){
  if(state.groupTab==='capital')return capitalDesk(g);
  if(state.groupTab==='research')return '<div class="section-bar"><h3>Shared research library</h3>'+button('new-project','Create research project','primary')+'</div><p class="muted small circle-note">Member-authored research, not independently verified investment recommendations.</p>'+ (projects.filter(p=>p.community_id===g.id).map(p=>'<details class="surface circle-project"><summary><span><strong>'+e(p.title)+'</strong><small>'+e(p.stage)+' · '+e(person(p.author_id))+'</small></span><span class="pill">'+e(p.category)+'</span></summary><p class="post-body">'+e(p.thesis)+'</p><small class="muted">Created '+e(new Date(p.created_at).toLocaleDateString())+'</small></details>').join('')||'<div class="empty">No research projects have been published to this circle.</div>')+'<div class="surface circle-tools"><h3>Research tools</h3><p class="muted small">Run a model privately before sharing your assumptions and evidence.</p><a class="button" href="../workspace/#research">Open research workspace</a> <a class="button secondary" href="../terminal/">Market intelligence</a></div>';
@@ -826,7 +936,7 @@ async function init(){
   if(session?.user?.id!==next?.user?.id){
    researchReview=pollDraft=composerDraft=null;view=location.hash==='#notifications'?'notifications':'home';error=info='';
    notificationView=null;notificationSection='all';
-   profile=null;ledgerRows=[];ledgerCircle=null;ledgerError='';decisionDetail=null;pollRows=[];pollOwn=null;
+   profile=null;ledgerRows=[];ledgerCircle=null;ledgerError='';decisionDetail=null;pollRows=[];pollOwn=null;governanceMemo=null;
    capitalDrafts.clear();capitalTab='overview';blockedMembers=[];bookmarks=[];memberDetail=null;memberDirectory=[];
    profileSection='identity';connectionSection='incoming';state.feed='mine';followProfile=followList=null;mobileMore=false;agentOutput=null;agentInput='';agentMode='review';agentDeskTab='analysis';
    agentDesk=CommonAgentDesk.initial();agentDeskOwner=null;agentLastRequest=null;
@@ -1125,7 +1235,12 @@ async function dispatch(action,element){
  if(action==='new-project'){state.projectCreate=true;render();return}
  if(action==='remove-watch'){await call(client.from('watchlist_items').delete().eq('symbol',element.dataset.symbol).eq('user_id',session.user.id));await refresh();return}
  if(action==='poll-detail'){await loadPoll(id);return}
- if(action==='poll-list'){decisionDetail=null;pollRows=[];pollOwn=null;render();return}
+ if(action==='governance-retry'){
+  const proposal=proposals.find(p=>p.id===decisionDetail&&p.community_id===selectedGroup);
+  if(proposal)await loadGovernanceMemo(proposal);
+  return;
+ }
+ if(action==='poll-list'){decisionDetail=null;pollRows=[];pollOwn=null;governanceMemo=null;render();return}
  if(action==='poll-vote'){const p=proposals.find(x=>x.id===id);if(!p||p.community_id!==selectedGroup||!joined(selectedGroup))throw Error('Circle membership required');await call(client.from('proposal_votes').upsert({proposal_id:id,user_id:session.user.id,choice},{onConflict:'proposal_id,user_id'}));await loadPoll(id);status('Your nonbinding member opinion was recorded. No transaction is authorized.');return}
  if(action==='refresh-ledger'){await loadLedger();render();return}
  if(action==='export-ledger'){if(config.externalLedgerEnabled!==true||ledgerCircle!==selectedGroup||!joined(selectedGroup))throw Error('Journal unavailable');const url=URL.createObjectURL(new Blob([JSON.stringify({mode:'manual_external_records_unverified',entries:ledgerRows},null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='common-external-journal.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),500);return}
@@ -1233,6 +1348,7 @@ async function dispatch(action,element){
 }
 async function submitted(form){
  const f=new FormData(form),type=form.getAttribute('data-form'),uid=session.user.id;
+ if(type==='governance-memo'||type==='governance-review'){await submitGovernance(f,type);return}
  if(type==='external-entry'){const g=groupById(selectedGroup);if(config.externalLedgerEnabled!==true||!g||g.visibility!=='private'||!own(g.id)||ledgerCircle!==g.id||f.get('ack')!=='on')throw Error('Authorized private recordkeeping required');const lines=[];for(let i=0;i<6;i++){const v=f.get('amount'+i);if(v!=='')lines.push({account:f.get('account'+i),side:f.get('side'+i),cents:CommonLedger.amount(v)});}CommonLedger.validate(lines);await call(client.from('circle_external_journal').insert({community_id:g.id,record_date:f.get('date'),source_ref:String(f.get('reference')).trim(),lines}));await loadLedger();render();return}
  if(type==='capital-plan'){const g=groupById(selectedGroup);if(!g||!joined(g.id))throw Error('Circle membership required.');const input=Object.fromEntries(f),result=CommonCapital.plan(input);capitalDrafts.set(g.id,{input,result});capitalTab='review';render();return}
  if(type==='capital-share'){const g=groupById(selectedGroup),draft=capitalDrafts.get(selectedGroup),title=String(f.get('title')||'').trim();if(!g||g.visibility!=='private'||!joined(g.id)||!draft||f.get('confirm')!=='on'||title.length<8||title.length>120)throw Error('Private circle membership, valid title and explicit confirmation required.');await call(client.from('proposals').insert({community_id:g.id,author_id:uid,title:'Scenario: '+title,rationale:CommonCapital.summary(draft.result)}));if(session?.user?.id===uid){state.groupTab='decisions';await refresh();status('Hypothetical research poll published. No funds or commitments were collected.');}return}
@@ -1317,7 +1433,7 @@ async function submitted(form){
 }
 document.addEventListener('click',async ev=>{
  const agentTab=ev.target.closest('[data-agent-tab]');if(agentTab){agentDeskTab=agentTab.dataset.agentTab;render();return}const capital=ev.target.closest('[data-capital-tab]');if(capital){if(joined(selectedGroup)){capitalTab=capital.dataset.capitalTab;if(capitalTab==='ledger'){await loadLedger();}render()}return}const prof=ev.target.closest('[data-profile-section]');if(prof){profileSection=prof.dataset.profileSection;render();return}const nav=ev.target.closest('[data-tab]');if(nav){mobileMore=false;if(nav.dataset.tab==='studio'){location.assign(new URL('../lab/',location.href).href);return}view=nav.dataset.tab;setNotificationRoute(view);selectedGroup=null;error=info='';render();return}
- const feed=ev.target.closest('[data-feed]');if(feed){state.feed=feed.dataset.feed;render();return}const dir=ev.target.closest('[data-directory]');if(dir){state.directory=dir.dataset.directory;render();return}const tab=ev.target.closest('[data-group-tab]');if(tab){state.groupTab=tab.dataset.groupTab;try{if(state.groupTab==='chat')await loadMessages();if(state.groupTab==='members'){memberPoll=[];await loadGroupMembers();}}catch(e){handleError(e);return}render();return}
+ const feed=ev.target.closest('[data-feed]');if(feed){state.feed=feed.dataset.feed;render();return}const dir=ev.target.closest('[data-directory]');if(dir){state.directory=dir.dataset.directory;render();return}const tab=ev.target.closest('[data-group-tab]');if(tab){state.groupTab=tab.dataset.groupTab;try{if(state.groupTab==='decisions'&&decisionDetail)await loadPoll(decisionDetail);if(state.groupTab==='chat')await loadMessages();if(state.groupTab==='members'){memberPoll=[];await loadGroupMembers();}}catch(e){handleError(e);return}render();return}
  const btn=ev.target.closest('[data-act]');if(!btn)return;
  if(busy)return;
  if(['compose','create-group','new-project','new-proposal','poll-from-discussion'].includes(btn.dataset.act))modalTrigger=btn.dataset.act;
