@@ -9,6 +9,7 @@ on:
       - 'tests/research-journey.test.mjs'
       - 'tests/publishing-draft-browser.test.mjs'
       - 'tests/project-assistant-browser.test.mjs'
+      - 'tests/circle-governance-browser.test.mjs'
       - 'docs/shared/research-draft.js'
       - 'docs/workspace/**'
       - 'docs/lab/**'
@@ -35,3 +36,4 @@ jobs:
           node tests/research-journey.test.mjs
           node tests/publishing-draft-browser.test.mjs
           node tests/project-assistant-browser.test.mjs
+          node tests/circle-governance-browser.test.mjs
