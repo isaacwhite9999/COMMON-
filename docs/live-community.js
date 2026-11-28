@@ -10,7 +10,7 @@ const e=s=>String(s??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&g
 const short=(s,n=80)=>String(s??'').slice(0,n);
 const el=(tag,attrs={},text)=>{const node=document.createElement(tag);for(const [k,v] of Object.entries(attrs))node.setAttribute(k,v);if(text!==undefined)node.textContent=text;return node};
 const icons={
- home:'⌂',groups:'◎',chat:'◉',ownership:'◇',invest:'↗',studio:'⌇',agent:'◇',money:'\u0024',learn:'?',profile:'◍',add:'＋',safety:'⚑'
+ home:'⌂',groups:'◎',chat:'◉',ownership:'◇',invest:'↗',studio:'⌇',agent:'◇',money:'\u0024',learn:'?',profile:'◍',add:'＋',safety:'⚑',notifications:'◈'
 };
 let blockedMembers=[],bookmarks=[],memberDetail=null,profileSection='identity',memberDirectory=[],mobileMore=false;let agentOutput=null,agentInput='',agentMode='review',agentSending=false,agentDeskTab='analysis',agentDesk=CommonAgentDesk.initial(),agentDeskOwner=null,agentLastRequest=null;let client=null,session=null,profile=null,groups=[],memberships=[],proposals=[],projects=[],watches=[],people={},messages=[],dm=[],selectedGroup=null,selectedPeer=null,view='home',busy=false,search='',error='',info='',pendingInvite=null,memberPoll=[],pollSelection=null,lastAuthView='signin',recovering=false,moderationCases=[],moderationAppeals=[],accountRestrictions=[],googleProviderStatus='checking';
 const capitalDrafts=new Map();let capitalTab='overview';let ledgerRows=[],ledgerCircle=null,ledgerError='',ledgerLoading=false;let decisionDetail=null,pollRows=[],pollOwn=null;
@@ -60,7 +60,7 @@ const escAttr=s=>e(s);
 const button=(act,label,kind='secondary',more='')=>'<button class="button '+kind+' small" data-act="'+act+'" '+more+'>'+label+'</button>';
 const researchDisciplines=[["equity_research","Fundamental Equity Research"],["event_driven","Event-Driven & Special Situations"],["macro_rates","Macro & Rates"],["derivatives","Volatility & Derivatives"],["market_structure","Market Microstructure"],["quant_strategies","Systematic Strategies"],["portfolio_risk","Portfolio Construction & Risk"],["shareholder_stewardship","Corporate Governance & Stewardship"],["real_assets","Real Assets & Real Estate"],["private_credit","Private Credit"],["venture_capital","Venture Capital & Growth Equity"],["private_equity","Private Equity & Acquisitions"],["personal_finance","Financial Literacy & Planning"],["markets","Public Markets (Legacy)"],["housing","Housing (Legacy)"],["businesses","Businesses (Legacy)"],["local","Local Ownership (Legacy)"],["education","Education (Legacy)"]];
 const researchCategoryLabel=category=>researchDisciplines.find(([value])=>value===category)?.[1]||category;
-const navs=[['home','Home'],['groups','Research Desks'],['chat','Messages'],['ownership','Ownership'],['invest','Research'],['studio','Studio'],['agent','Research assistant'],['money','Money'],['learn','Learn'],['safety','Safety'],['profile','Profile']];
+const navs=[['home','Home'],['groups','Research Desks'],['chat','Messages'],['ownership','Ownership'],['invest','Research'],['studio','Studio'],['agent','Research assistant'],['money','Money'],['learn','Learn'],['safety','Safety'],['profile','Profile'],['notifications','Notifications']];
 const titleCase=s=>s.charAt(0).toUpperCase()+s.slice(1);
 function logo(){return '<span class="logo"><span class="logo-mark">c</span><span class="logo-word">common<span style="color:#5883fb">.</span></span></span>'}
 function banner(){return (error?'<div class="preview-banner" role="alert" style="border-color:#edc1c1;color:#912b2b">'+e(error)+'</div>':'')+(info?'<div class="preview-banner" role="status">'+e(info)+'</div>':'')}
@@ -88,7 +88,7 @@ function baseNav(){
  const items=navs.map(([id,label])=>'<button class="nav-item '+(view===id?'active':'')+'" data-tab="'+id+'" aria-label="'+e(label)+'"'+(view===id?' aria-current="location"':'')+'><span aria-hidden="true" style="font-size:20px;width:21px">'+icons[id]+'</span><span>'+label+'</span></button>').join('');
  return '<div class="app-shell"><aside class="navbar">'+logo()+'<div class="nav-links" style="margin-top:25px">'+items+'</div><a class="nav-item workspace-link" href="../workspace/">Research workspace ↗</a><div class="nav-spacer"></div><div class="nav-person"><button data-tab="profile"><span class="avatar">'+e((profile?.display_name||'?').slice(0,2).toUpperCase())+'</span><span class="details"><strong>'+e(profile?.display_name||'Member')+'</strong><span class="tiny muted">@'+e(profile?.handle||'member')+'</span></span></button></div></aside><div class="main-wrap"><header class="mobile-head">'+logo()+'<button class="icon-btn" data-act="mobile-more" aria-expanded="'+mobileMore+'" aria-label="More navigation">☰</button></header>'+(mobileMore?'<nav class="mobile-more" aria-label="More sections">'+navs.slice(5).map(([id,label])=>'<button class="nav-item" data-tab="'+id+'">'+e(label)+'</button>').join('')+'<a href="../workspace/">Research workspace ↗</a></nav>':'')+'<header class="topbar"><h2>'+e(titleCase(view))+'</h2><div style="margin-left:auto"><span class="pill lime">LIVE COMMUNITY</span></div></header><main class="content">'+banner()+researchDraftNotice()+page()+'</main></div><nav class="mobile-nav">'+navs.slice(0,5).map(([id,label])=>'<button data-tab="'+id+'" class="'+(view===id?'active':'')+'"><span style="font-size:21px">'+icons[id]+'</span><span>'+label+'</span></button>').join('')+'</nav></div>';
 }
-function page(){if(view==='research-review')return researchReviewPage();if(view==='home')return home();if(view==='groups')return selectedGroup?groupDetail():communities();if(view==='chat')return chat();if(view==='ownership')return ownership();if(view==='invest')return research();if(view==='agent')return agentPage();if(view==='member')return memberPage();if(view==='money')return money();if(view==='learn')return learn();if(view==='safety')return safety();return profilePage();}
+function page(){if(view==='notifications')return notificationsPage();if(view==='research-review')return researchReviewPage();if(view==='home')return home();if(view==='groups')return selectedGroup?groupDetail():communities();if(view==='chat')return chat();if(view==='ownership')return ownership();if(view==='invest')return research();if(view==='agent')return agentPage();if(view==='member')return memberPage();if(view==='money')return money();if(view==='learn')return learn();if(view==='safety')return safety();return profilePage();}
 function head(t,s='',extra=''){return '<div class="space" style="align-items:flex-start;margin-bottom:24px"><div><h1 class="page-title">'+e(t)+'</h1><p class="subhead">'+e(s)+'</p></div>'+extra+'</div>'}
 function groupName(id){return groupById(id)?.name||'Community'}
 function contentFlag(kind,id){
@@ -296,6 +296,124 @@ function groupBody(g){
  return '<div class="space" style="margin:0 0 12px"><h3>Discussions</h3></div>'+
  discussionPageMarkup(discussionFeed,postCard,'<div class="empty">Be the first to share research here.</div>');
 }
+const notificationSections={all:'Inbox',unread:'Unread',archived:'Archived',preferences:'Preferences'};
+const notificationLabels={
+ direct_message:'sent you a message',
+ connection_request:'requested a connection',
+ connection_accepted:'accepted your connection request'
+};
+let notificationSection='all', notificationView=null;
+
+function setNotificationRoute(destination){
+ if(destination==='notifications')history.replaceState(null,'','#notifications');
+ else if(location.hash==='#notifications')history.replaceState(null,'',location.pathname+location.search);
+}
+function prepareNotifications(){
+ if(view!=='notifications'||document.hidden){notificationView=null;return}
+ const owner=session.user.id;
+ if(notificationView?.owner===owner&&notificationView?.section===notificationSection)return;
+ notificationView={owner,section:notificationSection,cursors:[null],items:[]};
+ void loadNotifications(notificationView);
+}
+async function loadNotifications(current,{quiet=false,focus=false,force=false}={}){
+ if(current.request&&(!force||quiet))return;
+ const request={};current.request=request;
+ if(!quiet){current.loading=true;current.error=false}
+ const previous=JSON.stringify([current.items,current.next,current.unread,current.error]);
+ try{
+  if(current.section==='preferences'){
+   const preferences=await call(client.from('member_notification_preferences').select('direct_messages,connections')
+    .eq('member_id',current.owner).maybeSingle());
+   if(current.request!==request)return;
+   current.preferences=preferences||{direct_messages:true,connections:true};
+  }else{
+   const result=await call(client.rpc('member_notification_page_v1',{
+    inbox_scope:current.section,...current.cursors.at(-1)
+   }));
+   if(current.request!==request)return;
+   current.items=result.items;current.next=result.next;current.unread=result.unread;
+  }
+  current.error=false;
+ }catch{
+  if(current.request!==request)return;
+  current.items=[];current.next=null;current.error=true;
+ }
+ current.request=null;current.loading=false;
+ if(notificationView!==current)return;
+ if(!quiet||previous!==JSON.stringify([current.items,current.next,current.unread,current.error]))render();
+ if(focus)document.getElementById('notification-results')?.focus();
+}
+
+function notificationRow(item){
+ const attribute='data-id="'+e(item.id)+'"';
+ return '<article class="surface notification-row"><div><p>'+(item.is_read?'':'<span class="notification-unread">Unread</span> ')+
+  '<strong>'+e(item.actor_name)+'</strong> '+e(notificationLabels[item.kind])+'</p><time class="small muted" datetime="'+e(item.created_at)+'">'+
+  e(new Date(item.created_at).toLocaleString())+'</time></div><div class="row notification-actions">'+
+  button('notification-open',item.kind==='direct_message'?'Open conversation':'View member','primary',attribute)+
+  button('notification-change',item.is_read?'Mark unread':'Mark read','secondary',attribute+' data-choice="read"')+
+  button('notification-change',item.is_archived?'Restore':'Archive','secondary',attribute+' data-choice="archive"')+
+  '</div></article>';
+}
+
+function notificationsPage(){
+ const current=notificationView;
+ const count=current?.unread;
+ const tabs='<div class="feed-tabs" role="group" aria-label="Notification views">'+Object.entries(notificationSections).map(([id,label])=>
+  button('notification-section',label+(id==='unread'&&count>0?' ('+(count===100?'99+':count)+')':''),
+   notificationSection===id?'primary':'secondary','data-choice="'+id+'" aria-pressed="'+(id===notificationSection)+'"')).join('')+'</div>';
+ let content;
+ if(!current||current.loading)content='<p role="status">Loading notifications…</p>';
+ else if(current.error)content='<p role="alert">'+(navigator.onLine?'Notifications could not be loaded.':'You are offline.')+'</p>'+
+  button('notification-refresh','Try again');
+ else if(current.section==='preferences')content='<form data-form="notification-preferences" class="surface circle-tools stack">'+
+  '<h3>In-app alerts</h3><p class="small muted">Changes apply to new notifications.</p>'+
+  '<label class="row"><input type="checkbox" name="direct_messages" '+(current.preferences.direct_messages?'checked':'')+'> Direct messages</label>'+
+  '<label class="row"><input type="checkbox" name="connections" '+(current.preferences.connections?'checked':'')+'> Connection requests and acceptances</label>'+
+  '<button type="submit" class="button">Save preferences</button></form>';
+ else content=(current.items.length?current.items.map(notificationRow).join(''):'<div class="empty"><p>'+
+   (current.section==='all'?'You have no notifications.':current.section==='unread'?'You have no unread notifications.':'You have no archived notifications.')+'</p></div>')+
+  '<div class="row notification-actions" role="group" aria-label="Notification pages">'+
+  (current.cursors.length>1?button('notification-previous','Newer notifications'):'')+
+  (current.next?button('notification-next','Older notifications'):'')+button('notification-refresh','Refresh notifications')+'</div>';
+ return head('Notifications','Manage your message and connection alerts.')+tabs+
+  '<div id="notification-results" class="stack" tabindex="-1">'+content+'</div>';
+}
+
+async function notificationAction(action,id,choice){
+ const current=notificationView;
+ if(action==='notification-section'&&Object.hasOwn(notificationSections,choice)){
+  notificationSection=choice;error=info='';render();
+  root.querySelector('[data-act="notification-section"][aria-pressed="true"]')?.focus();
+  return;
+ }
+ if(!current)return;
+ if(['notification-previous','notification-next','notification-refresh'].includes(action)){
+  if(action==='notification-next'&&current.next)current.cursors.push(current.next);
+  if(action==='notification-previous'&&current.cursors.length>1)current.cursors.pop();
+  const loading=loadNotifications(current,{focus:true,force:true});render();return loading;
+ }
+ const item=current.items.find(row=>row.id===id);
+ if(!item)return;
+ const opening=action==='notification-open';
+ if(!opening&&action!=='notification-change')return;
+ const update=opening?{is_read:true}:choice==='archive'?{is_archived:!item.is_archived}:{is_read:!item.is_read};
+ const visible=await call(client.from('member_notifications').update(update)
+  .eq('recipient_id',current.owner).eq('id',item.id).select('id').maybeSingle());
+ if(notificationView!==current)return;
+ if(!visible||!opening){
+  if(!visible)info='This notification is no longer available.';
+  return loadNotifications(current,{focus:true,force:true});
+ }
+ setNotificationRoute('member');
+ if(item.kind==='direct_message'){
+  if(!people[item.actor_id])people[item.actor_id]={display_name:item.actor_name};
+  selectedPeer=item.actor_id;dm=[];view='chat';
+  await loadDM();
+  render();
+  root.querySelector('[data-chat-focus]')?.focus();
+ }else await dispatch('member-profile',{dataset:{id:item.actor_id}});
+}
+
 function messageBubble(message,kind,community){
  const direct=kind==='direct';
  const ownMessage=session.user.id===(direct?message.sender_id:message.author_id);
@@ -306,12 +424,13 @@ function messageBubble(message,kind,community){
   (mayDelete?'<div class="message-actions">'+button('delete-chat-message','Delete message','ghost',
    'data-id="'+e(message.id)+'" data-choice="'+kind+'"')+'</div>':'')+'</div>';
 }
+const mayMessage=peer=>memberDirectory.some(x=>x.id===peer&&x.allow_direct_messages)&&!isBlocked(peer);
 function chat(){
  const peers=memberDirectory.filter(x=>x.id!==session.user.id&&x.allow_direct_messages&&!isBlocked(x.id));
  return head('Messages','Private conversations are opt-in and limited to members sharing a group.')+
  '<div class="surface" style="padding:22px">'+(profile?.allow_direct_messages?'<p class="small muted">Direct messaging is enabled on your profile.</p>':'<p class="small muted">Direct messages are off by default. Enable them under Profile to receive messages from fellow group members.</p>')+
  '<div class="section-bar"><h3>Members accepting messages</h3></div><div class="stack">'+peers.map(p=>'<div class="space connection-list-row"><div><button class="member-link" data-act="member-profile" data-id="'+p.id+'">'+e(p.display_name)+'</button> <span class="tiny muted">@'+e(p.handle)+'</span></div>'+button('dm-user','Open chat','secondary','data-id="'+p.id+'"')+'</div>').join('')+'</div>'+
- (selectedPeer?'<div class="section-bar"><h3 data-chat-focus tabindex="-1">Conversation with '+e(person(selectedPeer))+'</h3>'+button('refresh-dm','Refresh conversation','secondary')+'</div><div data-dm-refresh-status role="status"></div><div data-message-delete-status role="status"></div><div class="chat-messages">'+dm.filter(m=>(m.sender_id===selectedPeer&&m.recipient_id===session.user.id)||(m.sender_id===session.user.id&&m.recipient_id===selectedPeer)).map(m=>messageBubble(m,'direct')).join('')+'</div><form data-form="dm" class="chat-write"><input class="field" name="body" required maxlength="2000" aria-label="Private message" placeholder="Write a private message"><button class="button">Send</button></form>':'')+'</div>';
+ (selectedPeer?'<div class="section-bar"><h3 data-chat-focus tabindex="-1">Conversation with '+e(person(selectedPeer))+'</h3>'+button('refresh-dm','Refresh conversation','secondary')+'</div><div data-dm-refresh-status role="status"></div><div data-message-delete-status role="status"></div><div class="chat-messages">'+dm.filter(m=>(m.sender_id===selectedPeer&&m.recipient_id===session.user.id)||(m.sender_id===session.user.id&&m.recipient_id===selectedPeer)).map(m=>messageBubble(m,'direct')).join('')+'</div>'+(mayMessage(selectedPeer)?'<form data-form="dm" class="chat-write"><input class="field" name="body" required maxlength="2000" aria-label="Private message" placeholder="Write a private message"><button class="button">Send</button></form>':'<p class="muted small">New messages are unavailable in this conversation.</p>'):'')+'</div>';
 }
 function ownership(){
  return head('Private markets & ownership','Develop documented investment theses for real assets, operating businesses, startup capital and shareholder stewardship.',button('new-project','Propose research project','primary'))+
@@ -676,6 +795,7 @@ function render(){
  if(!session?.user){resetDiscussionFeed();auth();return}
  prepareFollowViews();
  prepareDiscussionFeed();
+ prepareNotifications();
  const previous=root.querySelector('.common-member-dialog[open]');
  const previousForm=previous?.querySelector('form');
  const values=previousForm&&previousForm.dataset.form!=='post'?new FormData(previousForm):null;
@@ -701,9 +821,11 @@ async function init(){
  if(!client){setup();return}
  checkGoogleProvider().catch(console.error);
  const r=await saved();if(r.error)throw r.error;session=r.data.session;
+ if(location.hash==='#notifications')view='notifications';
  client.auth.onAuthStateChange((evt,next)=>{
   if(session?.user?.id!==next?.user?.id){
-   researchReview=pollDraft=composerDraft=null;view='home';error=info='';
+   researchReview=pollDraft=composerDraft=null;view=location.hash==='#notifications'?'notifications':'home';error=info='';
+   notificationView=null;notificationSection='all';
    profile=null;ledgerRows=[];ledgerCircle=null;ledgerError='';decisionDetail=null;pollRows=[];pollOwn=null;
    capitalDrafts.clear();capitalTab='overview';blockedMembers=[];bookmarks=[];memberDetail=null;memberDirectory=[];
    profileSection='identity';connectionSection='incoming';state.feed='mine';followProfile=followList=null;mobileMore=false;agentOutput=null;agentInput='';agentMode='review';agentDeskTab='analysis';
@@ -741,9 +863,11 @@ async function init(){
    if(followProfile&&!followProfile.loading)await loadFollowProfile(followProfile,true);
    if(followProfile)await loadConnectionProfile(followProfile,true);
    if(followList&&!followList.loading)await loadFollowList(followList,{quiet:true});
+   if(notificationView&&notificationView.section!=='preferences')await loadNotifications(notificationView,{quiet:true});
   }catch(err){console.error(err)}finally{refreshingView=false}
  },25000);
  document.addEventListener('visibilitychange',()=>{
+  if(view==='notifications'){notificationView=null;render();return}
   if(!currentDiscussionScope()&&!connectionListSection()&&!(view==='profile'&&Object.hasOwn(followSections,profileSection)))return;
   resetDiscussionFeed();followProfile=followList=null;render();
  });
@@ -753,6 +877,7 @@ async function init(){
   if(followProfile?.error)void loadFollowProfile(followProfile,true);
   if(followProfile?.connection==='error')void loadConnectionProfile(followProfile,true);
   if(followList?.error)void loadFollowList(followList,{quiet:true});
+  if(notificationView?.error)void loadNotifications(notificationView);
  });
 }
 async function refresh(){
@@ -805,6 +930,7 @@ async function loadDM(){
 async function acceptInvite(token){await call(client.rpc('accept_private_invite',{token}));pendingInvite=null;try{sessionStorage.removeItem('common.pendingInvite')}catch{}history.replaceState(null,'',base);await refresh();status('Joined the private community.');}
 async function dispatch(action,element){
  const id=element.dataset.id, choice=element.dataset.choice;
+ if(action.startsWith('notification-'))return notificationAction(action,id,choice);
  if(action==='google-auth'){
    if(googleProviderStatus!=='enabled'){
      status('Google sign-in has not been activated in Supabase yet. An OAuth client ID and secret from Google Cloud are required.');
@@ -1061,7 +1187,7 @@ async function dispatch(action,element){
   }
   return;
  }
- if(action==='dm-user'){if(isBlocked(id)||!memberDirectory.some(x=>x.id===id&&x.allow_direct_messages))throw Error('This member is unavailable for direct messages.');selectedPeer=id;dm=[];view='chat';await loadDM();render();return}
+ if(action==='dm-user'){if(!mayMessage(id))throw Error('This member is unavailable for direct messages.');selectedPeer=id;dm=[];view='chat';await loadDM();render();return}
  if(action==='appeal-case'){
    const c=moderationCases.find(x=>x.id===id);
    if(!c||c.actor_id!==session.user.id||c.review_status!=='rejected')
@@ -1175,12 +1301,22 @@ async function submitted(form){
  if(type==='project'){await call(client.from('ownership_projects').insert({community_id:f.get('community'),author_id:uid,title:f.get('title'),thesis:f.get('thesis'),category:f.get('category')}));state.projectCreate=false;await refresh();return}
  if(type==='watch'){const symbol=String(f.get('symbol')).toUpperCase().trim();if(!/^[A-Z][A-Z0-9.-]{0,11}$/.test(symbol))throw new Error('Enter a valid stock symbol');await call(client.from('watchlist_items').upsert({user_id:uid,symbol}));await refresh();return}
  if(type==='chat'){await call(client.from('community_messages').insert({community_id:selectedGroup,author_id:uid,body:short(f.get('body'),2000)}));await loadMessages();render();return}
- if(type==='dm'){if(!selectedPeer)throw new Error('Choose a member');await call(client.from('direct_messages').insert({sender_id:uid,recipient_id:selectedPeer,body:short(f.get('body'),2000)}));await loadDM();render();return}
+ if(type==='notification-preferences'){
+  const current=notificationView;
+  await call(client.rpc('set_member_notification_preferences_v1',{
+   show_messages:f.get('direct_messages')==='on',show_connections:f.get('connections')==='on'
+  }));
+  if(notificationView!==current||!current)return;
+  info='Notification preferences saved.';
+  await loadNotifications(current,{force:true});
+  return;
+ }
+ if(type==='dm'){if(!selectedPeer||!mayMessage(selectedPeer))throw new Error('This member is unavailable for direct messages.');await call(client.from('direct_messages').insert({sender_id:uid,recipient_id:selectedPeer,body:short(f.get('body'),2000)}));await loadDM();render();return}
  if(type==='profile'){await call(client.from('profiles').update({display_name:String(f.get('name')).trim(),bio:String(f.get('bio')||'').trim().slice(0,600)}).eq('id',uid));await refresh();return}
  if(type==='privacy'){await call(client.from('profiles').update({allow_direct_messages:f.get('allow_dm')==='on'}).eq('id',uid));await refresh();return}
 }
 document.addEventListener('click',async ev=>{
- const agentTab=ev.target.closest('[data-agent-tab]');if(agentTab){agentDeskTab=agentTab.dataset.agentTab;render();return}const capital=ev.target.closest('[data-capital-tab]');if(capital){if(joined(selectedGroup)){capitalTab=capital.dataset.capitalTab;if(capitalTab==='ledger'){await loadLedger();}render()}return}const prof=ev.target.closest('[data-profile-section]');if(prof){profileSection=prof.dataset.profileSection;render();return}const nav=ev.target.closest('[data-tab]');if(nav){mobileMore=false;if(nav.dataset.tab==='studio'){location.assign(new URL('../lab/',location.href).href);return}view=nav.dataset.tab;selectedGroup=null;error=info='';render();return}
+ const agentTab=ev.target.closest('[data-agent-tab]');if(agentTab){agentDeskTab=agentTab.dataset.agentTab;render();return}const capital=ev.target.closest('[data-capital-tab]');if(capital){if(joined(selectedGroup)){capitalTab=capital.dataset.capitalTab;if(capitalTab==='ledger'){await loadLedger();}render()}return}const prof=ev.target.closest('[data-profile-section]');if(prof){profileSection=prof.dataset.profileSection;render();return}const nav=ev.target.closest('[data-tab]');if(nav){mobileMore=false;if(nav.dataset.tab==='studio'){location.assign(new URL('../lab/',location.href).href);return}view=nav.dataset.tab;setNotificationRoute(view);selectedGroup=null;error=info='';render();return}
  const feed=ev.target.closest('[data-feed]');if(feed){state.feed=feed.dataset.feed;render();return}const dir=ev.target.closest('[data-directory]');if(dir){state.directory=dir.dataset.directory;render();return}const tab=ev.target.closest('[data-group-tab]');if(tab){state.groupTab=tab.dataset.groupTab;try{if(state.groupTab==='chat')await loadMessages();if(state.groupTab==='members'){memberPoll=[];await loadGroupMembers();}}catch(e){handleError(e);return}render();return}
  const btn=ev.target.closest('[data-act]');if(!btn)return;
  if(busy)return;
@@ -1216,6 +1352,6 @@ document.addEventListener('submit',async ev=>{
  await submitted(form);
  }catch(err){handleError(err)}finally{busy=false}
 });
-window.addEventListener('hashchange',()=>{const m=location.hash.match(/^#invite=([a-f0-9]{48})$/);if(m){pendingInvite=m[1];if(session)acceptInvite(pendingInvite).catch(handleError);else{lastAuthView='signup';auth()}}});
+window.addEventListener('hashchange',()=>{if(location.hash==='#notifications'){view='notifications';render();return}const m=location.hash.match(/^#invite=([a-f0-9]{48})$/);if(m){pendingInvite=m[1];if(session)acceptInvite(pendingInvite).catch(handleError);else{lastAuthView='signup';auth()}}});
 init().catch(handleError);
 })();
